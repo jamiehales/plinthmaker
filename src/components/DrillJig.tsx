@@ -52,9 +52,8 @@ export function buildJigGeometry(
   const innerGeo = buildPlinthBody(p, tol)
 
   const holeRadius = Math.max(0.05, p.holeDiameter / 2)
-  const holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, slabH + 0.02, 32, 1)
-  holeGeo.translate(0, (height - overlap) / 2, 0)
-  holeGeo.rotateX(angleRad)
+  const holeLen = slabH + od + 2
+  const holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, holeLen, 32, 1)
   holeGeo.translate(0, h - drop / 2, 0)
 
   const outerBrush = new Brush(outerGeo)
