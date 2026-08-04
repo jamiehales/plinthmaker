@@ -111,7 +111,7 @@ function App() {
       <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
         <Toolbar variant="dense">
           <Typography variant="h6" component="h1" noWrap>
-            Plinth Maker
+            mostlymaking.plinths
           </Typography>
         </Toolbar>
       </AppBar>
