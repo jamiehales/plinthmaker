@@ -21,10 +21,16 @@ export interface PlinthParams {
   roundSize: number
 }
 
-const ELLIPSE_SEGMENTS = 48
-const ARC_SEGMENTS = 8
-const CHAMFER_STEPS = 8
-const FILLET_STEPS = 12
+const SEGMENT_MM = 0.03
+
+function segsForArc(radius: number, sweepRad: number, min = 4): number {
+  return Math.max(min, Math.ceil((radius * sweepRad) / SEGMENT_MM))
+}
+
+function segsForEllipse(hw: number, hd: number, min = 16): number {
+  const perim = Math.PI * (3 * (hw + hd) - Math.sqrt((3 * hw + hd) * (hw + 3 * hd)))
+  return Math.max(min, Math.ceil(perim / SEGMENT_MM))
+}
 
 export function topDrop(p: Pick<PlinthParams, 'angleTop' | 'topAngle' | 'depth'>): number {
   if (!p.angleTop) return 0
@@ -35,8 +41,9 @@ export function topDrop(p: Pick<PlinthParams, 'angleTop' | 'topAngle' | 'depth'>
 function makeOutline(shape: Shape, w: number, d: number, style: RoundStyle, edgeRound: boolean, r: number): THREE.Vector2[] {
   if (shape === 'ellipse') {
     const pts: THREE.Vector2[] = []
-    for (let i = 0; i < ELLIPSE_SEGMENTS; i++) {
-      const a = (i / ELLIPSE_SEGMENTS) * Math.PI * 2
+    const n = segsForEllipse(w / 2, d / 2)
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2
       pts.push(new THREE.Vector2(w / 2 * Math.cos(a), d / 2 * Math.sin(a)))
     }
     return pts
@@ -75,9 +82,10 @@ function makeOutline(shape: Shape, w: number, d: number, style: RoundStyle, edge
   const pts: THREE.Vector2[] = []
   for (let i = 0; i < corners.length; i++) {
     const c = corners[i]
+    const arcN = segsForArc(cr, Math.PI / 2)
     pts.push(new THREE.Vector2(c.cx + cr * Math.cos(c.start), c.cz + cr * Math.sin(c.start)))
-    for (let j = 1; j < ARC_SEGMENTS; j++) {
-      const t = j / ARC_SEGMENTS
+    for (let j = 1; j < arcN; j++) {
+      const t = j / arcN
       const ang = c.start + (c.end - c.start) * t
       pts.push(new THREE.Vector2(c.cx + cr * Math.cos(ang), c.cz + cr * Math.sin(ang)))
     }
@@ -172,7 +180,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0): THREE.BufferGeometry {
 
   if (topRound) {
     rings.push({ y: h - r, pts: baseOutline.map((p) => p.clone()) })
-    const steps = p.roundStyle === 'chamfer' ? CHAMFER_STEPS : FILLET_STEPS
+    const steps = segsForArc(r, Math.PI / 2, 4)
     for (let i = 1; i < steps; i++) {
       const t = i / steps
       let shrink: number
