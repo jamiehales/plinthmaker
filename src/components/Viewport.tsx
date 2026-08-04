@@ -1,12 +1,14 @@
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei'
 import Plinth, { type PlinthParams } from './Plinth.tsx'
+import DrillJig, { type DrillJigParams } from './DrillJig.tsx'
 
 interface ViewportProps {
   plinthParams: PlinthParams
+  drillJigParams: DrillJigParams
 }
 
-export default function Viewport({ plinthParams }: ViewportProps) {
+export default function Viewport({ plinthParams, drillJigParams }: ViewportProps) {
   return (
     <Canvas
       camera={{ position: [80, 60, 80], fov: 45, near: 0.1, far: 10000 }}
@@ -44,6 +46,9 @@ export default function Viewport({ plinthParams }: ViewportProps) {
       />
 
       <Plinth {...plinthParams} />
+      {drillJigParams.enabled ? (
+        <DrillJig shape={plinthParams.shape} plinthParams={plinthParams} jigParams={drillJigParams} />
+      ) : null}
 
       <OrbitControls
         makeDefault

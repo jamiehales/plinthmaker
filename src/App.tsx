@@ -15,6 +15,7 @@ import SquareIcon from '@mui/icons-material/Square'
 import CircleIcon from '@mui/icons-material/Circle'
 import Viewport from './components/Viewport.tsx'
 import { type Shape, type PlinthParams } from './components/Plinth.tsx'
+import { type DrillJigParams } from './components/DrillJig.tsx'
 import LabeledSlider from './components/LabeledSlider.tsx'
 
 const DRAWER_WIDTH = 340
@@ -28,6 +29,12 @@ function App() {
   const [addHole, setAddHole] = useState(false)
   const [holeDiameter, setHoleDiameter] = useState(5)
   const [holeDepth, setHoleDepth] = useState(5)
+  const [addDrillJig, setAddDrillJig] = useState(false)
+  const [jigWallSize, setJigWallSize] = useState(3)
+  const [jigHeight, setJigHeight] = useState(10)
+  const [jigOverlap, setJigOverlap] = useState(5)
+  const [jigTolerance, setJigTolerance] = useState(0.1)
+  const [jigLift, setJigLift] = useState(true)
 
   const handleShape = (_e: unknown, v: Shape | null) => {
     if (v !== null) setShape(v)
@@ -51,6 +58,15 @@ function App() {
     addHole,
     holeDiameter,
     holeDepth,
+  }
+
+  const drillJigParams: DrillJigParams = {
+    enabled: addDrillJig,
+    wallSize: jigWallSize,
+    jigHeight,
+    overlap: jigOverlap,
+    tolerance: jigTolerance,
+    lift: jigLift,
   }
 
   return (
@@ -128,6 +144,8 @@ function App() {
 
           <Divider sx={{ my: 2 }} />
 
+          <LabeledSlider label="Hole Diameter" value={holeDiameter} onChange={setHoleDiameter} min={1} max={10} step={0.5} />
+
           <FormControlLabel
             control={
               <Checkbox
@@ -136,25 +154,76 @@ function App() {
                 size="small"
               />
             }
-            label="Add Hole"
+            label="Add Hole to Plinth"
             sx={{ display: 'flex', mb: 1, '& .MuiFormControlLabel-label': { fontSize: 14 } }}
           />
           {addHole ? (
+            <LabeledSlider
+              label="Hole Depth"
+              value={holeDepth}
+              onChange={setHoleDepth}
+              min={1}
+              max={50}
+            />
+          ) : null}
+
+          <Divider sx={{ my: 2 }} />
+
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={addDrillJig}
+                onChange={(e) => setAddDrillJig(e.target.checked)}
+                size="small"
+              />
+            }
+            label="Add Drill Jig"
+            sx={{ display: 'flex', mb: 1, '& .MuiFormControlLabel-label': { fontSize: 14 } }}
+          />
+          {addDrillJig ? (
             <>
               <LabeledSlider
-                label="Hole Diameter"
-                value={holeDiameter}
-                onChange={setHoleDiameter}
+                label="Wall Size"
+                value={jigWallSize}
+                onChange={setJigWallSize}
                 min={1}
                 max={10}
-                step={0.5}
+                step={0.1}
               />
               <LabeledSlider
-                label="Hole Depth"
-                value={holeDepth}
-                onChange={setHoleDepth}
+                label="Height"
+                value={jigHeight}
+                onChange={setJigHeight}
                 min={1}
                 max={50}
+                step={0.1}
+              />
+              <LabeledSlider
+                label="Overlap"
+                value={jigOverlap}
+                onChange={setJigOverlap}
+                min={1}
+                max={20}
+                step={0.1}
+              />
+              <LabeledSlider
+                label="Tolerance"
+                value={jigTolerance}
+                onChange={setJigTolerance}
+                min={0}
+                max={1}
+                step={0.01}
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={jigLift}
+                    onChange={(e) => setJigLift(e.target.checked)}
+                    size="small"
+                  />
+                }
+                label="Lift Drill Jig"
+                sx={{ display: 'flex', mb: 1, '& .MuiFormControlLabel-label': { fontSize: 14 } }}
               />
             </>
           ) : null}
@@ -170,7 +239,7 @@ function App() {
           mt: '48px',
         }}
       >
-        <Viewport plinthParams={plinthParams} />
+        <Viewport plinthParams={plinthParams} drillJigParams={drillJigParams} />
       </Box>
     </Box>
   )
