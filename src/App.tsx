@@ -80,6 +80,20 @@ function App() {
     roundSize,
   }
 
+  const buildPlinthFilename = (p: PlinthParams) => {
+    const roundPart = p.roundStyle === 'none' ? 'none' : `${p.roundStyle}-${p.roundSize}`
+    const holePart = p.addHole ? `hole-${p.holeDiameter}mm` : 'hole-none'
+    const anglePart = p.angleTop ? `angled-${p.topAngle}°` : 'flat'
+    return `plinth_${p.shape}_${p.width}x${p.depth}x${p.height}_${anglePart}_${roundPart}_${holePart}.stl`
+  }
+
+  const buildJigFilename = (p: PlinthParams, j: DrillJigParams) => {
+    const anglePart = p.angleTop ? `${p.topAngle}°` : 'flat'
+    const flattenPart = j.flattenTop ? 'flat' : 'angled'
+    const holePart = p.addHole ? `hole-${p.holeDiameter}mm` : 'hole-none'
+    return `plinth_drilljig_${p.width}x${p.depth}x${p.height}_${anglePart}_${flattenPart}_${holePart}.stl`
+  }
+
   const drillJigParams: DrillJigParams = {
     enabled: addDrillJig,
     wallSize: jigWallSize,
@@ -343,7 +357,7 @@ function App() {
             startIcon={<DownloadIcon />}
             onClick={() => {
               const geo = buildGeometry(plinthParams)
-              exportSTL(geo, 'plinth.stl')
+              exportSTL(geo, buildPlinthFilename(plinthParams))
               geo.dispose()
             }}
           >
@@ -358,7 +372,7 @@ function App() {
               sx={{ mt: 1 }}
               onClick={() => {
                 const { jig: geo, cavity } = buildJigGeometry(shape, plinthParams, drillJigParams)
-                exportSTL(geo, 'drill-jig.stl')
+                exportSTL(geo, buildJigFilename(plinthParams, drillJigParams))
                 geo.dispose()
                 cavity.dispose()
               }}
