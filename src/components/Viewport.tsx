@@ -1,8 +1,12 @@
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei'
-import { Box } from '@react-three/drei'
+import Plinth, { type PlinthParams } from './Plinth.tsx'
 
-export default function Viewport() {
+interface ViewportProps {
+  plinthParams: PlinthParams
+}
+
+export default function Viewport({ plinthParams }: ViewportProps) {
   return (
     <Canvas
       camera={{ position: [80, 60, 80], fov: 45, near: 0.1, far: 10000 }}
@@ -39,15 +43,7 @@ export default function Viewport() {
         followCamera={false}
       />
 
-      {/* Placeholder plinth */}
-      <Box
-        args={[20, 10, 20]}
-        position={[0, 5, 0]}
-        castShadow
-        receiveShadow
-      >
-        <meshStandardMaterial color="#9aa4b0" metalness={0.1} roughness={0.6} />
-      </Box>
+      <Plinth {...plinthParams} />
 
       <OrbitControls
         makeDefault
