@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.git
+.gitignore
+.vercel
+*.log
+.vscode
+.idea
+.DS_Store

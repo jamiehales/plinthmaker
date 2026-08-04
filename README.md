@@ -1,32 +1,51 @@
-# React + TypeScript + Vite
+# Plinth Generator
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A browser-based tool for generating parametric STL plinth models. Runs entirely client-side — no API calls, works offline once loaded.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Vite** + **React 19** + **TypeScript**
+- **MUI** (Material UI v9) for the interface
+- **three.js** via `@react-three/fiber` + `@react-three/drei` for the 3D viewport
+- **pnpm** for package management
+- Deployed to **Vercel** (static SPA)
 
-## React Compiler
+## Prerequisites
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Node.js >= 24
+- pnpm (`corepack enable && corepack prepare pnpm@latest --activate`)
 
-## Expanding the Oxlint configuration
+## Development
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+pnpm install
+pnpm dev          # http://localhost:5173
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Production build
+
+```sh
+pnpm run build    # type-check + bundle to dist/
+pnpm run preview  # serve the built bundle locally
+```
+
+## Local Docker
+
+Build and run the containerised app (serves the production build via nginx on port 5173):
+
+```sh
+docker build -t plinthmaker .
+docker run -p 5173:5173 plinthmaker
+```
+
+Then open http://localhost:5173.
+
+## Lint
+
+```sh
+pnpm run lint     # oxlint
+```
+
+## Deploy
+
+Push to `main` — Vercel auto-deploys via the settings in `vercel.json` (Vite framework, `dist` output, SPA rewrite to `index.html`).
