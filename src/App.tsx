@@ -16,7 +16,7 @@ import DownloadIcon from '@mui/icons-material/Download'
 import SquareIcon from '@mui/icons-material/Square'
 import CircleIcon from '@mui/icons-material/Circle'
 import Viewport from './components/Viewport.tsx'
-import { type Shape, type PlinthParams, buildGeometry } from './components/Plinth.tsx'
+import { type Shape, type PlinthParams, type RoundStyle, type RoundLocation, buildGeometry } from './components/Plinth.tsx'
 import {
   type DrillJigParams,
   buildJigGeometry,
@@ -44,9 +44,15 @@ function App() {
   const [jigFlattenTop, setJigFlattenTop] = useState(true)
   const [angleTop, setAngleTop] = useState(false)
   const [topAngle, setTopAngle] = useState(30)
+  const [roundStyle, setRoundStyle] = useState<RoundStyle>('none')
+  const [roundLocation, setRoundLocation] = useState<RoundLocation>('none')
+  const [roundSize, setRoundSize] = useState(1)
 
   const handleShape = (_e: unknown, v: Shape | null) => {
-    if (v !== null) setShape(v)
+    if (v !== null) {
+      setShape(v)
+      if (v === 'ellipse' && roundLocation !== 'top') setRoundLocation('top')
+    }
   }
 
   const handleWidth = (w: number) => {
@@ -69,6 +75,9 @@ function App() {
     holeDepth,
     angleTop,
     topAngle,
+    roundStyle,
+    roundLocation: shape === 'ellipse' ? 'top' : roundLocation,
+    roundSize,
   }
 
   const drillJigParams: DrillJigParams = {
@@ -175,6 +184,58 @@ function App() {
               step={1}
               unit="degrees"
             />
+          ) : null}
+
+          <Divider sx={{ my: 2 }} />
+
+          <Typography variant="overline" sx={{ color: 'text.secondary' }}>
+            Chamfer / Fillet
+          </Typography>
+          <ToggleButtonGroup
+            value={roundStyle}
+            exclusive
+            onChange={(_e, v: RoundStyle | null) => {
+              if (v !== null) {
+                setRoundStyle(v)
+                if (v !== 'none' && shape === 'ellipse' && roundLocation === 'none') setRoundLocation('top')
+              }
+            }}
+            size="small"
+            fullWidth
+            sx={{ mb: 1 }}
+          >
+            <ToggleButton value="none">None</ToggleButton>
+            <ToggleButton value="chamfer">Chamfer</ToggleButton>
+            <ToggleButton value="fillet">Fillet</ToggleButton>
+          </ToggleButtonGroup>
+          {roundStyle !== 'none' ? (
+            <>
+              {shape === 'rectangle' ? (
+                <ToggleButtonGroup
+                  value={roundLocation}
+                  exclusive
+                  onChange={(_e, v: RoundLocation | null) => { if (v !== null) setRoundLocation(v) }}
+                  size="small"
+                  fullWidth
+                  sx={{ mb: 1 }}
+                >
+                  <ToggleButton value="none">None</ToggleButton>
+                  <ToggleButton value="top">Top</ToggleButton>
+                  <ToggleButton value="edges">Edges</ToggleButton>
+                  <ToggleButton value="both">Both</ToggleButton>
+                </ToggleButtonGroup>
+              ) : null}
+              {roundLocation !== 'none' ? (
+                <LabeledSlider
+                  label="Size"
+                  value={roundSize}
+                  onChange={setRoundSize}
+                  min={0}
+                  max={5}
+                  step={0.1}
+                />
+              ) : null}
+            </>
           ) : null}
 
           <Divider sx={{ my: 2 }} />

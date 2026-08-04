@@ -69,7 +69,7 @@ export function buildJigGeometry(
     outerGeo.translate(0, h - drop / 2, 0)
   }
 
-  const innerGeo = buildPlinthBody(p, tol)
+  const innerGeo = buildPlinthBody({ ...p, roundStyle: 'none', roundLocation: 'none' }, tol)
 
   const holeRadius = Math.max(0.05, p.holeDiameter / 2)
   let holeGeo: THREE.CylinderGeometry
