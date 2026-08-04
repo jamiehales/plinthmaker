@@ -302,14 +302,12 @@ export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT
 
   const radius = Math.max(0.05, p.holeDiameter / 2)
   const holeDepth = Math.max(0.1, p.holeDepth)
-  const holeGeo = new THREE.CylinderGeometry(radius, radius, holeDepth + 0.01, circleSegments(radius * 2, baseSegMM), 1)
+  const extraTop = 2
+  const holeGeo = new THREE.CylinderGeometry(radius, radius, holeDepth + extraTop, circleSegments(radius * 2, baseSegMM), 1)
 
-  if (p.angleTop) {
-    holeGeo.rotateX(angleRad)
-    holeGeo.translate(0, h - drop / 2 - (holeDepth / 2) * cosA, -(holeDepth / 2) * sinA)
-  } else {
-    holeGeo.translate(0, h - holeDepth / 2, 0)
-  }
+  holeGeo.rotateX(angleRad)
+  const halfExtra = (extraTop - holeDepth) / 2
+  holeGeo.translate(0, h - drop / 2 + halfExtra * cosA, halfExtra * sinA)
 
   const holeBrush = new Brush(holeGeo)
   holeBrush.updateMatrixWorld(true)
