@@ -35,6 +35,8 @@ function App() {
   const [jigOverlap, setJigOverlap] = useState(5)
   const [jigTolerance, setJigTolerance] = useState(0.1)
   const [jigLift, setJigLift] = useState(true)
+  const [angleTop, setAngleTop] = useState(false)
+  const [topAngle, setTopAngle] = useState(30)
 
   const handleShape = (_e: unknown, v: Shape | null) => {
     if (v !== null) setShape(v)
@@ -58,6 +60,8 @@ function App() {
     addHole,
     holeDiameter,
     holeDepth,
+    angleTop,
+    topAngle,
   }
 
   const drillJigParams: DrillJigParams = {
@@ -141,6 +145,29 @@ function App() {
           />
 
           <LabeledSlider label="Height" value={height} onChange={setHeight} min={10} max={200} />
+
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={angleTop}
+                onChange={(e) => setAngleTop(e.target.checked)}
+                size="small"
+              />
+            }
+            label="Angle Top"
+            sx={{ display: 'flex', mb: 1, '& .MuiFormControlLabel-label': { fontSize: 14 } }}
+          />
+          {angleTop ? (
+            <LabeledSlider
+              label="Top Angle"
+              value={topAngle}
+              onChange={setTopAngle}
+              min={1}
+              max={45}
+              step={1}
+              unit="degrees"
+            />
+          ) : null}
 
           <Divider sx={{ my: 2 }} />
 
