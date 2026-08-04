@@ -11,14 +11,12 @@ import {
   Checkbox,
   Divider,
   Button,
-  TextField,
-  InputAdornment,
 } from '@mui/material'
 import DownloadIcon from '@mui/icons-material/Download'
 import SquareIcon from '@mui/icons-material/Square'
 import CircleIcon from '@mui/icons-material/Circle'
 import Viewport from './components/Viewport.tsx'
-import { type Shape, type PlinthParams, type RoundStyle, type RoundLocation, buildGeometry, DOWNLOAD_BASE_SEGMENT_MM, DOWNLOAD_FILLET_SEGMENT_MM } from './components/Plinth.tsx'
+import { type Shape, type PlinthParams, type RoundStyle, type RoundLocation, buildGeometry } from './components/Plinth.tsx'
 import {
   type DrillJigParams,
   buildJigGeometry,
@@ -27,8 +25,6 @@ import LabeledSlider from './components/LabeledSlider.tsx'
 import { exportSTL } from './components/exportSTL.ts'
 
 const DRAWER_WIDTH = 500
-const PREVIEW_BASE_SEGMENT_MM = 0.25
-const PREVIEW_FILLET_SEGMENT_MM = 0.25
 
 function App() {
   const [shape, setShape] = useState<Shape>('rectangle')
@@ -51,7 +47,7 @@ function App() {
   const [roundStyle, setRoundStyle] = useState<RoundStyle>('none')
   const [roundLocation, setRoundLocation] = useState<RoundLocation>('none')
   const [roundSize, setRoundSize] = useState(1)
-  const [previewResolution, setPreviewResolution] = useState(0.25)
+  const [downloadResolution, setDownloadResolution] = useState(0.05)
 
   const handleShape = (_e: unknown, v: Shape | null) => {
     if (v !== null) {
@@ -85,11 +81,12 @@ function App() {
     roundSize,
   }
 
-  const buildPlinthFilename = (p: PlinthParams) => {
+  const buildPlinthFilename = (p: PlinthParams, resMM: number) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
     const holePart = p.addHole ? `hole-${p.holeDiameter}mm` : 'hole-none'
     const anglePart = p.angleTop ? `angled-${p.topAngle}°` : 'flat'
-    return `plinth_${p.shape}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}.stl`
+    const um = Math.round(resMM * 1000)
+    return `plinth_${p.shape}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}_${um}um.stl`
   }
 
   const buildJigFilename = (p: PlinthParams, j: DrillJigParams) => {
@@ -357,6 +354,22 @@ function App() {
           </Box>
 
           <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.75 }}>
+              Download Resolution
+            </Typography>
+            <ToggleButtonGroup
+              value={downloadResolution}
+              exclusive
+              onChange={(_e, v: number | null) => { if (v !== null) setDownloadResolution(v) }}
+              size="small"
+              fullWidth
+              sx={{ mb: 1.5 }}
+            >
+              <ToggleButton value={0.03}>30um</ToggleButton>
+              <ToggleButton value={0.05}>50um</ToggleButton>
+              <ToggleButton value={0.1}>100um</ToggleButton>
+              <ToggleButton value={0.25}>250um</ToggleButton>
+            </ToggleButtonGroup>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {addDrillJig ? (
                 <Button
@@ -365,7 +378,7 @@ function App() {
                   color="secondary"
                   startIcon={<DownloadIcon />}
                   onClick={() => {
-                    const { jig: geo, cavity } = buildJigGeometry(shape, plinthParams, drillJigParams)
+                    const { jig: geo, cavity } = buildJigGeometry(shape, plinthParams, drillJigParams, downloadResolution, downloadResolution)
                     exportSTL(geo, buildJigFilename(plinthParams, drillJigParams))
                     geo.dispose()
                     cavity.dispose()
@@ -379,8 +392,8 @@ function App() {
                 fullWidth
                 startIcon={<DownloadIcon />}
                 onClick={() => {
-                  const geo = buildGeometry(plinthParams)
-                  exportSTL(geo, buildPlinthFilename(plinthParams))
+                  const geo = buildGeometry(plinthParams, downloadResolution, downloadResolution)
+                  exportSTL(geo, buildPlinthFilename(plinthParams, downloadResolution))
                   geo.dispose()
                 }}
               >
@@ -400,7 +413,12 @@ function App() {
           mt: '48px',
         }}
       >
-        <Viewport plinthParams={plinthParams} drillJigParams={drillJigParams} />
+        <Viewport
+          plinthParams={plinthParams}
+          drillJigParams={drillJigParams}
+          baseSegMM={0.25}
+          filletSegMM={0.25}
+        />
       </Box>
     </Box>
   )
