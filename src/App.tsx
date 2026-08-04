@@ -81,10 +81,10 @@ function App() {
   }
 
   const buildPlinthFilename = (p: PlinthParams) => {
-    const roundPart = p.roundStyle === 'none' ? 'none' : `${p.roundStyle}-${p.roundSize}`
+    const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
     const holePart = p.addHole ? `hole-${p.holeDiameter}mm` : 'hole-none'
     const anglePart = p.angleTop ? `angled-${p.topAngle}°` : 'flat'
-    return `plinth_${p.shape}_${p.width}x${p.depth}x${p.height}_${anglePart}_${roundPart}_${holePart}.stl`
+    return `plinth_${p.shape}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}.stl`
   }
 
   const buildJigFilename = (p: PlinthParams, j: DrillJigParams) => {
