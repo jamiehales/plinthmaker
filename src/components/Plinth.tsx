@@ -21,15 +21,16 @@ export interface PlinthParams {
   roundSize: number
 }
 
-const SEGMENT_MM = 0.03
+const BASE_SEGMENT_MM = 0.1
+const FILLET_SEGMENT_MM = 0.05
 
 function segsForArc(radius: number, sweepRad: number, min = 4): number {
-  return Math.max(min, Math.ceil((radius * sweepRad) / SEGMENT_MM))
+  return Math.max(min, Math.ceil((radius * sweepRad) / FILLET_SEGMENT_MM))
 }
 
 function segsForEllipse(hw: number, hd: number, min = 16): number {
   const perim = Math.PI * (3 * (hw + hd) - Math.sqrt((3 * hw + hd) * (hw + 3 * hd)))
-  return Math.max(min, Math.ceil(perim / SEGMENT_MM))
+  return Math.max(min, Math.ceil(perim / BASE_SEGMENT_MM))
 }
 
 export function topDrop(p: Pick<PlinthParams, 'angleTop' | 'topAngle' | 'depth'>): number {
@@ -180,18 +181,11 @@ function buildRoundedBody(p: PlinthParams, tol = 0): THREE.BufferGeometry {
 
   if (topRound) {
     rings.push({ y: h - r, pts: baseOutline.map((p) => p.clone()) })
-    const steps = segsForArc(r, Math.PI / 2, 4)
+    const steps = p.roundStyle === 'chamfer' ? 1 : segsForArc(r, Math.PI / 2, 4)
     for (let i = 1; i < steps; i++) {
       const t = i / steps
-      let shrink: number
-      let y: number
-      if (p.roundStyle === 'chamfer') {
-        shrink = r * t
-        y = (h - r) + r * t
-      } else {
-        shrink = r - r * Math.cos(t * Math.PI / 2)
-        y = (h - r) + r * Math.sin(t * Math.PI / 2)
-      }
+      const shrink = r - r * Math.cos(t * Math.PI / 2)
+      const y = (h - r) + r * Math.sin(t * Math.PI / 2)
       rings.push({ y, pts: shrinkOutline(baseOutline, shrink) })
     }
     rings.push({ y: h, pts: shrinkOutline(baseOutline, r) })
