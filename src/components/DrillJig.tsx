@@ -12,7 +12,7 @@ export interface DrillJigParams {
   lift: boolean
 }
 
-function buildJigGeometry(
+export function buildJigGeometry(
   shape: Shape,
   p: PlinthParams,
   jig: DrillJigParams,
@@ -101,19 +101,23 @@ export default function DrillJig({
   const liftOffset = jigParams.lift ? overlap + 20 : 0
 
   return (
-    <mesh
-      geometry={geometry}
-      position={[0, liftOffset, 0]}
-      castShadow
-      receiveShadow
-    >
-      <meshStandardMaterial
-        color="#d98c4a"
-        metalness={0.1}
-        roughness={0.6}
-        transparent
-        opacity={0.7}
-      />
-    </mesh>
+      <mesh
+        geometry={geometry}
+        position={[0, liftOffset, 0]}
+        castShadow
+        receiveShadow
+      >
+        <meshStandardMaterial
+          color="#d98c4a"
+          metalness={0.1}
+          roughness={0.6}
+          transparent
+          opacity={0.7}
+        />
+        <lineSegments>
+          <wireframeGeometry args={[geometry]} />
+          <lineBasicMaterial color="#1a1a1a" transparent opacity={0.4} />
+        </lineSegments>
+      </mesh>
   )
 }

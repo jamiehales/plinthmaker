@@ -56,7 +56,7 @@ export default function Viewport({ plinthParams, drillJigParams }: ViewportProps
         dampingFactor={0.1}
         minDistance={10}
         maxDistance={5000}
-        maxPolarAngle={Math.PI / 2 - 0.05}
+        maxPolarAngle={Math.PI / 2 + 0.3}
       />
       <GizmoHelper alignment="bottom-right" margin={[72, 72]}>
         <GizmoViewport

@@ -74,7 +74,7 @@ export function buildPlinthBody(p: PlinthParams, tol = 0): THREE.BufferGeometry 
   return bodyGeo
 }
 
-function buildGeometry(p: PlinthParams): THREE.BufferGeometry {
+export function buildGeometry(p: PlinthParams): THREE.BufferGeometry {
   const bodyGeo = buildPlinthBody(p)
   const h = Math.max(0.1, p.height)
 

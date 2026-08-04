@@ -10,13 +10,19 @@ import {
   FormControlLabel,
   Checkbox,
   Divider,
+  Button,
 } from '@mui/material'
+import DownloadIcon from '@mui/icons-material/Download'
 import SquareIcon from '@mui/icons-material/Square'
 import CircleIcon from '@mui/icons-material/Circle'
 import Viewport from './components/Viewport.tsx'
-import { type Shape, type PlinthParams } from './components/Plinth.tsx'
-import { type DrillJigParams } from './components/DrillJig.tsx'
+import { type Shape, type PlinthParams, buildGeometry } from './components/Plinth.tsx'
+import {
+  type DrillJigParams,
+  buildJigGeometry,
+} from './components/DrillJig.tsx'
 import LabeledSlider from './components/LabeledSlider.tsx'
+import { exportSTL } from './components/exportSTL.ts'
 
 const DRAWER_WIDTH = 340
 
@@ -253,6 +259,37 @@ function App() {
                 sx={{ display: 'flex', mb: 1, '& .MuiFormControlLabel-label': { fontSize: 14 } }}
               />
             </>
+          ) : null}
+
+          <Divider sx={{ my: 2 }} />
+
+          <Button
+            variant="contained"
+            fullWidth
+            startIcon={<DownloadIcon />}
+            onClick={() => {
+              const geo = buildGeometry(plinthParams)
+              exportSTL(geo, 'plinth.stl')
+              geo.dispose()
+            }}
+          >
+            Download Plinth STL
+          </Button>
+          {addDrillJig ? (
+            <Button
+              variant="contained"
+              fullWidth
+              color="secondary"
+              startIcon={<DownloadIcon />}
+              sx={{ mt: 1 }}
+              onClick={() => {
+                const geo = buildJigGeometry(shape, plinthParams, drillJigParams)
+                exportSTL(geo, 'drill-jig.stl')
+                geo.dispose()
+              }}
+            >
+              Download Drill Jig STL
+            </Button>
           ) : null}
         </Box>
       </Drawer>
