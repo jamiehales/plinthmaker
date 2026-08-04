@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
-import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
+import { Brush, Evaluator, SUBTRACTION, INTERSECTION } from 'three-bvh-csg'
 import { type Shape, type PlinthParams, buildPlinthBody, topDrop } from './Plinth.tsx'
 
 export interface DrillJigParams {
@@ -16,7 +16,7 @@ export function buildJigGeometry(
   shape: Shape,
   p: PlinthParams,
   jig: DrillJigParams,
-): THREE.BufferGeometry {
+): { jig: THREE.BufferGeometry; cavity: THREE.BufferGeometry } {
   const w = Math.max(0.1, p.width)
   const d = Math.max(0.1, p.depth)
   const h = Math.max(0.1, p.height)
@@ -69,11 +69,14 @@ export function buildJigGeometry(
   const step1 = evaluator.evaluate(outerBrush, innerBrush, SUBTRACTION)
   const step2 = evaluator.evaluate(step1, holeBrush, SUBTRACTION)
 
+  const cavityBrush = evaluator.evaluate(innerBrush, outerBrush, INTERSECTION)
+
   const geo = step2.geometry
+  const cavityGeo = cavityBrush.geometry
   if (geo !== outerGeo) outerGeo.dispose()
   innerGeo.dispose()
   holeGeo.dispose()
-  return geo
+  return { jig: geo, cavity: cavityGeo }
 }
 
 export default function DrillJig({
@@ -85,38 +88,78 @@ export default function DrillJig({
   plinthParams: PlinthParams
   jigParams: DrillJigParams
 }) {
-  const geometry = useMemo(
+  const { jig: geometry, cavity: cavityGeo } = useMemo(
     () => buildJigGeometry(shape, plinthParams, jigParams),
     [shape, plinthParams, jigParams],
   )
+  const edges = useMemo(() => new THREE.EdgesGeometry(cavityGeo), [cavityGeo])
+  const makeHoleCircle = useMemo(() => {
+    return () => {
+      const r = Math.max(0.05, plinthParams.holeDiameter / 2)
+      const angleR = plinthParams.angleTop
+        ? (Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180
+        : 0
+      const cos = Math.cos(angleR)
+      const zScale = angleR > 0 ? 1 / Math.max(0.01, cos) : 1
+      const segs = 64
+      const pts = new Float32Array((segs + 1) * 3)
+      for (let i = 0; i <= segs; i++) {
+        const a = (i / segs) * Math.PI * 2
+        pts[i * 3] = Math.cos(a) * r
+        pts[i * 3 + 1] = 0
+        pts[i * 3 + 2] = Math.sin(a) * r * zScale
+      }
+      const g = new THREE.BufferGeometry()
+      g.setAttribute('position', new THREE.BufferAttribute(pts, 3))
+      return new THREE.LineLoop(g, new THREE.LineBasicMaterial({ color: 0x1a1a1a, transparent: true, opacity: 0.8, depthTest: false }))
+    }
+  }, [plinthParams.holeDiameter, plinthParams.angleTop, plinthParams.topAngle])
+  const holeCircle = useMemo(() => makeHoleCircle(), [makeHoleCircle])
+  const holeCircleTop = useMemo(() => makeHoleCircle(), [makeHoleCircle])
 
   useEffect(() => {
     return () => {
       geometry.dispose()
+      cavityGeo.dispose()
+      edges.dispose()
+      holeCircle.geometry.dispose()
+      ;(holeCircle.material as THREE.Material).dispose()
+      holeCircleTop.geometry.dispose()
+      ;(holeCircleTop.material as THREE.Material).dispose()
     }
-  }, [geometry])
+  }, [geometry, cavityGeo, edges, holeCircle, holeCircleTop])
 
   const overlap = Math.max(0, jigParams.overlap)
   const liftOffset = jigParams.lift ? overlap + 20 : 0
 
+  const h = Math.max(0.1, plinthParams.height)
+  const d = Math.max(0.1, plinthParams.depth)
+  const drop = topDrop({ angleTop: plinthParams.angleTop, topAngle: plinthParams.topAngle, depth: d })
+  const height = Math.max(0.1, jigParams.jigHeight)
+  const angleRad = plinthParams.angleTop
+    ? (Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180
+    : 0
+  const cosA = Math.cos(angleRad)
+  const baseY = h - drop / 2
+  const topCircleY = baseY + height / Math.max(0.01, cosA)
+  const bottomCircleY = baseY
+
   return (
-      <mesh
-        geometry={geometry}
-        position={[0, liftOffset, 0]}
-        castShadow
-        receiveShadow
-      >
-        <meshStandardMaterial
-          color="#d98c4a"
-          metalness={0.1}
-          roughness={0.6}
-          transparent
-          opacity={0.7}
-        />
-        <lineSegments>
-          <wireframeGeometry args={[geometry]} />
-          <lineBasicMaterial color="#1a1a1a" transparent opacity={0.4} />
+      <group position={[0, liftOffset, 0]}>
+        <mesh geometry={geometry} castShadow receiveShadow>
+          <meshStandardMaterial
+            color="#d98c4a"
+            metalness={0.1}
+            roughness={0.6}
+            transparent
+            opacity={0.7}
+          />
+        </mesh>
+        <lineSegments geometry={edges} renderOrder={1000}>
+          <lineBasicMaterial color="#1a1a1a" transparent opacity={0.6} depthTest={false} />
         </lineSegments>
-      </mesh>
+        <primitive object={holeCircle} position={[0, bottomCircleY, 0]} rotation={[angleRad, 0, 0]} renderOrder={1000} />
+        <primitive object={holeCircleTop} position={[0, topCircleY, 0]} rotation={[angleRad, 0, 0]} renderOrder={1000} />
+      </group>
   )
 }

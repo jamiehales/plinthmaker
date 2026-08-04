@@ -283,9 +283,10 @@ function App() {
               startIcon={<DownloadIcon />}
               sx={{ mt: 1 }}
               onClick={() => {
-                const geo = buildJigGeometry(shape, plinthParams, drillJigParams)
+                const { jig: geo, cavity } = buildJigGeometry(shape, plinthParams, drillJigParams)
                 exportSTL(geo, 'drill-jig.stl')
                 geo.dispose()
+                cavity.dispose()
               }}
             >
               Download Drill Jig STL
