@@ -11,7 +11,7 @@ interface ViewportProps {
 export default function Viewport({ plinthParams, drillJigParams }: ViewportProps) {
   return (
     <Canvas
-      camera={{ position: [80, 60, 80], fov: 45, near: 0.1, far: 10000 }}
+      camera={{ position: [80, 60, 80], fov: 45, near: 0.1, far: 50000 }}
       gl={{ antialias: true, preserveDrawingBuffer: true }}
       shadows
       style={{ width: '100%', height: '100%' }}
@@ -55,7 +55,7 @@ export default function Viewport({ plinthParams, drillJigParams }: ViewportProps
         enableDamping
         dampingFactor={0.1}
         minDistance={10}
-        maxDistance={500}
+        maxDistance={5000}
         maxPolarAngle={Math.PI / 2 - 0.05}
       />
       <GizmoHelper alignment="bottom-right" margin={[72, 72]}>
