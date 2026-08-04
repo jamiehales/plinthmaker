@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { Brush, Evaluator, SUBTRACTION, INTERSECTION } from 'three-bvh-csg'
-import { type Shape, type PlinthParams, buildPlinthBody, topDrop } from './Plinth.tsx'
+import { type Shape, type PlinthParams, buildPlinthBody, topDrop, DOWNLOAD_BASE_SEGMENT_MM, DOWNLOAD_FILLET_SEGMENT_MM } from './Plinth.tsx'
 
 export interface DrillJigParams {
   enabled: boolean
@@ -17,6 +17,8 @@ export function buildJigGeometry(
   shape: Shape,
   p: PlinthParams,
   jig: DrillJigParams,
+  baseSegMM = DOWNLOAD_BASE_SEGMENT_MM,
+  filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM,
 ): { jig: THREE.BufferGeometry; cavity: THREE.BufferGeometry } {
   const w = Math.max(0.1, p.width)
   const d = Math.max(0.1, p.depth)
@@ -47,7 +49,8 @@ export function buildJigGeometry(
     const slabBottomY = cutPlaneY - (odFlat / 2) * Math.tan(angleRad) - 2
     const slabHFlat = flatTopY - slabBottomY
     if (shape === 'ellipse') {
-      const cyl = new THREE.CylinderGeometry(1, 1, slabHFlat, 48, 1)
+      const segs = Math.max(16, Math.ceil((Math.PI * (ow + odFlat)) / baseSegMM))
+      const cyl = new THREE.CylinderGeometry(1, 1, slabHFlat, segs, 1)
       cyl.scale(ow / 2, 1, odFlat / 2)
       cyl.computeVertexNormals()
       outerGeo = cyl
@@ -57,7 +60,8 @@ export function buildJigGeometry(
     outerGeo.translate(0, (flatTopY + slabBottomY) / 2, 0)
   } else {
     if (shape === 'ellipse') {
-      const cyl = new THREE.CylinderGeometry(1, 1, slabH, 48, 1)
+      const segs = Math.max(16, Math.ceil((Math.PI * (ow + od)) / baseSegMM))
+      const cyl = new THREE.CylinderGeometry(1, 1, slabH, segs, 1)
       cyl.scale(ow / 2, 1, od / 2)
       cyl.computeVertexNormals()
       outerGeo = cyl
@@ -69,9 +73,10 @@ export function buildJigGeometry(
     outerGeo.translate(0, h - drop / 2, 0)
   }
 
-  const innerGeo = buildPlinthBody({ ...p, roundStyle: 'none', roundLocation: 'none' }, tol)
+  const innerGeo = buildPlinthBody({ ...p, roundStyle: 'none', roundLocation: 'none' }, tol, baseSegMM, filletSegMM)
 
   const holeRadius = Math.max(0.05, p.holeDiameter / 2)
+  const holeSegs = Math.max(16, Math.ceil((2 * Math.PI * holeRadius) / baseSegMM))
   let holeGeo: THREE.CylinderGeometry
   if (flatten) {
     const flatTopY = h + height
@@ -79,11 +84,11 @@ export function buildJigGeometry(
     const cutPlaneY = h - drop / 2 - overlap * cosA
     const holeBottomY = cutPlaneY - (odFlat / 2) * Math.tan(angleRad) - 2
     const holeLen = flatTopY - holeBottomY + 4
-    holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, holeLen, 32, 1)
+    holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, holeLen, holeSegs, 1)
     holeGeo.translate(0, (flatTopY + holeBottomY) / 2, 0)
   } else {
     const holeLen = slabH + od + 2
-    holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, holeLen, 32, 1)
+    holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, holeLen, holeSegs, 1)
     holeGeo.translate(0, h - drop / 2, 0)
   }
 
@@ -132,14 +137,18 @@ export default function DrillJig({
   shape,
   plinthParams,
   jigParams,
+  baseSegMM = DOWNLOAD_BASE_SEGMENT_MM,
+  filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM,
 }: {
   shape: Shape
   plinthParams: PlinthParams
   jigParams: DrillJigParams
+  baseSegMM?: number
+  filletSegMM?: number
 }) {
   const { jig: geometry, cavity: cavityGeo } = useMemo(
-    () => buildJigGeometry(shape, plinthParams, jigParams),
-    [shape, plinthParams, jigParams],
+    () => buildJigGeometry(shape, plinthParams, jigParams, baseSegMM, filletSegMM),
+    [shape, plinthParams, jigParams, baseSegMM, filletSegMM],
   )
   const edges = useMemo(() => new THREE.EdgesGeometry(cavityGeo), [cavityGeo])
   const makeHoleCircle = useMemo(() => {

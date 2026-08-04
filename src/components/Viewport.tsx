@@ -6,9 +6,11 @@ import DrillJig, { type DrillJigParams } from './DrillJig.tsx'
 interface ViewportProps {
   plinthParams: PlinthParams
   drillJigParams: DrillJigParams
+  baseSegMM: number
+  filletSegMM: number
 }
 
-export default function Viewport({ plinthParams, drillJigParams }: ViewportProps) {
+export default function Viewport({ plinthParams, drillJigParams, baseSegMM, filletSegMM }: ViewportProps) {
   return (
     <Canvas
       camera={{ position: [80, 60, 80], fov: 45, near: 0.1, far: 50000 }}
@@ -45,9 +47,9 @@ export default function Viewport({ plinthParams, drillJigParams }: ViewportProps
         followCamera={false}
       />
 
-      <Plinth {...plinthParams} />
+      <Plinth {...plinthParams} baseSegMM={baseSegMM} filletSegMM={filletSegMM} />
       {drillJigParams.enabled ? (
-        <DrillJig shape={plinthParams.shape} plinthParams={plinthParams} jigParams={drillJigParams} />
+        <DrillJig shape={plinthParams.shape} plinthParams={plinthParams} jigParams={drillJigParams} baseSegMM={baseSegMM} filletSegMM={filletSegMM} />
       ) : null}
 
       <OrbitControls

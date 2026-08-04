@@ -21,16 +21,20 @@ export interface PlinthParams {
   roundSize: number
 }
 
-const BASE_SEGMENT_MM = 0.1
-const FILLET_SEGMENT_MM = 0.05
+export const DOWNLOAD_BASE_SEGMENT_MM = 0.1
+export const DOWNLOAD_FILLET_SEGMENT_MM = 0.05
 
-function segsForArc(radius: number, sweepRad: number, min = 4): number {
-  return Math.max(min, Math.ceil((radius * sweepRad) / FILLET_SEGMENT_MM))
+function segsForArc(radius: number, sweepRad: number, filletSegMM: number, min = 4): number {
+  return Math.max(min, Math.ceil((radius * sweepRad) / filletSegMM))
 }
 
-function segsForEllipse(hw: number, hd: number, min = 16): number {
+function segsForEllipse(hw: number, hd: number, baseSegMM: number, min = 16): number {
   const perim = Math.PI * (3 * (hw + hd) - Math.sqrt((3 * hw + hd) * (hw + 3 * hd)))
-  return Math.max(min, Math.ceil(perim / BASE_SEGMENT_MM))
+  return Math.max(min, Math.ceil(perim / baseSegMM))
+}
+
+function circleSegments(radius: number, segMM: number, min = 8): number {
+  return Math.max(min, Math.ceil((2 * Math.PI * radius) / segMM))
 }
 
 export function topDrop(p: Pick<PlinthParams, 'angleTop' | 'topAngle' | 'depth'>): number {
@@ -39,10 +43,10 @@ export function topDrop(p: Pick<PlinthParams, 'angleTop' | 'topAngle' | 'depth'>
   return p.depth * Math.tan(angleRad)
 }
 
-function makeOutline(shape: Shape, w: number, d: number, style: RoundStyle, edgeRound: boolean, r: number): THREE.Vector2[] {
+function makeOutline(shape: Shape, w: number, d: number, style: RoundStyle, edgeRound: boolean, r: number, baseSegMM: number, filletSegMM: number): THREE.Vector2[] {
   if (shape === 'ellipse') {
     const pts: THREE.Vector2[] = []
-    const n = segsForEllipse(w / 2, d / 2)
+    const n = segsForEllipse(w / 2, d / 2, baseSegMM)
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2
       pts.push(new THREE.Vector2(w / 2 * Math.cos(a), d / 2 * Math.sin(a)))
@@ -83,7 +87,7 @@ function makeOutline(shape: Shape, w: number, d: number, style: RoundStyle, edge
   const pts: THREE.Vector2[] = []
   for (let i = 0; i < corners.length; i++) {
     const c = corners[i]
-    const arcN = segsForArc(cr, Math.PI / 2)
+    const arcN = segsForArc(cr, Math.PI / 2, filletSegMM)
     pts.push(new THREE.Vector2(c.cx + cr * Math.cos(c.start), c.cz + cr * Math.sin(c.start)))
     for (let j = 1; j < arcN; j++) {
       const t = j / arcN
@@ -159,7 +163,7 @@ function triangulateOutline(pts: THREE.Vector2[]): { positions: number[]; indice
   return { positions, indices }
 }
 
-function buildRoundedBody(p: PlinthParams, tol = 0): THREE.BufferGeometry {
+function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM): THREE.BufferGeometry {
   const w = Math.max(0.1, p.width) + tol
   const d = Math.max(0.1, p.depth) + tol
   const h = Math.max(0.1, p.height)
@@ -173,7 +177,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0): THREE.BufferGeometry {
     (p.roundLocation === 'edges' || p.roundLocation === 'both')
   const topRound = rounding && (p.roundLocation === 'top' || p.roundLocation === 'both')
 
-  const baseOutline = makeOutline(p.shape, w, d, p.roundStyle, edgeRound, r)
+  const baseOutline = makeOutline(p.shape, w, d, p.roundStyle, edgeRound, r, baseSegMM, filletSegMM)
   const np = baseOutline.length
 
   type Ring = { y: number; pts: THREE.Vector2[] }
@@ -181,7 +185,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0): THREE.BufferGeometry {
 
   if (topRound) {
     rings.push({ y: h - r, pts: baseOutline.map((p) => p.clone()) })
-    const steps = p.roundStyle === 'chamfer' ? 1 : segsForArc(r, Math.PI / 2, 4)
+    const steps = p.roundStyle === 'chamfer' ? 1 : segsForArc(r, Math.PI / 2, filletSegMM, 4)
     for (let i = 1; i < steps; i++) {
       const t = i / steps
       const shrink = r - r * Math.cos(t * Math.PI / 2)
@@ -243,8 +247,8 @@ function buildRoundedBody(p: PlinthParams, tol = 0): THREE.BufferGeometry {
   return flat
 }
 
-export function buildPlinthBody(p: PlinthParams, tol = 0): THREE.BufferGeometry {
-  let bodyGeo = buildRoundedBody(p, tol)
+export function buildPlinthBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM): THREE.BufferGeometry {
+  let bodyGeo = buildRoundedBody(p, tol, baseSegMM, filletSegMM)
 
   if (p.angleTop) {
     const d = Math.max(0.1, p.depth) + tol
@@ -283,8 +287,8 @@ export function buildPlinthBody(p: PlinthParams, tol = 0): THREE.BufferGeometry 
   return bodyGeo
 }
 
-export function buildGeometry(p: PlinthParams): THREE.BufferGeometry {
-  const bodyGeo = buildPlinthBody(p)
+export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM): THREE.BufferGeometry {
+  const bodyGeo = buildPlinthBody(p, 0, baseSegMM, filletSegMM)
   const h = Math.max(0.1, p.height)
 
   if (!p.addHole) return bodyGeo
@@ -298,7 +302,7 @@ export function buildGeometry(p: PlinthParams): THREE.BufferGeometry {
 
   const radius = Math.max(0.05, p.holeDiameter / 2)
   const holeDepth = Math.max(0.1, p.holeDepth)
-  const holeGeo = new THREE.CylinderGeometry(radius, radius, holeDepth + 0.01, 32, 1)
+  const holeGeo = new THREE.CylinderGeometry(radius, radius, holeDepth + 0.01, circleSegments(radius * 2, baseSegMM), 1)
 
   if (p.angleTop) {
     holeGeo.rotateX(angleRad)
@@ -323,8 +327,9 @@ export function buildGeometry(p: PlinthParams): THREE.BufferGeometry {
   return geo
 }
 
-export default function Plinth(params: PlinthParams) {
-  const geometry = useMemo(() => buildGeometry(params), [params])
+export default function Plinth(params: PlinthParams & { baseSegMM?: number; filletSegMM?: number }) {
+  const { baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM, ...plinthParams } = params
+  const geometry = useMemo(() => buildGeometry(plinthParams, baseSegMM, filletSegMM), [plinthParams, baseSegMM, filletSegMM])
 
   useEffect(() => {
     return () => {

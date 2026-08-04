@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Box, TextField, Typography } from '@mui/material'
+import { Box, TextField, Typography, InputAdornment } from '@mui/material'
 
 interface LabeledSliderProps {
   label: string
@@ -48,53 +48,50 @@ export default function LabeledSlider({
   }
 
   return (
-    <Box sx={{ mb: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
-        <Typography variant="body2" sx={{ flex: 1, color: 'text.secondary' }}>
-          {label}
-        </Typography>
-        <TextField
-          value={text}
-          onChange={handleTextChange}
-          onBlur={handleTextBlur}
-          size="small"
-          variant="outlined"
-          sx={{ width: 90 }}
-          slotProps={{
-            htmlInput: {
-              inputMode: 'decimal',
-              step,
-            },
-          }}
-        />
-      </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="caption" sx={{ color: 'text.disabled', width: 28 }}>
-          {min}
-        </Typography>
-        <Box
-          component="input"
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => handleSliderChange(e, parseFloat(e.target.value))}
-          style={{
-            flex: 1,
-            accentColor: '#1976d2',
-            cursor: 'pointer',
-          }}
-        />
-        <Typography variant="caption" sx={{ color: 'text.disabled', width: 28, textAlign: 'right' }}>
-          {max}
-        </Typography>
-      </Box>
-      {unit && (
-        <Typography variant="caption" sx={{ color: 'text.disabled', display: 'block', mt: 0.25 }}>
-          {unit}
-        </Typography>
-      )}
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+      <Typography variant="body2" sx={{ color: 'text.secondary', width: 96, flexShrink: 0 }}>
+        {label}
+      </Typography>
+      <Box
+        component="input"
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => handleSliderChange(e, parseFloat(e.target.value))}
+        style={{
+          flex: 1,
+          accentColor: '#1976d2',
+          cursor: 'pointer',
+        }}
+      />
+      <TextField
+        value={text}
+        onChange={handleTextChange}
+        onBlur={handleTextBlur}
+        size="small"
+        variant="outlined"
+        sx={{ width: 110, flexShrink: 0 }}
+        slotProps={{
+          htmlInput: {
+            inputMode: 'decimal',
+            step,
+            sx: { py: 0.75, px: 1 },
+          },
+          input: unit
+            ? {
+                endAdornment: (
+                  <InputAdornment position="end" sx={{ mr: -0.5 }}>
+                    <Typography variant="caption" sx={{ color: 'text.disabled' }}>
+                      {unit}
+                    </Typography>
+                  </InputAdornment>
+                ),
+              }
+            : undefined,
+        }}
+      />
     </Box>
   )
 }
