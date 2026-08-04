@@ -368,7 +368,7 @@ function App() {
               <ToggleButton value={0.03}>30um</ToggleButton>
               <ToggleButton value={0.05}>50um</ToggleButton>
               <ToggleButton value={0.1}>100um</ToggleButton>
-              <ToggleButton value={0.25}>250um</ToggleButton>
+              <ToggleButton value={0.2}>200um</ToggleButton>
             </ToggleButtonGroup>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {addDrillJig ? (
