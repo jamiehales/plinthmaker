@@ -10,6 +10,7 @@ export interface DrillJigParams {
   overlap: number
   tolerance: number
   lift: boolean
+  flattenTop: boolean
 }
 
 export function buildJigGeometry(
@@ -31,30 +32,60 @@ export function buildJigGeometry(
     : 0
 
   const cosA = Math.cos(angleRad)
+  const sinA = Math.sin(angleRad)
 
+  const flatten = jig.flattenTop
   const slabH = overlap + height
   const ow = w + 2 * wall
   const od = (d + 2 * wall) / Math.max(0.01, cosA)
 
   let outerGeo: THREE.BufferGeometry
-  if (shape === 'ellipse') {
-    const cyl = new THREE.CylinderGeometry(1, 1, slabH, 48, 1)
-    cyl.scale(ow / 2, 1, od / 2)
-    cyl.computeVertexNormals()
-    outerGeo = cyl
+  if (flatten) {
+    const odFlat = d + 2 * wall
+    const flatTopY = h + height
+    const cutPlaneY = h - drop / 2 - overlap * cosA
+    const slabBottomY = cutPlaneY - (odFlat / 2) * Math.tan(angleRad) - 2
+    const slabHFlat = flatTopY - slabBottomY
+    if (shape === 'ellipse') {
+      const cyl = new THREE.CylinderGeometry(1, 1, slabHFlat, 48, 1)
+      cyl.scale(ow / 2, 1, odFlat / 2)
+      cyl.computeVertexNormals()
+      outerGeo = cyl
+    } else {
+      outerGeo = new THREE.BoxGeometry(ow, slabHFlat, odFlat)
+    }
+    outerGeo.translate(0, (flatTopY + slabBottomY) / 2, 0)
   } else {
-    outerGeo = new THREE.BoxGeometry(ow, slabH, od)
+    if (shape === 'ellipse') {
+      const cyl = new THREE.CylinderGeometry(1, 1, slabH, 48, 1)
+      cyl.scale(ow / 2, 1, od / 2)
+      cyl.computeVertexNormals()
+      outerGeo = cyl
+    } else {
+      outerGeo = new THREE.BoxGeometry(ow, slabH, od)
+    }
+    outerGeo.translate(0, (height - overlap) / 2, 0)
+    outerGeo.rotateX(angleRad)
+    outerGeo.translate(0, h - drop / 2, 0)
   }
-  outerGeo.translate(0, (height - overlap) / 2, 0)
-  outerGeo.rotateX(angleRad)
-  outerGeo.translate(0, h - drop / 2, 0)
 
   const innerGeo = buildPlinthBody(p, tol)
 
   const holeRadius = Math.max(0.05, p.holeDiameter / 2)
-  const holeLen = slabH + od + 2
-  const holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, holeLen, 32, 1)
-  holeGeo.translate(0, h - drop / 2, 0)
+  let holeGeo: THREE.CylinderGeometry
+  if (flatten) {
+    const flatTopY = h + height
+    const odFlat = d + 2 * wall
+    const cutPlaneY = h - drop / 2 - overlap * cosA
+    const holeBottomY = cutPlaneY - (odFlat / 2) * Math.tan(angleRad) - 2
+    const holeLen = flatTopY - holeBottomY + 4
+    holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, holeLen, 32, 1)
+    holeGeo.translate(0, (flatTopY + holeBottomY) / 2, 0)
+  } else {
+    const holeLen = slabH + od + 2
+    holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, holeLen, 32, 1)
+    holeGeo.translate(0, h - drop / 2, 0)
+  }
 
   const outerBrush = new Brush(outerGeo)
   outerBrush.updateMatrixWorld(true)
@@ -69,9 +100,27 @@ export function buildJigGeometry(
   const step1 = evaluator.evaluate(outerBrush, innerBrush, SUBTRACTION)
   const step2 = evaluator.evaluate(step1, holeBrush, SUBTRACTION)
 
-  const cavityBrush = evaluator.evaluate(innerBrush, outerBrush, INTERSECTION)
+  let resultBrush = step2
+  let cavityOuterBrush = outerBrush
 
-  const geo = step2.geometry
+  if (flatten) {
+    const bigW = ow + 4
+    const odFlat = d + 2 * wall
+    const bigD = (odFlat + 4) / Math.max(0.01, cosA)
+    const bigH = h + drop + overlap + 100
+    const bottomCutGeo = new THREE.BoxGeometry(bigW, bigH, bigD)
+    bottomCutGeo.rotateX(angleRad)
+    bottomCutGeo.translate(0, h - drop / 2 - (overlap + bigH / 2) * cosA, -(overlap + bigH / 2) * sinA)
+    const bottomCutBrush = new Brush(bottomCutGeo)
+    bottomCutBrush.updateMatrixWorld(true)
+    resultBrush = evaluator.evaluate(step2, bottomCutBrush, SUBTRACTION)
+    cavityOuterBrush = evaluator.evaluate(outerBrush, bottomCutBrush, SUBTRACTION)
+    bottomCutGeo.dispose()
+  }
+
+  const cavityBrush = evaluator.evaluate(innerBrush, cavityOuterBrush, INTERSECTION)
+
+  const geo = resultBrush.geometry
   const cavityGeo = cavityBrush.geometry
   if (geo !== outerGeo) outerGeo.dispose()
   innerGeo.dispose()
@@ -94,13 +143,13 @@ export default function DrillJig({
   )
   const edges = useMemo(() => new THREE.EdgesGeometry(cavityGeo), [cavityGeo])
   const makeHoleCircle = useMemo(() => {
-    return () => {
+    return (skewed: boolean) => {
       const r = Math.max(0.05, plinthParams.holeDiameter / 2)
       const angleR = plinthParams.angleTop
         ? (Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180
         : 0
       const cos = Math.cos(angleR)
-      const zScale = angleR > 0 ? 1 / Math.max(0.01, cos) : 1
+      const zScale = skewed && angleR > 0 ? 1 / Math.max(0.01, cos) : 1
       const segs = 64
       const pts = new Float32Array((segs + 1) * 3)
       for (let i = 0; i <= segs; i++) {
@@ -114,8 +163,8 @@ export default function DrillJig({
       return new THREE.LineLoop(g, new THREE.LineBasicMaterial({ color: 0x1a1a1a, transparent: true, opacity: 0.8, depthTest: false }))
     }
   }, [plinthParams.holeDiameter, plinthParams.angleTop, plinthParams.topAngle])
-  const holeCircle = useMemo(() => makeHoleCircle(), [makeHoleCircle])
-  const holeCircleTop = useMemo(() => makeHoleCircle(), [makeHoleCircle])
+  const holeCircle = useMemo(() => makeHoleCircle(true), [makeHoleCircle])
+  const holeCircleTop = useMemo(() => makeHoleCircle(!jigParams.flattenTop), [makeHoleCircle, jigParams.flattenTop])
 
   useEffect(() => {
     return () => {
@@ -140,9 +189,13 @@ export default function DrillJig({
     ? (Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180
     : 0
   const cosA = Math.cos(angleRad)
+  const flatten = jigParams.flattenTop
   const baseY = h - drop / 2
-  const topCircleY = baseY + height / Math.max(0.01, cosA)
+  const flatTopY = h + height
+  const angledTopCircleY = baseY + height / Math.max(0.01, cosA)
+  const topCircleY = flatten ? flatTopY : angledTopCircleY
   const bottomCircleY = baseY
+  const topCircleRot = flatten ? 0 : angleRad
 
   return (
       <group position={[0, liftOffset, 0]}>
@@ -159,7 +212,7 @@ export default function DrillJig({
           <lineBasicMaterial color="#1a1a1a" transparent opacity={0.6} depthTest={false} />
         </lineSegments>
         <primitive object={holeCircle} position={[0, bottomCircleY, 0]} rotation={[angleRad, 0, 0]} renderOrder={1000} />
-        <primitive object={holeCircleTop} position={[0, topCircleY, 0]} rotation={[angleRad, 0, 0]} renderOrder={1000} />
+        <primitive object={holeCircleTop} position={[0, topCircleY, 0]} rotation={[topCircleRot, 0, 0]} renderOrder={1000} />
       </group>
   )
 }

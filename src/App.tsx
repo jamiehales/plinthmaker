@@ -41,6 +41,7 @@ function App() {
   const [jigOverlap, setJigOverlap] = useState(2)
   const [jigTolerance, setJigTolerance] = useState(0.1)
   const [jigLift, setJigLift] = useState(true)
+  const [jigFlattenTop, setJigFlattenTop] = useState(true)
   const [angleTop, setAngleTop] = useState(false)
   const [topAngle, setTopAngle] = useState(30)
 
@@ -77,6 +78,7 @@ function App() {
     overlap: jigOverlap,
     tolerance: jigTolerance,
     lift: jigLift,
+    flattenTop: jigFlattenTop,
   }
 
   return (
@@ -256,6 +258,17 @@ function App() {
                   />
                 }
                 label="Lift Drill Jig"
+                sx={{ display: 'flex', mb: 1, '& .MuiFormControlLabel-label': { fontSize: 14 } }}
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={jigFlattenTop}
+                    onChange={(e) => setJigFlattenTop(e.target.checked)}
+                    size="small"
+                  />
+                }
+                label="Flatten Top"
                 sx={{ display: 'flex', mb: 1, '& .MuiFormControlLabel-label': { fontSize: 14 } }}
               />
             </>
