@@ -262,30 +262,17 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
     indices.push(bottomOffset + idx)
   }
 
-  if (angleTop) {
-    let cx = 0, cz = 0
-    for (const pt of topRing.pts) { cx += pt.x; cz += pt.y }
-    cx /= np; cz /= np
-    const centerY = Math.max(0, Math.min(h, h - (cz + d / 2) * tanA))
-    const centerIdx = sideVertCount + bottomTri.positions.length / 3
-    positions.push(cx, centerY, cz)
-    const topRingBase = (rings.length - 1) * np
-    for (let k = 0; k < np; k++) {
-      indices.push(centerIdx, topRingBase + ((k + 1) % np), topRingBase + k)
-    }
-  } else {
-    const topTri = triangulateOutline(topRing.pts)
-    const topOffset = sideVertCount + bottomTri.positions.length / 3
-    for (let i = 0; i < topTri.positions.length; i += 3) {
-      positions.push(topTri.positions[i], h, topTri.positions[i + 1])
-    }
-    for (let i = 0; i < topTri.indices.length; i += 3) {
-      indices.push(
-        topOffset + topTri.indices[i + 1],
-        topOffset + topTri.indices[i],
-        topOffset + topTri.indices[i + 2],
-      )
-    }
+  let cx = 0, cz = 0
+  for (const pt of topRing.pts) { cx += pt.x; cz += pt.y }
+  cx /= np; cz /= np
+  const centerY = angleTop
+    ? Math.max(0, Math.min(h, h - (cz + d / 2) * tanA))
+    : h
+  const centerIdx = sideVertCount + bottomTri.positions.length / 3
+  positions.push(cx, centerY, cz)
+  const topRingBase = (rings.length - 1) * np
+  for (let k = 0; k < np; k++) {
+    indices.push(centerIdx, topRingBase + ((k + 1) % np), topRingBase + k)
   }
 
   const geo = new THREE.BufferGeometry()
@@ -416,6 +403,35 @@ function buildFlattenSlab(
   return geo
 }
 
+function buildHoleCylinder(
+  radius: number,
+  segs: number,
+  topY: number,
+  bottomYAt: (z: number) => number,
+  overshootTop: number,
+  overshootBottom: number,
+): THREE.BufferGeometry {
+  const geo = new THREE.CylinderGeometry(radius, radius, 1, segs, 3)
+  const pos = geo.attributes.position as THREE.BufferAttribute
+  const arr = pos.array as Float32Array
+  for (let i = 0; i < arr.length; i += 3) {
+    const y = arr[i + 1]
+    const z = arr[i + 2]
+    if (y < -0.25) {
+      arr[i + 1] = bottomYAt(z) - overshootBottom
+    } else if (y < 0) {
+      arr[i + 1] = bottomYAt(z)
+    } else if (y < 0.25) {
+      arr[i + 1] = topY
+    } else {
+      arr[i + 1] = topY + overshootTop
+    }
+  }
+  pos.needsUpdate = true
+  geo.computeVertexNormals()
+  return geo
+}
+
 export function buildJigGeometry(
   shape: Shape,
   p: PlinthParams,
@@ -474,19 +490,15 @@ export function buildJigGeometry(
 
   const holeRadius = Math.max(0.05, p.holeDiameter / 2)
   const holeSegs = Math.max(8, Math.ceil((2 * Math.PI * holeRadius) / baseSegMM))
-  let holeGeo: THREE.CylinderGeometry
+  let holeGeo: THREE.BufferGeometry
   if (flatten) {
-    const flatTopY = h + height
-    const odFlat = d + 2 * wall
-    const cutPlaneY = h - drop / 2 - overlap * cosA
-    const holeBottomY = cutPlaneY - (odFlat / 2) * Math.tan(angleRad) - 2
-    const holeLen = flatTopY - holeBottomY + 4
-    holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, holeLen, holeSegs, 1)
-    holeGeo.translate(0, (flatTopY + holeBottomY) / 2, 0)
+    const overlapDepth = overlap / Math.max(0.01, cosA)
+    const slabBottomYAt = (z: number) => baseY - overlapDepth - z * tanA
+    holeGeo = buildHoleCylinder(holeRadius, holeSegs, flatTopY, slabBottomYAt, 2, 2)
   } else {
-    const holeLen = slabH + od + 2
-    holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, holeLen, holeSegs, 1)
-    holeGeo.translate(0, h - drop / 2, 0)
+    holeGeo = buildHoleCylinder(holeRadius, holeSegs, height, () => -overlap, 2, 2)
+    holeGeo.rotateX(angleRad)
+    holeGeo.translate(0, baseY, 0)
   }
 
   const outerBrush = new Brush(outerGeo)
