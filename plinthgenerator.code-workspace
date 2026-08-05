@@ -1,0 +1,16 @@
+{
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "name": "vscode-extensions/vercel",
+      "path": "../vscode-extensions/vercel"
+    }
+  ],
+  "settings": {
+    "vercel-statusbar.project": "plinthgenerator",
+    "vercel-statusbar.pollIntervalMs": 60000,
+    "vercel-statusbar.clickAction": "openUrl"
+  }
+}

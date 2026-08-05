@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   Box,
   Drawer,
@@ -11,20 +11,51 @@ import {
   Checkbox,
   Divider,
   Button,
+  CircularProgress,
 } from '@mui/material'
 import DownloadIcon from '@mui/icons-material/Download'
 import SquareIcon from '@mui/icons-material/Square'
 import CircleIcon from '@mui/icons-material/Circle'
 import Viewport from './components/Viewport.tsx'
-import { type Shape, type PlinthParams, type RoundStyle, type RoundLocation, buildGeometry } from './components/Plinth.tsx'
-import {
-  type DrillJigParams,
-  buildJigGeometry,
-} from './components/DrillJig.tsx'
+import { type Shape, type PlinthParams, type RoundStyle, type RoundLocation } from './components/geometryBuilder.ts'
+import { type DrillJigParams } from './components/geometryBuilder.ts'
+import { useGeometryWorker, deserializeGeometry, useBuilding } from './components/useGeometryWorker.ts'
 import LabeledSlider from './components/LabeledSlider.tsx'
 import { exportSTL } from './components/exportSTL.ts'
 
 const DRAWER_WIDTH = 500
+
+function BuildingIndicator() {
+  const building = useBuilding()
+  return (
+    <div style={{
+      position: 'absolute',
+      bottom: '16px',
+      left: '16px',
+      display: building ? 'flex' : 'none',
+      alignItems: 'center',
+      gap: '8px',
+      color: '#fff',
+      fontSize: '14px',
+      whiteSpace: 'nowrap',
+      pointerEvents: 'none',
+      zIndex: 9999,
+      background: 'rgba(0,0,0,0.7)',
+      padding: '6px 10px',
+    }}>
+      <div style={{
+        width: '20px',
+        height: '20px',
+        border: '2px solid rgba(255,255,255,0.3)',
+        borderTopColor: '#fff',
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite',
+      }} />
+      Generating…
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  )
+}
 
 function App() {
   const [shape, setShape] = useState<Shape>('rectangle')
@@ -48,6 +79,9 @@ function App() {
   const [roundLocation, setRoundLocation] = useState<RoundLocation>('none')
   const [roundSize, setRoundSize] = useState(1)
   const [downloadResolution, setDownloadResolution] = useState(0.05)
+  const [downloadingPlinth, setDownloadingPlinth] = useState(false)
+  const [downloadingJig, setDownloadingJig] = useState(false)
+  const { build } = useGeometryWorker()
 
   const handleShape = (_e: unknown, v: Shape | null) => {
     if (v !== null) {
@@ -66,7 +100,7 @@ function App() {
     if (checked) setDepth(width)
   }
 
-  const plinthParams: PlinthParams = {
+  const plinthParams: PlinthParams = useMemo(() => ({
     shape,
     width,
     depth,
@@ -79,24 +113,24 @@ function App() {
     roundStyle,
     roundLocation: shape === 'ellipse' ? 'top' : roundLocation,
     roundSize,
-  }
+  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, angleTop, topAngle, roundStyle, roundLocation, roundSize])
 
-  const buildPlinthFilename = (p: PlinthParams, resMM: number) => {
+  const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
     const holePart = p.addHole ? `hole-${p.holeDiameter}mm` : 'hole-none'
     const anglePart = p.angleTop ? `angled-${p.topAngle}°` : 'flat'
     const um = Math.round(resMM * 1000)
     return `plinth_${p.shape}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}_${um}um.stl`
-  }
+  }, [])
 
-  const buildJigFilename = (p: PlinthParams, j: DrillJigParams) => {
+  const buildJigFilename = useCallback((p: PlinthParams, j: DrillJigParams) => {
     const anglePart = p.angleTop ? `${p.topAngle}°` : 'flat'
     const flattenPart = j.flattenTop ? 'flat' : 'angled'
     const holePart = p.addHole ? `hole-${p.holeDiameter}mm` : 'hole-none'
     return `plinth_drilljig_${p.width}x${p.depth}x${p.height}_${anglePart}_${flattenPart}_${holePart}.stl`
-  }
+  }, [])
 
-  const drillJigParams: DrillJigParams = {
+  const drillJigParams: DrillJigParams = useMemo(() => ({
     enabled: addDrillJig,
     wallSize: jigWallSize,
     jigHeight,
@@ -104,7 +138,7 @@ function App() {
     tolerance: jigTolerance,
     lift: jigLift,
     flattenTop: jigFlattenTop,
-  }
+  }), [addDrillJig, jigWallSize, jigHeight, jigOverlap, jigTolerance, jigLift, jigFlattenTop])
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
@@ -376,28 +410,45 @@ function App() {
                   variant="contained"
                   fullWidth
                   color="secondary"
-                  startIcon={<DownloadIcon />}
-                  onClick={() => {
-                    const { jig: geo, cavity } = buildJigGeometry(shape, plinthParams, drillJigParams, downloadResolution, downloadResolution)
-                    exportSTL(geo, buildJigFilename(plinthParams, drillJigParams))
-                    geo.dispose()
-                    cavity.dispose()
+                  disabled={downloadingJig}
+                  startIcon={downloadingJig ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+                  onClick={async () => {
+                    setDownloadingJig(true)
+                    try {
+                      const { promise } = build({ type: 'jig', shape, plinthParams, jigParams: drillJigParams, baseSegMM: downloadResolution, filletSegMM: downloadResolution, useCDT: true, computeCavity: true })
+                      const msg = await promise
+                      if (msg.type !== 'jig') return
+                      const geo = deserializeGeometry(msg.jig)
+                      exportSTL(geo, buildJigFilename(plinthParams, drillJigParams))
+                      geo.dispose()
+                    } finally {
+                      setDownloadingJig(false)
+                    }
                   }}
                 >
-                  Download Drill Jig (.stl)
+                  {downloadingJig ? 'Generating...' : 'Download Drill Jig (.stl)'}
                 </Button>
               ) : null}
               <Button
                 variant="contained"
                 fullWidth
-                startIcon={<DownloadIcon />}
-                onClick={() => {
-                  const geo = buildGeometry(plinthParams, downloadResolution, downloadResolution)
-                  exportSTL(geo, buildPlinthFilename(plinthParams, downloadResolution))
-                  geo.dispose()
+                disabled={downloadingPlinth}
+                startIcon={downloadingPlinth ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+                onClick={async () => {
+                  setDownloadingPlinth(true)
+                  try {
+                    const { promise } = build({ type: 'plinth', params: plinthParams, baseSegMM: downloadResolution, filletSegMM: downloadResolution, useCDT: true })
+                    const msg = await promise
+                    if (msg.type !== 'plinth') return
+                    const geo = deserializeGeometry(msg.geometry)
+                    exportSTL(geo, buildPlinthFilename(plinthParams, downloadResolution))
+                    geo.dispose()
+                  } finally {
+                    setDownloadingPlinth(false)
+                  }
                 }}
               >
-                Download Plinth (.stl)
+                {downloadingPlinth ? 'Generating...' : 'Download Plinth (.stl)'}
               </Button>
             </Box>
           </Box>
@@ -409,16 +460,17 @@ function App() {
         sx={{
           flexGrow: 1,
           position: 'relative',
-          height: '100vh',
+          height: 'calc(100vh - 48px)',
           mt: '48px',
         }}
       >
         <Viewport
           plinthParams={plinthParams}
           drillJigParams={drillJigParams}
-          baseSegMM={0.25}
-          filletSegMM={0.25}
+          baseSegMM={1}
+          filletSegMM={1}
         />
+        <BuildingIndicator />
       </Box>
     </Box>
   )
