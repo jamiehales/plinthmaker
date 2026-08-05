@@ -443,7 +443,9 @@ export function buildJigGeometry(
     outerGeo.translate(0, h - drop / 2, 0)
   }
 
+  const _tInner0 = performance.now()
   const innerGeo = buildPlinthBody({ ...p, roundStyle: 'none', roundLocation: 'none' }, tol, baseSegMM, filletSegMM, useCDT)
+  const _tInner1 = performance.now()
 
   const holeRadius = Math.max(0.05, p.holeDiameter / 2)
   const holeSegs = Math.max(8, Math.ceil((2 * Math.PI * holeRadius) / baseSegMM))
@@ -473,10 +475,10 @@ export function buildJigGeometry(
   if (useCDT) enableCDT(evaluator)
   evaluator.attributes = ['position', 'normal']
   evaluator.useGroups = false
-  const step1 = evaluator.evaluate(outerBrush, innerBrush, SUBTRACTION)
-  const step2 = evaluator.evaluate(step1, holeBrush, SUBTRACTION)
 
-  let resultBrush = step2
+  const _tCsg0 = performance.now()
+
+  let outerResult = outerBrush
 
   if (flatten) {
     const bigW = ow + 4
@@ -488,27 +490,40 @@ export function buildJigGeometry(
     bottomCutGeo.translate(0, h - drop / 2 - (overlap + bigH / 2) * cosA, -(overlap + bigH / 2) * sinA)
     const bottomCutBrush = new Brush(bottomCutGeo)
     bottomCutBrush.updateMatrixWorld(true)
-    resultBrush = evaluator.evaluate(step2, bottomCutBrush, SUBTRACTION)
+    outerResult = evaluator.evaluate(outerBrush, bottomCutBrush, SUBTRACTION)
     bottomCutGeo.dispose()
+  }
+  const _tCsg1 = performance.now()
+
+  const step1 = evaluator.evaluate(outerResult, innerBrush, SUBTRACTION)
+  const _tCsg2 = performance.now()
+  const step2 = evaluator.evaluate(step1, holeBrush, SUBTRACTION)
+  const _tCsg3 = performance.now()
+
+  const resultBrush = step2
+
+  if (flatten) {
+    console.log(
+      `[jig-steps] inner=${(_tInner1 - _tInner0).toFixed(1)}ms ` +
+      `-bottomCut=${(_tCsg1 - _tCsg0).toFixed(1)}ms ` +
+      `outer-inner=${(_tCsg2 - _tCsg1).toFixed(1)}ms ` +
+      `-hole=${(_tCsg3 - _tCsg2).toFixed(1)}ms ` +
+      `| outer=${outerGeo.attributes.position.count}v ` +
+      `inner=${innerGeo.attributes.position.count}v`
+    )
+  } else {
+    console.log(
+      `[jig-steps] inner=${(_tInner1 - _tInner0).toFixed(1)}ms ` +
+      `outer-inner=${(_tCsg2 - _tCsg1).toFixed(1)}ms ` +
+      `-hole=${(_tCsg3 - _tCsg2).toFixed(1)}ms ` +
+      `| outer=${outerGeo.attributes.position.count}v ` +
+      `inner=${innerGeo.attributes.position.count}v`
+    )
   }
 
   let cavityGeo: THREE.BufferGeometry | null = null
   if (computeCavity) {
-    let cavityOuterBrush = outerBrush
-    if (flatten) {
-      const bigW = ow + 4
-      const odFlat = d + 2 * wall
-      const bigD = (odFlat + 4) / Math.max(0.01, cosA)
-      const bigH = h + drop + overlap + 100
-      const bottomCutGeo = new THREE.BoxGeometry(bigW, bigH, bigD)
-      bottomCutGeo.rotateX(angleRad)
-      bottomCutGeo.translate(0, h - drop / 2 - (overlap + bigH / 2) * cosA, -(overlap + bigH / 2) * sinA)
-      const bottomCutBrush = new Brush(bottomCutGeo)
-      bottomCutBrush.updateMatrixWorld(true)
-      cavityOuterBrush = evaluator.evaluate(outerBrush, bottomCutBrush, SUBTRACTION)
-      bottomCutGeo.dispose()
-    }
-    const cavityBrush = evaluator.evaluate(innerBrush, cavityOuterBrush, INTERSECTION)
+    const cavityBrush = evaluator.evaluate(innerBrush, outerResult, INTERSECTION)
     cavityGeo = cavityBrush.geometry
   }
 
