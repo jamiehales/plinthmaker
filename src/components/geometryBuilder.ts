@@ -130,12 +130,6 @@ function computeNormals2D(pts: THREE.Vector2[]): THREE.Vector2[] {
   return normals
 }
 
-function shrinkOutline(pts: THREE.Vector2[], amount: number): THREE.Vector2[] {
-  if (amount <= 0) return pts.map((p) => p.clone())
-  const normals = computeNormals2D(pts)
-  return pts.map((p, i) => new THREE.Vector2(p.x - normals[i].x * amount, p.y - normals[i].y * amount))
-}
-
 function dedupOutline(pts: THREE.Vector2[], eps = 1e-4): THREE.Vector2[] {
   const out: THREE.Vector2[] = []
   const n = pts.length
@@ -214,25 +208,41 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
 
   const topYAt = (z: number) => Math.max(0, Math.min(h, h - (z + d / 2) * tanA))
 
-  type Ring = { y: number | null; yAt: ((z: number) => number) | null; pts: THREE.Vector2[] }
-  const constY = (yv: number) => () => yv
-  const rings: Ring[] = [{ y: 0, yAt: constY(0), pts: baseOutline }]
+  type Ring = { y: number | null; ys: number[] | null; pts: THREE.Vector2[] }
+  const constYs = (yv: number, n: number) => Array.from({ length: n }, () => yv)
+  const rings: Ring[] = [{ y: 0, ys: constYs(0, np), pts: baseOutline }]
 
   if (topRound) {
-    const rise = r / Math.max(0.01, cosA)
-    rings.push({ y: null, yAt: (z) => topYAt(z) - rise, pts: baseOutline.map((pp) => pp.clone()) })
+    const normals = computeNormals2D(baseOutline)
+    const sinA = Math.sin(angleRad)
     const steps = p.roundStyle === 'chamfer' ? 1 : segsForArc(r, Math.PI / 2, filletSegMM, 4)
-    for (let i = 1; i < steps; i++) {
-      const t = i / steps
-      const shrink = r - r * Math.cos(t * Math.PI / 2)
-      const cosT = Math.cos(t * Math.PI / 2)
-      rings.push({ y: null, yAt: (z) => topYAt(z) - rise * cosT, pts: shrinkOutline(baseOutline, shrink) })
+    const ringAt = (t: number): { pts: THREE.Vector2[]; ys: number[] } => {
+      const a = r * (1 - Math.cos(t * Math.PI / 2))
+      const b = r * (1 - Math.sin(t * Math.PI / 2))
+      const pts: THREE.Vector2[] = []
+      const ys: number[] = []
+      for (let k = 0; k < np; k++) {
+        const p = baseOutline[k]
+        const nx = normals[k].x
+        const nz = normals[k].y
+        const denom = Math.sqrt(nx * nx + nz * nz * cosA * cosA) || 1
+        const adx = -nx / denom
+        const ady = (nz * sinA * cosA) / denom
+        const adz = (-nz * cosA * cosA) / denom
+        pts.push(new THREE.Vector2(p.x + a * adx, p.y + a * adz))
+        ys.push(topYAt(p.y) + a * ady - b)
+      }
+      return { pts, ys }
     }
-    rings.push({ y: null, yAt: topYAt, pts: shrinkOutline(baseOutline, r) })
+    rings.push({ y: null, ...ringAt(0) })
+    for (let i = 1; i < steps; i++) {
+      rings.push({ y: null, ...ringAt(i / steps) })
+    }
+    rings.push({ y: null, ...ringAt(1) })
   } else if (angleTop) {
-    rings.push({ y: null, yAt: topYAt, pts: baseOutline.map((pp) => pp.clone()) })
+    rings.push({ y: null, ys: baseOutline.map((pp) => topYAt(pp.y)), pts: baseOutline.map((pp) => pp.clone()) })
   } else {
-    rings.push({ y: h, yAt: constY(h), pts: baseOutline.map((pp) => pp.clone()) })
+    rings.push({ y: h, ys: constYs(h, np), pts: baseOutline.map((pp) => pp.clone()) })
   }
 
   const topRing = rings[rings.length - 1]
@@ -242,7 +252,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
     const ring = rings[j]
     for (let k = 0; k < ring.pts.length; k++) {
       const pt = ring.pts[k]
-      const y = ring.yAt ? ring.yAt(pt.y) : (ring.y ?? 0)
+      const y = ring.ys ? ring.ys[k] : (ring.y ?? 0)
       positions.push(pt.x, y, pt.y)
     }
   }
