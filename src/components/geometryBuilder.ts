@@ -191,58 +191,58 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
   const h = Math.max(0.1, p.height)
 
   const rounding = p.roundStyle !== 'none' && p.roundLocation !== 'none' && p.roundSize > 0
-  const r = rounding
-    ? Math.min(p.roundSize, w / 2 - 0.01, d / 2 - 0.01, h / 2 - 0.01)
-    : 0
 
   const edgeRound = rounding && p.shape === 'rectangle' &&
     (p.roundLocation === 'edges' || p.roundLocation === 'both')
   const topRound = rounding && (p.roundLocation === 'top' || p.roundLocation === 'both')
 
-  const baseOutline = makeOutline(p.shape, w, d, p.roundStyle, edgeRound, r, baseSegMM, filletSegMM)
-  const np = baseOutline.length
-
-  const angleTop = p.angleTop && !topRound
+  const angleTop = p.angleTop
   const angleRad = angleTop
     ? (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
     : 0
   const tanA = Math.tan(angleRad)
+  const cosA = Math.cos(angleRad)
 
-  type Ring = { y: number; pts: THREE.Vector2[] }
-  const rings: Ring[] = [{ y: 0, pts: baseOutline }]
+  const drop = angleTop ? p.depth * tanA : 0
+  const minTopY = Math.max(0.01, h - drop)
+  const r = rounding
+    ? Math.min(p.roundSize, w / 2 - 0.01, d / 2 - 0.01, h / 2 - 0.01, minTopY - 0.01)
+    : 0
+
+  const baseOutline = makeOutline(p.shape, w, d, p.roundStyle, edgeRound, r, baseSegMM, filletSegMM)
+  const np = baseOutline.length
+
+  const topYAt = (z: number) => Math.max(0, Math.min(h, h - (z + d / 2) * tanA))
+
+  type Ring = { y: number | null; yAt: ((z: number) => number) | null; pts: THREE.Vector2[] }
+  const constY = (yv: number) => () => yv
+  const rings: Ring[] = [{ y: 0, yAt: constY(0), pts: baseOutline }]
 
   if (topRound) {
-    rings.push({ y: h - r, pts: baseOutline.map((p) => p.clone()) })
+    const rise = r / Math.max(0.01, cosA)
+    rings.push({ y: null, yAt: (z) => topYAt(z) - rise, pts: baseOutline.map((pp) => pp.clone()) })
     const steps = p.roundStyle === 'chamfer' ? 1 : segsForArc(r, Math.PI / 2, filletSegMM, 4)
     for (let i = 1; i < steps; i++) {
       const t = i / steps
       const shrink = r - r * Math.cos(t * Math.PI / 2)
-      const y = (h - r) + r * Math.sin(t * Math.PI / 2)
-      rings.push({ y, pts: shrinkOutline(baseOutline, shrink) })
+      const cosT = Math.cos(t * Math.PI / 2)
+      rings.push({ y: null, yAt: (z) => topYAt(z) - rise * cosT, pts: shrinkOutline(baseOutline, shrink) })
     }
-    rings.push({ y: h, pts: shrinkOutline(baseOutline, r) })
+    rings.push({ y: null, yAt: topYAt, pts: shrinkOutline(baseOutline, r) })
   } else if (angleTop) {
-    rings.push({ y: h, pts: baseOutline.map((p) => p.clone()) })
+    rings.push({ y: null, yAt: topYAt, pts: baseOutline.map((pp) => pp.clone()) })
   } else {
-    rings.push({ y: h, pts: baseOutline.map((p) => p.clone()) })
+    rings.push({ y: h, yAt: constY(h), pts: baseOutline.map((pp) => pp.clone()) })
   }
 
   const topRing = rings[rings.length - 1]
-  const topYForPt: number[] = []
-  if (angleTop) {
-    for (let k = 0; k < topRing.pts.length; k++) {
-      const z = topRing.pts[k].y
-      topYForPt.push(Math.max(0, Math.min(h, h - (z + d / 2) * tanA)))
-    }
-  }
 
   const positions: number[] = []
   for (let j = 0; j < rings.length; j++) {
     const ring = rings[j]
-    const isAngledTopRing = angleTop && j === rings.length - 1
     for (let k = 0; k < ring.pts.length; k++) {
       const pt = ring.pts[k]
-      const y = isAngledTopRing ? topYForPt[k] : ring.y
+      const y = ring.yAt ? ring.yAt(pt.y) : (ring.y ?? 0)
       positions.push(pt.x, y, pt.y)
     }
   }
@@ -291,49 +291,8 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
   return flat
 }
 
-export function buildPlinthBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM, useCDT = true): THREE.BufferGeometry {
-  let bodyGeo = buildRoundedBody(p, tol, baseSegMM, filletSegMM)
-
-  const rounding = p.roundStyle !== 'none' && p.roundLocation !== 'none' && p.roundSize > 0
-  const topRound = rounding && (p.roundLocation === 'top' || p.roundLocation === 'both')
-
-  if (p.angleTop && topRound) {
-    const d = Math.max(0.1, p.depth) + tol
-    const h = Math.max(0.1, p.height)
-    const drop = topDrop({ angleTop: true, topAngle: p.topAngle, depth: d })
-    const angleRad = (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
-    const cosA = Math.cos(angleRad)
-    const sinA = Math.sin(angleRad)
-    const w = Math.max(0.1, p.width) + tol
-
-    const eps = 0.01
-    const bigW = w + 4
-    const bigD = d / cosA + 4
-    const bigH = h + drop + 40
-
-    const cutGeo = new THREE.BoxGeometry(bigW, bigH, bigD)
-    cutGeo.rotateX(angleRad)
-    cutGeo.translate(0, h - drop / 2 + eps + (bigH / 2) * cosA, (bigH / 2) * sinA)
-    cutGeo.computeVertexNormals()
-
-    const cutBrush = new Brush(cutGeo)
-    cutBrush.updateMatrixWorld(true)
-    const bodyBrush = new Brush(bodyGeo)
-    bodyBrush.updateMatrixWorld(true)
-
-    const evaluator = new Evaluator()
-    if (useCDT) enableCDT(evaluator)
-    evaluator.attributes = ['position', 'normal']
-    evaluator.useGroups = false
-    const result = evaluator.evaluate(bodyBrush, cutBrush, SUBTRACTION)
-
-    const cut = result.geometry
-    if (cut !== bodyGeo) bodyGeo.dispose()
-    cutGeo.dispose()
-    bodyGeo = cut
-  }
-
-  return bodyGeo
+export function buildPlinthBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM, _useCDT = true): THREE.BufferGeometry {
+  return buildRoundedBody(p, tol, baseSegMM, filletSegMM)
 }
 
 export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM, useCDT = true): THREE.BufferGeometry {
@@ -346,17 +305,14 @@ export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT
   const angleRad = p.angleTop
     ? (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
     : 0
-  const cosA = Math.cos(angleRad)
-  const sinA = Math.sin(angleRad)
+  const tanA = Math.tan(angleRad)
 
   const radius = Math.max(0.05, p.holeDiameter / 2)
   const holeDepth = Math.max(0.1, p.holeDepth)
-  const extraTop = 2
+  const topCenterY = h - drop / 2
+  const extraTop = 2 + radius * tanA
   const holeGeo = new THREE.CylinderGeometry(radius, radius, holeDepth + extraTop, circleSegments(radius * 2, baseSegMM), 1)
-
-  holeGeo.rotateX(angleRad)
-  const halfExtra = (extraTop - holeDepth) / 2
-  holeGeo.translate(0, h - drop / 2 + halfExtra * cosA, halfExtra * sinA)
+  holeGeo.translate(0, topCenterY + (extraTop - holeDepth) / 2, 0)
 
   const holeBrush = new Brush(holeGeo)
   holeBrush.updateMatrixWorld(true)
