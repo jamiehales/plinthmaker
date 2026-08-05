@@ -28,7 +28,7 @@ function makeOutlineLoop(shape: Shape, w: number, d: number, segMM: number, zSca
     ]
   }
   const geo = new THREE.BufferGeometry().setFromPoints(pts)
-  return new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color: 0x1a1a1a, transparent: true, opacity: 0.6, depthTest: false }))
+  return new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthTest: false }))
 }
 
 export default function DrillJig({
@@ -131,7 +131,7 @@ export default function DrillJig({
       }
       const g = new THREE.BufferGeometry()
       g.setAttribute('position', new THREE.BufferAttribute(pts, 3))
-      return new THREE.LineLoop(g, new THREE.LineBasicMaterial({ color: 0x1a1a1a, transparent: true, opacity: 0.8, depthTest: false }))
+      return new THREE.LineLoop(g, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthTest: false }))
     }
   }, [plinthParams.holeDiameter, plinthParams.angleTop, plinthParams.topAngle])
   const holeCircleBottom = useMemo(() => makeHoleCircle(true), [makeHoleCircle])
@@ -152,10 +152,12 @@ export default function DrillJig({
   }, [geometry, bottomOutline, topOutline, holeCircleBottom, holeCircleTop])
 
   const overlap = Math.max(0, jigParams.overlap)
+  const wall = Math.max(0.1, jigParams.wallSize)
   const liftOffset = jigParams.lift ? overlap + 20 : 0
 
   const h = Math.max(0.1, plinthParams.height)
   const d = Math.max(0.1, plinthParams.depth)
+  const w = Math.max(0.1, plinthParams.width)
   const drop = topDrop({ angleTop: plinthParams.angleTop, topAngle: plinthParams.topAngle, depth: d })
   const height = Math.max(0.1, jigParams.jigHeight)
   const baseY = h - drop / 2
@@ -166,7 +168,36 @@ export default function DrillJig({
 
   const bottomY = baseY - overlap
 
+  const jigOW = w + 2 * wall
+  const jigOD = d + 2 * wall
+  const jigZScale = plinthParams.angleTop && !flatten ? 1 / Math.max(0.01, cosA) : 1
+  const jigBottomZScale = plinthParams.angleTop ? 1 / Math.max(0.01, cosA) : 1
+
+  const jigTopOutline = useMemo(() => makeOutlineLoop(shape, jigOW, jigOD, baseSegMM, jigZScale), [shape, jigOW, jigOD, baseSegMM, jigZScale])
+  const jigBottomOutline = useMemo(() => makeOutlineLoop(shape, jigOW, jigOD, baseSegMM, jigBottomZScale), [shape, jigOW, jigOD, baseSegMM, jigBottomZScale])
+
+  useEffect(() => {
+    return () => {
+      geometry?.dispose()
+      bottomOutline.geometry.dispose()
+      ;(bottomOutline.material as THREE.Material).dispose()
+      topOutline.geometry.dispose()
+      ;(topOutline.material as THREE.Material).dispose()
+      holeCircleBottom.geometry.dispose()
+      ;(holeCircleBottom.material as THREE.Material).dispose()
+      holeCircleTop.geometry.dispose()
+      ;(holeCircleTop.material as THREE.Material).dispose()
+      jigTopOutline.geometry.dispose()
+      ;(jigTopOutline.material as THREE.Material).dispose()
+      jigBottomOutline.geometry.dispose()
+      ;(jigBottomOutline.material as THREE.Material).dispose()
+    }
+  }, [geometry, bottomOutline, topOutline, holeCircleBottom, holeCircleTop, jigTopOutline, jigBottomOutline])
+
   if (!geometry) return null
+
+  const jigBottomY = bottomY
+  const jigBottomRot = angleRad
 
   return (
       <group position={[0, liftOffset, 0]}>
@@ -183,6 +214,8 @@ export default function DrillJig({
         <primitive object={topOutline} position={[0, baseY, 0]} rotation={[angleRad, 0, 0]} renderOrder={1000} />
         <primitive object={holeCircleBottom} position={[0, baseY, 0]} rotation={[angleRad, 0, 0]} renderOrder={1000} />
         <primitive object={holeCircleTop} position={[0, topCircleY, 0]} rotation={[topCircleRot, 0, 0]} renderOrder={1000} />
+        <primitive object={jigTopOutline} position={[0, topCircleY, 0]} rotation={[topCircleRot, 0, 0]} renderOrder={1000} />
+        <primitive object={jigBottomOutline} position={[0, jigBottomY, 0]} rotation={[jigBottomRot, 0, 0]} renderOrder={1000} />
       </group>
   )
 }

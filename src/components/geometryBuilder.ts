@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { Brush, Evaluator, SUBTRACTION, INTERSECTION } from 'three-bvh-csg'
+import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
 
 export function enableCDT(evaluator: Evaluator): void {
   ;(evaluator as unknown as { useCDTClipping: boolean }).useCDTClipping = true
@@ -158,9 +158,16 @@ function dedupOutline(pts: THREE.Vector2[], eps = 1e-4): THREE.Vector2[] {
   return out
 }
 
-function triangulateOutline(pts: THREE.Vector2[]): { positions: number[]; indices: number[] } {
+function triangulateOutline(pts: THREE.Vector2[], holes: THREE.Vector2[][] = []): { positions: number[]; indices: number[] } {
   const clean = dedupOutline(pts)
   const shape = new THREE.Shape(clean)
+  for (const h of holes) {
+    const cleanH = dedupOutline(h)
+    if (cleanH.length >= 3) {
+      const reversed = cleanH.slice().reverse()
+      shape.holes.push(new THREE.Path(reversed))
+    }
+  }
   const geo = new THREE.ShapeGeometry(shape)
   const pos = geo.attributes.position.array as Float32Array
   const idx = geo.index ? (geo.index.array as Uint32Array) : null
@@ -368,68 +375,211 @@ export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT
   return geo
 }
 
-function buildFlattenSlab(
+function buildJigMesh(
   shape: Shape,
-  ow: number,
-  odFlat: number,
-  flatTopY: number,
-  baseY: number,
-  overlap: number,
-  cosA: number,
-  tanA: number,
+  p: PlinthParams,
+  jig: DrillJigParams,
   baseSegMM: number,
-): THREE.BufferGeometry {
-  const overlapDepth = overlap / Math.max(0.01, cosA)
-  const bottomYAt = (z: number) => baseY - overlapDepth - z * tanA
+  filletSegMM: number,
+  _computeCavity: boolean,
+): { jig: THREE.BufferGeometry; cavity: THREE.BufferGeometry | null } {
+  const w = Math.max(0.1, p.width)
+  const d = Math.max(0.1, p.depth)
+  const h = Math.max(0.1, p.height)
+  const wall = Math.max(0.1, jig.wallSize)
+  const height = Math.max(0.1, jig.jigHeight)
+  const overlap = Math.max(0, jig.overlap)
 
-  let geo: THREE.BufferGeometry
+  const drop = topDrop({ angleTop: p.angleTop, topAngle: p.topAngle, depth: d })
+  const angleRad = p.angleTop
+    ? (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
+    : 0
+
+  const cosA = Math.cos(angleRad)
+  const flatten = jig.flattenTop
+  const baseY = h - drop / 2
+  const flatTopY = h + height
+  const angledTopY = baseY + height / Math.max(0.01, cosA)
+  const topY = flatten ? flatTopY : angledTopY
+
+  const jigOW = w + 2 * wall
+  const jigOD = d + 2 * wall
+  const jigZScale = p.angleTop && !flatten ? 1 / Math.max(0.01, cosA) : 1
+  const cavityZScale = p.angleTop ? 1 / Math.max(0.01, cosA) : 1
+
+  const ow = jigOW
+  const od = jigOD * jigZScale
+
+  const outerOutlineRaw = makeOutline(shape, ow, od, 'none', false, 0, baseSegMM, filletSegMM)
+  const outerOutline = dedupOutline(outerOutlineRaw)
+
+  const owBot = jigOW
+  const odBot = jigOD * cavityZScale
+
+  let outerBotOutline: THREE.Vector2[]
   if (shape === 'ellipse') {
-    const segs = Math.max(8, Math.ceil((Math.PI * (ow + odFlat)) / baseSegMM))
-    geo = new THREE.CylinderGeometry(1, 1, 1, segs, 1)
-    geo.scale(ow / 2, 1, odFlat / 2)
-  } else {
-    geo = new THREE.BoxGeometry(ow, 1, odFlat)
-  }
-
-  const pos = geo.attributes.position as THREE.BufferAttribute
-  const arr = pos.array as Float32Array
-  for (let i = 0; i < arr.length; i += 3) {
-    const y = arr[i + 1]
-    const z = arr[i + 2]
-    arr[i + 1] = y > 0 ? flatTopY : bottomYAt(z)
-  }
-  pos.needsUpdate = true
-  geo.computeVertexNormals()
-  return geo
-}
-
-function buildHoleCylinder(
-  radius: number,
-  segs: number,
-  topY: number,
-  bottomYAt: (z: number) => number,
-  overshootTop: number,
-  overshootBottom: number,
-): THREE.BufferGeometry {
-  const geo = new THREE.CylinderGeometry(radius, radius, 1, segs, 3)
-  const pos = geo.attributes.position as THREE.BufferAttribute
-  const arr = pos.array as Float32Array
-  for (let i = 0; i < arr.length; i += 3) {
-    const y = arr[i + 1]
-    const z = arr[i + 2]
-    if (y < -0.25) {
-      arr[i + 1] = bottomYAt(z) - overshootBottom
-    } else if (y < 0) {
-      arr[i + 1] = bottomYAt(z)
-    } else if (y < 0.25) {
-      arr[i + 1] = topY
-    } else {
-      arr[i + 1] = topY + overshootTop
+    const nTop = outerOutline.length
+    outerBotOutline = []
+    for (let k = 0; k < nTop; k++) {
+      const a = (k / nTop) * Math.PI * 2
+      outerBotOutline.push(new THREE.Vector2(owBot / 2 * Math.cos(a), odBot / 2 * Math.sin(a)))
     }
+  } else {
+    const hw = owBot / 2
+    const hd = odBot / 2
+    outerBotOutline = [
+      new THREE.Vector2(-hw, -hd),
+      new THREE.Vector2(hw, -hd),
+      new THREE.Vector2(hw, hd),
+      new THREE.Vector2(-hw, hd),
+    ]
   }
-  pos.needsUpdate = true
-  geo.computeVertexNormals()
-  return geo
+  outerBotOutline = dedupOutline(outerBotOutline)
+
+  const holeRadius = Math.max(0.05, p.holeDiameter / 2)
+  const holeBottomZScale = p.angleTop ? 1 / Math.max(0.01, cosA) : 1
+  const holeTopZScale = p.angleTop && !flatten ? 1 / Math.max(0.01, cosA) : 1
+  const holeSegs = Math.max(8, Math.ceil((2 * Math.PI * holeRadius) / baseSegMM))
+  const holeOutlineBot: THREE.Vector2[] = []
+  const holeOutlineTop: THREE.Vector2[] = []
+  for (let k = 0; k < holeSegs; k++) {
+    const a = (k / holeSegs) * Math.PI * 2
+    holeOutlineBot.push(new THREE.Vector2(holeRadius * Math.cos(a), holeRadius * Math.sin(a) * holeBottomZScale))
+    holeOutlineTop.push(new THREE.Vector2(holeRadius * Math.cos(a), holeRadius * Math.sin(a) * holeTopZScale))
+  }
+  const holeDeduped = dedupOutline(holeOutlineTop)
+  const holeDedupedBot = dedupOutline(holeOutlineBot)
+  const M = holeDeduped.length
+
+  const cavityOW = w
+  const cavityOD = d * cavityZScale
+  const cavityOutlineRaw = makeOutline(shape, cavityOW, cavityOD, 'none', false, 0, baseSegMM, filletSegMM)
+  const cavityOutline = dedupOutline(cavityOutlineRaw)
+
+  const topRot = flatten ? 0 : angleRad
+  const bottomY = baseY
+
+  const toWorldTop = (x: number, z: number) => {
+    const yR = -z * Math.sin(topRot)
+    const zR = z * Math.cos(topRot)
+    return [x, topY + yR, zR] as const
+  }
+  const toWorldBottom = (x: number, z: number) => {
+    const yR = -z * Math.sin(angleRad)
+    const zR = z * Math.cos(angleRad)
+    return [x, bottomY + yR, zR] as const
+  }
+  const cavityBottomY = baseY - overlap
+  const toWorldCavityBottom = (x: number, z: number) => {
+    const yR = -z * Math.sin(angleRad)
+    const zR = z * Math.cos(angleRad)
+    return [x, cavityBottomY + yR, zR] as const
+  }
+  const jigBottomY = baseY - overlap
+  const toWorldJigBottom = (x: number, z: number) => {
+    const yR = -z * Math.sin(angleRad)
+    const zR = z * Math.cos(angleRad)
+    return [x, jigBottomY + yR, zR] as const
+  }
+
+  const toWorld = toWorldTop
+
+  const capTri = triangulateOutline(outerOutline, [holeDeduped])
+  const positions: number[] = []
+  for (let i = 0; i < capTri.positions.length; i += 3) {
+    const [wx, wy, wz] = toWorld(capTri.positions[i], capTri.positions[i + 1])
+    positions.push(wx, wy, wz)
+  }
+
+  const holeTopStart = positions.length / 3
+  for (let k = 0; k < M; k++) {
+    const [wx, wy, wz] = toWorldTop(holeDeduped[k].x, holeDeduped[k].y)
+    positions.push(wx, wy, wz)
+  }
+  const holeBotStart = positions.length / 3
+  for (let k = 0; k < M; k++) {
+    const [wx, wy, wz] = toWorldBottom(holeDedupedBot[k].x, holeDedupedBot[k].y)
+    positions.push(wx, wy, wz)
+  }
+
+  const ceilingTri = triangulateOutline(cavityOutline, [holeDedupedBot])
+  const ceilingStart = positions.length / 3
+  for (let i = 0; i < ceilingTri.positions.length; i += 3) {
+    const [wx, wy, wz] = toWorldBottom(ceilingTri.positions[i], ceilingTri.positions[i + 1])
+    positions.push(wx, wy, wz)
+  }
+
+  const cavityN = cavityOutline.length
+  const cavityTopStart = positions.length / 3
+  for (let k = 0; k < cavityN; k++) {
+    const [wx, wy, wz] = toWorldBottom(cavityOutline[k].x, cavityOutline[k].y)
+    positions.push(wx, wy, wz)
+  }
+  const cavityBotStart = positions.length / 3
+  for (let k = 0; k < cavityN; k++) {
+    const [wx, wy, wz] = toWorldCavityBottom(cavityOutline[k].x, cavityOutline[k].y)
+    positions.push(wx, wy, wz)
+  }
+
+  const botCapTri = triangulateOutline(outerBotOutline, [cavityOutline])
+  const botCapStart = positions.length / 3
+  for (let i = 0; i < botCapTri.positions.length; i += 3) {
+    const [wx, wy, wz] = toWorldJigBottom(botCapTri.positions[i], botCapTri.positions[i + 1])
+    positions.push(wx, wy, wz)
+  }
+
+  const outerN = outerOutline.length
+  const outerTopStart = positions.length / 3
+  for (let k = 0; k < outerN; k++) {
+    const [wx, wy, wz] = toWorldTop(outerOutline[k].x, outerOutline[k].y)
+    positions.push(wx, wy, wz)
+  }
+  const outerBotN = outerBotOutline.length
+  const outerBotStart = positions.length / 3
+  for (let k = 0; k < outerBotN; k++) {
+    const [wx, wy, wz] = toWorldJigBottom(outerBotOutline[k].x, outerBotOutline[k].y)
+    positions.push(wx, wy, wz)
+  }
+
+  const indices: number[] = []
+  for (let i = 0; i < capTri.indices.length; i += 3) {
+    indices.push(capTri.indices[i], capTri.indices[i + 2], capTri.indices[i + 1])
+  }
+
+  for (let k = 0; k < M; k++) {
+    const k1 = (k + 1) % M
+    indices.push(holeBotStart + k, holeBotStart + k1, holeTopStart + k)
+    indices.push(holeBotStart + k1, holeTopStart + k1, holeTopStart + k)
+  }
+
+  for (let i = 0; i < ceilingTri.indices.length; i += 3) {
+    indices.push(ceilingStart + ceilingTri.indices[i], ceilingStart + ceilingTri.indices[i + 1], ceilingStart + ceilingTri.indices[i + 2])
+  }
+
+  for (let k = 0; k < cavityN; k++) {
+    const k1 = (k + 1) % cavityN
+    indices.push(cavityTopStart + k, cavityBotStart + k, cavityTopStart + k1)
+    indices.push(cavityTopStart + k1, cavityBotStart + k, cavityBotStart + k1)
+  }
+
+  for (let i = 0; i < botCapTri.indices.length; i += 3) {
+    indices.push(botCapStart + botCapTri.indices[i], botCapStart + botCapTri.indices[i + 1], botCapStart + botCapTri.indices[i + 2])
+  }
+
+  for (let k = 0; k < outerN; k++) {
+    const k1 = (k + 1) % outerN
+    indices.push(outerTopStart + k, outerTopStart + k1, outerBotStart + k)
+    indices.push(outerTopStart + k1, outerBotStart + k1, outerBotStart + k)
+  }
+
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3))
+  geo.setIndex(indices)
+  const flat = geo.toNonIndexed()
+  geo.dispose()
+  flat.computeVertexNormals()
+
+  return { jig: flat, cavity: null }
 }
 
 export function buildJigGeometry(
@@ -438,108 +588,18 @@ export function buildJigGeometry(
   jig: DrillJigParams,
   baseSegMM = DOWNLOAD_BASE_SEGMENT_MM,
   filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM,
-  useCDT = true,
+  _useCDT = true,
   computeCavity = true,
 ): { jig: THREE.BufferGeometry; cavity: THREE.BufferGeometry | null } {
-  const w = Math.max(0.1, p.width)
-  const d = Math.max(0.1, p.depth)
-  const h = Math.max(0.1, p.height)
-  const wall = Math.max(0.1, jig.wallSize)
-  const height = Math.max(0.1, jig.jigHeight)
-  const overlap = Math.max(0, jig.overlap)
-  const tol = Math.max(0, jig.tolerance)
-
-  const drop = topDrop({ angleTop: p.angleTop, topAngle: p.topAngle, depth: d })
-  const angleRad = p.angleTop
-    ? (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
-    : 0
-
-  const cosA = Math.cos(angleRad)
-
-  const flatten = jig.flattenTop
-  const slabH = overlap + height
-  const ow = w + 2 * wall
-  const od = (d + 2 * wall) / Math.max(0.01, cosA)
-
-  const odFlat = d + 2 * wall
-  const flatTopY = h + height
-  const baseY = h - drop / 2
-  const tanA = Math.tan(angleRad)
-
-  let outerGeo: THREE.BufferGeometry
-  if (flatten) {
-    outerGeo = buildFlattenSlab(shape, ow, odFlat, flatTopY, baseY, overlap, cosA, tanA, baseSegMM)
-  } else {
-    if (shape === 'ellipse') {
-      const segs = Math.max(8, Math.ceil((Math.PI * (ow + od)) / baseSegMM))
-      const cyl = new THREE.CylinderGeometry(1, 1, slabH, segs, 1)
-      cyl.scale(ow / 2, 1, od / 2)
-      cyl.computeVertexNormals()
-      outerGeo = cyl
-    } else {
-      outerGeo = new THREE.BoxGeometry(ow, slabH, od)
-    }
-    outerGeo.translate(0, (height - overlap) / 2, 0)
-    outerGeo.rotateX(angleRad)
-    outerGeo.translate(0, h - drop / 2, 0)
-  }
-
-  const _tInner0 = performance.now()
-  const innerGeo = buildPlinthBody({ ...p, roundStyle: 'none', roundLocation: 'none' }, tol, baseSegMM, filletSegMM, useCDT)
-  const _tInner1 = performance.now()
-
-  const holeRadius = Math.max(0.05, p.holeDiameter / 2)
-  const holeSegs = Math.max(8, Math.ceil((2 * Math.PI * holeRadius) / baseSegMM))
-  let holeGeo: THREE.BufferGeometry
-  if (flatten) {
-    const overlapDepth = overlap / Math.max(0.01, cosA)
-    const slabBottomYAt = (z: number) => baseY - overlapDepth - z * tanA
-    holeGeo = buildHoleCylinder(holeRadius, holeSegs, flatTopY, slabBottomYAt, 2, 2)
-  } else {
-    holeGeo = buildHoleCylinder(holeRadius, holeSegs, height, () => -overlap, 2, 2)
-    holeGeo.rotateX(angleRad)
-    holeGeo.translate(0, baseY, 0)
-  }
-
-  const outerBrush = new Brush(outerGeo)
-  outerBrush.updateMatrixWorld(true)
-  const innerBrush = new Brush(innerGeo)
-  innerBrush.updateMatrixWorld(true)
-  const holeBrush = new Brush(holeGeo)
-  holeBrush.updateMatrixWorld(true)
-
-  const evaluator = new Evaluator()
-  if (useCDT) enableCDT(evaluator)
-  evaluator.attributes = ['position', 'normal']
-  evaluator.useGroups = false
-
-  const outerResult = outerBrush
-
-  const step1 = evaluator.evaluate(outerResult, innerBrush, SUBTRACTION)
-  const _tCsg2 = performance.now()
-  const step2 = evaluator.evaluate(step1, holeBrush, SUBTRACTION)
-  const _tCsg3 = performance.now()
-
-  const resultBrush = step2
+  const _t0 = performance.now()
+  const result = buildJigMesh(shape, p, jig, baseSegMM, filletSegMM, computeCavity)
+  const _t1 = performance.now()
 
   console.log(
-    `[jig-steps] inner=${(_tInner1 - _tInner0).toFixed(1)}ms ` +
-    `outer-inner=${(_tCsg2 - _tInner1).toFixed(1)}ms ` +
-    `-hole=${(_tCsg3 - _tCsg2).toFixed(1)}ms ` +
-    `| outer=${outerGeo.attributes.position.count}v ` +
-    `inner=${innerGeo.attributes.position.count}v` +
-    (flatten ? ' (flatten)' : '')
+    `[jig-steps] mesh=${(_t1 - _t0).toFixed(1)}ms ` +
+    `| outer+jig=${result.jig.attributes.position.count}v` +
+    (jig.flattenTop ? ' (flatten)' : '')
   )
 
-  let cavityGeo: THREE.BufferGeometry | null = null
-  if (computeCavity) {
-    const cavityBrush = evaluator.evaluate(innerBrush, outerResult, INTERSECTION)
-    cavityGeo = cavityBrush.geometry
-  }
-
-  const geo = resultBrush.geometry
-  if (geo !== outerGeo) outerGeo.dispose()
-  innerGeo.dispose()
-  holeGeo.dispose()
-  return { jig: geo, cavity: cavityGeo }
+  return result
 }
