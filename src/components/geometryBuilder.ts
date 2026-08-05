@@ -381,6 +381,41 @@ export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT
   return geo
 }
 
+function buildFlattenSlab(
+  shape: Shape,
+  ow: number,
+  odFlat: number,
+  flatTopY: number,
+  baseY: number,
+  overlap: number,
+  cosA: number,
+  tanA: number,
+  baseSegMM: number,
+): THREE.BufferGeometry {
+  const overlapDepth = overlap / Math.max(0.01, cosA)
+  const bottomYAt = (z: number) => baseY - overlapDepth - z * tanA
+
+  let geo: THREE.BufferGeometry
+  if (shape === 'ellipse') {
+    const segs = Math.max(8, Math.ceil((Math.PI * (ow + odFlat)) / baseSegMM))
+    geo = new THREE.CylinderGeometry(1, 1, 1, segs, 1)
+    geo.scale(ow / 2, 1, odFlat / 2)
+  } else {
+    geo = new THREE.BoxGeometry(ow, 1, odFlat)
+  }
+
+  const pos = geo.attributes.position as THREE.BufferAttribute
+  const arr = pos.array as Float32Array
+  for (let i = 0; i < arr.length; i += 3) {
+    const y = arr[i + 1]
+    const z = arr[i + 2]
+    arr[i + 1] = y > 0 ? flatTopY : bottomYAt(z)
+  }
+  pos.needsUpdate = true
+  geo.computeVertexNormals()
+  return geo
+}
+
 export function buildJigGeometry(
   shape: Shape,
   p: PlinthParams,
@@ -404,30 +439,20 @@ export function buildJigGeometry(
     : 0
 
   const cosA = Math.cos(angleRad)
-  const sinA = Math.sin(angleRad)
 
   const flatten = jig.flattenTop
   const slabH = overlap + height
   const ow = w + 2 * wall
   const od = (d + 2 * wall) / Math.max(0.01, cosA)
 
+  const odFlat = d + 2 * wall
+  const flatTopY = h + height
+  const baseY = h - drop / 2
+  const tanA = Math.tan(angleRad)
+
   let outerGeo: THREE.BufferGeometry
   if (flatten) {
-    const odFlat = d + 2 * wall
-    const flatTopY = h + height
-    const cutPlaneY = h - drop / 2 - overlap * cosA
-    const slabBottomY = cutPlaneY - (odFlat / 2) * Math.tan(angleRad) - 2
-    const slabHFlat = flatTopY - slabBottomY
-    if (shape === 'ellipse') {
-      const segs = Math.max(8, Math.ceil((Math.PI * (ow + odFlat)) / baseSegMM))
-      const cyl = new THREE.CylinderGeometry(1, 1, slabHFlat, segs, 1)
-      cyl.scale(ow / 2, 1, odFlat / 2)
-      cyl.computeVertexNormals()
-      outerGeo = cyl
-    } else {
-      outerGeo = new THREE.BoxGeometry(ow, slabHFlat, odFlat)
-    }
-    outerGeo.translate(0, (flatTopY + slabBottomY) / 2, 0)
+    outerGeo = buildFlattenSlab(shape, ow, odFlat, flatTopY, baseY, overlap, cosA, tanA, baseSegMM)
   } else {
     if (shape === 'ellipse') {
       const segs = Math.max(8, Math.ceil((Math.PI * (ow + od)) / baseSegMM))
@@ -476,24 +501,7 @@ export function buildJigGeometry(
   evaluator.attributes = ['position', 'normal']
   evaluator.useGroups = false
 
-  const _tCsg0 = performance.now()
-
-  let outerResult = outerBrush
-
-  if (flatten) {
-    const bigW = ow + 4
-    const odFlat = d + 2 * wall
-    const bigD = (odFlat + 4) / Math.max(0.01, cosA)
-    const bigH = h + drop + overlap + 100
-    const bottomCutGeo = new THREE.BoxGeometry(bigW, bigH, bigD)
-    bottomCutGeo.rotateX(angleRad)
-    bottomCutGeo.translate(0, h - drop / 2 - (overlap + bigH / 2) * cosA, -(overlap + bigH / 2) * sinA)
-    const bottomCutBrush = new Brush(bottomCutGeo)
-    bottomCutBrush.updateMatrixWorld(true)
-    outerResult = evaluator.evaluate(outerBrush, bottomCutBrush, SUBTRACTION)
-    bottomCutGeo.dispose()
-  }
-  const _tCsg1 = performance.now()
+  const outerResult = outerBrush
 
   const step1 = evaluator.evaluate(outerResult, innerBrush, SUBTRACTION)
   const _tCsg2 = performance.now()
@@ -502,24 +510,14 @@ export function buildJigGeometry(
 
   const resultBrush = step2
 
-  if (flatten) {
-    console.log(
-      `[jig-steps] inner=${(_tInner1 - _tInner0).toFixed(1)}ms ` +
-      `-bottomCut=${(_tCsg1 - _tCsg0).toFixed(1)}ms ` +
-      `outer-inner=${(_tCsg2 - _tCsg1).toFixed(1)}ms ` +
-      `-hole=${(_tCsg3 - _tCsg2).toFixed(1)}ms ` +
-      `| outer=${outerGeo.attributes.position.count}v ` +
-      `inner=${innerGeo.attributes.position.count}v`
-    )
-  } else {
-    console.log(
-      `[jig-steps] inner=${(_tInner1 - _tInner0).toFixed(1)}ms ` +
-      `outer-inner=${(_tCsg2 - _tCsg1).toFixed(1)}ms ` +
-      `-hole=${(_tCsg3 - _tCsg2).toFixed(1)}ms ` +
-      `| outer=${outerGeo.attributes.position.count}v ` +
-      `inner=${innerGeo.attributes.position.count}v`
-    )
-  }
+  console.log(
+    `[jig-steps] inner=${(_tInner1 - _tInner0).toFixed(1)}ms ` +
+    `outer-inner=${(_tCsg2 - _tInner1).toFixed(1)}ms ` +
+    `-hole=${(_tCsg3 - _tCsg2).toFixed(1)}ms ` +
+    `| outer=${outerGeo.attributes.position.count}v ` +
+    `inner=${innerGeo.attributes.position.count}v` +
+    (flatten ? ' (flatten)' : '')
+  )
 
   let cavityGeo: THREE.BufferGeometry | null = null
   if (computeCavity) {
