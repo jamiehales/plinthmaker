@@ -1,0 +1,2 @@
+patchedDependencies:
+  three-bvh-csg@0.0.18: patches/three-bvh-csg@0.0.18.patch

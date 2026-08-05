@@ -1,0 +1,26 @@
+diff --git a/build/index.module.js b/build/index.module.js
+index 7bf09faa4f35160f127350eefd2c675ebb5fb44b..be287bcacc15f455e6246d12eb3f8321b1119419 100644
+--- a/build/index.module.js
++++ b/build/index.module.js
+@@ -817,7 +817,7 @@ class Brush extends Mesh {
+ 		}
+ 
+ 		// generate bounds tree
+-		geometry.boundsTree = new MeshBVH( geometry, { maxLeafSize: 3, indirect: true, useSharedArrayBuffer } );
++		geometry.boundsTree = new MeshBVH( geometry, { targetLeafSize: 3, indirect: true, useSharedArrayBuffer } );
+ 
+ 		// generate half edges
+ 		if ( ! geometry.halfEdges ) {
+diff --git a/src/core/Brush.js b/src/core/Brush.js
+index c6140c8d278d6d468a081b6955fa05abdc0e0395..a7057202fe5321f3283cfa3c2dad408904b2f78f 100644
+--- a/src/core/Brush.js
++++ b/src/core/Brush.js
+@@ -81,7 +81,7 @@ export class Brush extends Mesh {
+ 		}
+ 
+ 		// generate bounds tree
+-		geometry.boundsTree = new MeshBVH( geometry, { maxLeafSize: 3, indirect: true, useSharedArrayBuffer } );
++		geometry.boundsTree = new MeshBVH( geometry, { targetLeafSize: 3, indirect: true, useSharedArrayBuffer } );
+ 
+ 		// generate half edges
+ 		if ( ! geometry.halfEdges ) {

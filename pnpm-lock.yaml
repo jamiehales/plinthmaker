@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  three-bvh-csg@0.0.18:
+    hash: 84ff4905b0b39fdcc5e319313c34ac59d0f1435977944f5a7c5846847a171ff0
+    path: patches/three-bvh-csg@0.0.18.patch
+
 importers:
 
   .:
@@ -37,7 +42,7 @@ importers:
         version: 0.185.1
       three-bvh-csg:
         specifier: ^0.0.18
-        version: 0.0.18(three-mesh-bvh@0.9.14(three@0.185.1))(three@0.185.1)
+        version: 0.0.18(patch_hash=84ff4905b0b39fdcc5e319313c34ac59d0f1435977944f5a7c5846847a171ff0)(three-mesh-bvh@0.9.14(three@0.185.1))(three@0.185.1)
       three-mesh-bvh:
         specifier: ^0.9.14
         version: 0.9.14(three@0.185.1)
@@ -1982,7 +1987,7 @@ snapshots:
     dependencies:
       react: 19.2.8
 
-  three-bvh-csg@0.0.18(three-mesh-bvh@0.9.14(three@0.185.1))(three@0.185.1):
+  three-bvh-csg@0.0.18(patch_hash=84ff4905b0b39fdcc5e319313c34ac59d0f1435977944f5a7c5846847a171ff0)(three-mesh-bvh@0.9.14(three@0.185.1))(three@0.185.1):
     dependencies:
       three: 0.185.1
       three-mesh-bvh: 0.9.14(three@0.185.1)
