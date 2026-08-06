@@ -3,6 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM } from './geometryBuilder.ts'
 
 const CONE_START_GAP = 3
+const RAFT_HEIGHT = 1.5
+const RAFT_BOTTOM_INSET = 1
 
 export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM: number): THREE.Vector3[] {
   if (shape === 'ellipse') {
@@ -25,6 +27,17 @@ export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM:
     new THREE.Vector3(hw, 0, hd),
     new THREE.Vector3(-hw, 0, hd),
   ]
+}
+
+function makeEllipseOutline(w: number, d: number, n: number, cosT: number): THREE.Vector3[] {
+  const hw = Math.max(0.01, w / 2)
+  const hd = Math.max(0.01, d / 2) * cosT
+  const pts: THREE.Vector3[] = []
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2
+    pts.push(new THREE.Vector3(hw * Math.cos(a), 0, hd * Math.sin(a)))
+  }
+  return pts
 }
 
 export function makeInsetOutlinePoints(shape: Shape, w: number, d: number, inset: number, segMM: number): THREE.Vector3[] {
@@ -174,6 +187,59 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
   return geo
 }
 
+function buildRaftMesh(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segMM: number): THREE.BufferGeometry {
+  const tilt = (supportParams.plinthAngle * Math.PI) / 180
+  const cosT = Math.cos(tilt)
+  const expand = supportParams.supportSize + 5
+
+  const topW = plinthParams.width + expand
+  const topD = plinthParams.depth + expand
+  const botW = topW - 2 * RAFT_BOTTOM_INSET
+  const botD = topD - 2 * RAFT_BOTTOM_INSET
+
+  const topPts = projectToGround(makeBaseOutlinePoints(shape, topW, topD, segMM), cosT)
+  const n = topPts.length
+  const botPtsRaw = shape === 'ellipse'
+    ? makeEllipseOutline(botW, botD, n, cosT)
+    : makeBaseOutlinePoints(shape, botW, botD, segMM)
+  const botPts = shape === 'ellipse' ? botPtsRaw : projectToGround(makeBaseOutlinePoints(shape, botW, botD, segMM), cosT)
+  if (n < 3 || botPts.length !== n) return new THREE.BufferGeometry()
+
+  const verts: number[] = []
+  const indices: number[] = []
+
+  for (const p of botPts) verts.push(p.x, 0, p.z)
+  for (const p of topPts) verts.push(p.x, RAFT_HEIGHT, p.z)
+  const botBase = 0
+  const topBase = n
+
+  for (let i = 0; i < n; i++) {
+    const ni = (i + 1) % n
+    indices.push(botBase + i, topBase + i, topBase + ni)
+    indices.push(botBase + i, topBase + ni, botBase + ni)
+  }
+
+  const centerTopVtx = verts.length / 3
+  verts.push(0, RAFT_HEIGHT, 0)
+  for (let i = 0; i < n; i++) {
+    const ni = (i + 1) % n
+    indices.push(centerTopVtx, topBase + ni, topBase + i)
+  }
+
+  const centerBotVtx = verts.length / 3
+  verts.push(0, 0, 0)
+  for (let i = 0; i < n; i++) {
+    const ni = (i + 1) % n
+    indices.push(centerBotVtx, botBase + i, botBase + ni)
+  }
+
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
+  geo.setIndex(indices)
+  geo.computeVertexNormals()
+  return geo
+}
+
 function buildConcentricRingPositions(shape: Shape, w: number, d: number, cosT: number, s: number, inset: number, segMM: number): THREE.Vector3[] {
   const positions: THREE.Vector3[] = []
   const ringStep = s * Math.sqrt(3) / 2
@@ -239,7 +305,18 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
 
   const positions = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const contactHeights = positions.map((p) => raise - p.z * tanT)
-  return buildSupportMesh(positions, radius, tipRadius, contactHeights, segs)
+  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, segs)
+  const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
+
+  const normSupport = supportGeo.index ? supportGeo.toNonIndexed() : supportGeo.clone()
+  const normRaft = raftGeo.index ? raftGeo.toNonIndexed() : raftGeo.clone()
+  const merged = mergeGeometries([normSupport, normRaft], false)
+  normSupport.dispose()
+  normRaft.dispose()
+  if (!merged) return supportGeo
+  supportGeo.dispose()
+  raftGeo.dispose()
+  return merged
 }
 
 export function applyYUpToZUp(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
