@@ -76,7 +76,7 @@ function App() {
   const [angleTop, setAngleTop] = useState(false)
   const [topAngle, setTopAngle] = useState(30)
   const [roundStyle, setRoundStyle] = useState<RoundStyle>('none')
-  const [roundLocation, setRoundLocation] = useState<RoundLocation>('none')
+  const [roundLocation, setRoundLocation] = useState<RoundLocation>('top')
   const [roundSize, setRoundSize] = useState(1)
   const [downloadResolution, setDownloadResolution] = useState(0.05)
   const [downloadingPlinth, setDownloadingPlinth] = useState(false)
@@ -248,7 +248,6 @@ function App() {
               onChange={(_e, v: RoundStyle | null) => {
                 if (v !== null) {
                   setRoundStyle(v)
-                  if (v !== 'none' && shape === 'ellipse' && roundLocation === 'none') setRoundLocation('top')
                 }
               }}
               size="small"
@@ -270,22 +269,19 @@ function App() {
                     fullWidth
                     sx={{ mb: 1 }}
                   >
-                    <ToggleButton value="none">None</ToggleButton>
                     <ToggleButton value="top">Top</ToggleButton>
                     <ToggleButton value="edges">Edges</ToggleButton>
                     <ToggleButton value="both">Both</ToggleButton>
                   </ToggleButtonGroup>
                 ) : null}
-                {roundLocation !== 'none' ? (
-                  <LabeledSlider
-                    label="Size"
-                    value={roundSize}
-                    onChange={setRoundSize}
-                    min={0}
-                    max={5}
-                    step={0.1}
-                  />
-                ) : null}
+                <LabeledSlider
+                  label="Size"
+                  value={roundSize}
+                  onChange={setRoundSize}
+                  min={0}
+                  max={5}
+                  step={0.1}
+                />
               </>
             ) : null}
 

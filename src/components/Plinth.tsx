@@ -114,7 +114,7 @@ export default function Plinth({ params, baseSegMM = RENDER_BASE_SEGMENT_MM, fil
   const h = Math.max(0.1, params.height)
   const topY = h - drop / 2
 
-  const rounding = params.roundStyle !== 'none' && params.roundLocation !== 'none' && params.roundSize > 0
+  const rounding = params.roundStyle !== 'none' && params.roundSize > 0
   const minTopY = Math.max(0.01, h - drop)
   const r = rounding
     ? Math.min(params.roundSize, w / 2 - 0.01, d / 2 - 0.01, h / 2 - 0.01, minTopY - 0.01)

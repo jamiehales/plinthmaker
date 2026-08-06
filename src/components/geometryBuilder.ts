@@ -7,7 +7,7 @@ export function enableCDT(evaluator: Evaluator): void {
 
 export type Shape = 'rectangle' | 'ellipse'
 export type RoundStyle = 'none' | 'chamfer' | 'fillet'
-export type RoundLocation = 'none' | 'top' | 'edges' | 'both'
+export type RoundLocation = 'top' | 'edges' | 'both'
 
 export interface PlinthParams {
   shape: Shape
@@ -184,7 +184,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
   const d = Math.max(0.1, p.depth) + tol
   const h = Math.max(0.1, p.height)
 
-  const rounding = p.roundStyle !== 'none' && p.roundLocation !== 'none' && p.roundSize > 0
+  const rounding = p.roundStyle !== 'none' && p.roundSize > 0
 
   const edgeRound = rounding && p.shape === 'rectangle' &&
     (p.roundLocation === 'edges' || p.roundLocation === 'both')
@@ -217,9 +217,12 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
     const shift = r * (tanA / (1 + tanA))
     const steps = p.roundStyle === 'chamfer' ? 1 : segsForArc(r, Math.PI / 2, filletSegMM, 4)
     const ringAt = (t: number): { pts: THREE.Vector2[]; ys: number[] } => {
-      const a = r * (1 - Math.cos(t * Math.PI / 2))
-      const b = r * (1 - Math.sin(t * Math.PI / 2))
-      const s = shift * (1 - Math.cos(t * Math.PI / 2))
+      const cosT = Math.cos(t * Math.PI / 2)
+      const sinT = Math.sin(t * Math.PI / 2)
+      const y = sinT
+      const s = shift * (1 - cosT)
+      const a = r * (1 - Math.sqrt(1 - y * y))
+      const b = r * (1 - y)
       const pts: THREE.Vector2[] = []
       const ys: number[] = []
       for (let k = 0; k < np; k++) {
@@ -232,7 +235,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
         const x = p.x + a * adx
         const zFinal = p.y + a * adz + cosA * s
         pts.push(new THREE.Vector2(x, zFinal))
-        ys.push(topYAt(zFinal) - b)
+        ys.push(Math.max(0, topYAt(zFinal) - b))
       }
       return { pts, ys }
     }

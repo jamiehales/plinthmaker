@@ -155,7 +155,7 @@ function buildConfig(
       angleTop: false,
       topAngle: 15,
       roundStyle: 'none',
-      roundLocation: 'none',
+      roundLocation: 'top',
       roundSize: 0,
       ...opts,
     },
@@ -248,7 +248,7 @@ describe('jig bottom invariant with flatten toggle', () => {
         angleTop: true,
         topAngle: 15,
         roundStyle: 'none',
-        roundLocation: 'none',
+        roundLocation: 'top',
         roundSize: 0,
       }
       const jigBase: DrillJigParams = {
@@ -297,7 +297,7 @@ describe('jig top size invariant with flatten toggle (angle=true)', () => {
         angleTop: true,
         topAngle: 15,
         roundStyle: 'none',
-        roundLocation: 'none',
+        roundLocation: 'top',
         roundSize: 0,
       }
       const jigBase: DrillJigParams = {
@@ -353,7 +353,7 @@ describe('jig top size matches angle=false when flatten=true', () => {
         angleTop: true,
         topAngle: 15,
         roundStyle: 'none',
-        roundLocation: 'none',
+        roundLocation: 'top',
         roundSize: 0,
       }
       const pNoAngle: PlinthParams = {
@@ -367,7 +367,7 @@ describe('jig top size matches angle=false when flatten=true', () => {
         angleTop: false,
         topAngle: 15,
         roundStyle: 'none',
-        roundLocation: 'none',
+        roundLocation: 'top',
         roundSize: 0,
       }
 
