@@ -214,11 +214,12 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
 
   if (topRound) {
     const normals = computeNormals2D(baseOutline)
-    const sinA = Math.sin(angleRad)
+    const shift = r * (tanA / (1 + tanA))
     const steps = p.roundStyle === 'chamfer' ? 1 : segsForArc(r, Math.PI / 2, filletSegMM, 4)
     const ringAt = (t: number): { pts: THREE.Vector2[]; ys: number[] } => {
       const a = r * (1 - Math.cos(t * Math.PI / 2))
       const b = r * (1 - Math.sin(t * Math.PI / 2))
+      const s = shift * (1 - Math.cos(t * Math.PI / 2))
       const pts: THREE.Vector2[] = []
       const ys: number[] = []
       for (let k = 0; k < np; k++) {
@@ -227,10 +228,11 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
         const nz = normals[k].y
         const denom = Math.sqrt(nx * nx + nz * nz * cosA * cosA) || 1
         const adx = -nx / denom
-        const ady = (nz * sinA * cosA) / denom
         const adz = (-nz * cosA * cosA) / denom
-        pts.push(new THREE.Vector2(p.x + a * adx, p.y + a * adz))
-        ys.push(topYAt(p.y) + a * ady - b)
+        const x = p.x + a * adx
+        const zFinal = p.y + a * adz + cosA * s
+        pts.push(new THREE.Vector2(x, zFinal))
+        ys.push(topYAt(zFinal) - b)
       }
       return { pts, ys }
     }
