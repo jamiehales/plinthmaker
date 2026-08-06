@@ -2,6 +2,8 @@ import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM } from './geometryBuilder.ts'
 
+const CONE_START_GAP = 3
+
 interface SupportOverlayProps {
   shape: Shape
   plinthParams: PlinthParams
@@ -95,6 +97,54 @@ function buildSupportCircles(positions: THREE.Vector3[], radius: number, segs: n
   return geo
 }
 
+function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], segs: number): THREE.BufferGeometry {
+  if (positions.length === 0) return new THREE.BufferGeometry()
+  const verts: number[] = []
+  const indices: number[] = []
+
+  for (let i = 0; i < positions.length; i++) {
+    const p = positions[i]
+    const yContact = contactHeights[i]
+    const yConeStart = yContact - CONE_START_GAP
+    if (yConeStart <= 0) continue
+
+    const baseVtx = verts.length / 3
+
+    for (let j = 0; j < segs; j++) {
+      const a = (j / segs) * Math.PI * 2
+      const cx = Math.cos(a)
+      const cz = Math.sin(a)
+      verts.push(p.x + cx * supportRadius, 0, p.z + cz * supportRadius)
+    }
+    for (let j = 0; j < segs; j++) {
+      const a = (j / segs) * Math.PI * 2
+      const cx = Math.cos(a)
+      const cz = Math.sin(a)
+      verts.push(p.x + cx * supportRadius, yConeStart, p.z + cz * supportRadius)
+    }
+    for (let j = 0; j < segs; j++) {
+      const a = (j / segs) * Math.PI * 2
+      const cx = Math.cos(a)
+      const cz = Math.sin(a)
+      verts.push(p.x + cx * tipRadius, yContact, p.z + cz * tipRadius)
+    }
+
+    for (let j = 0; j < segs; j++) {
+      const jn = (j + 1) % segs
+      indices.push(baseVtx + j, baseVtx + segs + j, baseVtx + segs + jn)
+      indices.push(baseVtx + j, baseVtx + segs + jn, baseVtx + jn)
+      indices.push(baseVtx + segs + j, baseVtx + 2 * segs + j, baseVtx + 2 * segs + jn)
+      indices.push(baseVtx + segs + j, baseVtx + 2 * segs + jn, baseVtx + segs + jn)
+    }
+  }
+
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
+  geo.setIndex(indices)
+  geo.computeVertexNormals()
+  return geo
+}
+
 function buildConcentricRingPositions(shape: Shape, w: number, d: number, cosT: number, s: number, inset: number, segMM: number): THREE.Vector3[] {
   const positions: THREE.Vector3[] = []
   const ringStep = s * Math.sqrt(3) / 2
@@ -159,7 +209,10 @@ function equidistantPointsWithOffset(points: THREE.Vector3[], n: number, offset:
 export default function SupportOverlay({ shape, plinthParams, supportParams, baseSegMM = RENDER_BASE_SEGMENT_MM }: SupportOverlayProps) {
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const cosT = Math.cos(tilt)
+  const tanT = Math.tan(tilt)
   const radius = supportParams.supportSize / 2
+  const tipRadius = supportParams.supportTipSize / 2
+  const raise = supportParams.raiseBy
 
   const footprint = useMemo(() => {
     const local = makeBaseOutlinePoints(shape, plinthParams.width, plinthParams.depth, baseSegMM)
@@ -168,14 +221,9 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
     return new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color: 0x4ad6ff, transparent: true, opacity: 0.8, depthTest: false }))
   }, [shape, plinthParams.width, plinthParams.depth, baseSegMM, cosT])
 
-  const supportCircles = useMemo(() => {
-    if (radius <= 0) {
-      return new THREE.LineSegments(
-        new THREE.BufferGeometry(),
-        new THREE.LineBasicMaterial({ color: 0x6affb0, transparent: true, opacity: 0.8, depthTest: false }),
-      )
-    }
-    const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, supportParams.supportTipSize / 2, baseSegMM)
+  const supportPositions = useMemo(() => {
+    if (radius <= 0) return []
+    const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, tipRadius, baseSegMM)
     const insetProjected = projectToGround(insetLocal, cosT)
     const perim = perimeterLength(insetProjected)
     const n = Math.max(4, Math.round(perim / supportParams.supportSpacing))
@@ -183,13 +231,22 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
     const ringPositions = equidistantPoints(insetProjected, n)
 
     const gap = Math.min(s, supportParams.supportSpacing)
-    const interiorPositions = buildConcentricRingPositions(shape, plinthParams.width, plinthParams.depth, cosT, s, supportParams.supportTipSize / 2 + gap, baseSegMM)
-    const positions = ringPositions.concat(interiorPositions)
+    const interiorPositions = buildConcentricRingPositions(shape, plinthParams.width, plinthParams.depth, cosT, s, tipRadius + gap, baseSegMM)
+    return ringPositions.concat(interiorPositions)
+  }, [shape, plinthParams.width, plinthParams.depth, radius, tipRadius, baseSegMM, cosT, supportParams.supportSpacing])
+
+  const supportCircles = useMemo(() => {
     return new THREE.LineSegments(
-      buildSupportCircles(positions, radius, 32),
+      buildSupportCircles(supportPositions, radius, 32),
       new THREE.LineBasicMaterial({ color: 0x6affb0, transparent: true, opacity: 0.8, depthTest: false }),
     )
-  }, [shape, plinthParams.width, plinthParams.depth, radius, baseSegMM, cosT, supportParams.supportSpacing, supportParams.supportTipSize])
+  }, [supportPositions, radius])
+
+  const supportMesh = useMemo(() => {
+    if (radius <= 0 || supportPositions.length === 0) return new THREE.BufferGeometry()
+    const contactHeights = supportPositions.map((p) => raise - p.z * tanT)
+    return buildSupportMesh(supportPositions, radius, tipRadius, contactHeights, 16)
+  }, [supportPositions, radius, tipRadius, raise, tanT])
 
   useEffect(() => {
     return () => {
@@ -205,10 +262,19 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
     }
   }, [supportCircles])
 
+  useEffect(() => {
+    return () => {
+      supportMesh.dispose()
+    }
+  }, [supportMesh])
+
   return (
     <group>
       <primitive object={footprint} position={[0, 0, 0]} renderOrder={1000} />
       <primitive object={supportCircles} position={[0, 0, 0]} renderOrder={1000} />
+      <mesh geometry={supportMesh}>
+        <meshStandardMaterial color="#6affb0" metalness={0.1} roughness={0.6} />
+      </mesh>
     </group>
   )
 }
