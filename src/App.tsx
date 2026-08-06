@@ -66,7 +66,7 @@ function App() {
   const [lockedAspect, setLockedAspect] = useState(true)
   const [addHole, setAddHole] = useState(false)
   const [holeDiameter, setHoleDiameter] = useState(5)
-  const [holeDepth, setHoleDepth] = useState(5)
+  const [holeDepth, setHoleDepth] = useState(10)
   const [addDrillJig, setAddDrillJig] = useState(false)
   const [jigWallSize, setJigWallSize] = useState(3)
   const [jigHeight, setJigHeight] = useState(10)

@@ -3,11 +3,11 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Brush, Evaluator, ADDITION } from 'three-bvh-csg'
 import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM } from './geometryBuilder.ts'
 
-const CONE_START_GAP = 3
+const CONE_START_GAP = 1
 const RAFT_HEIGHT = 1.5
 const RAFT_BOTTOM_INSET = 1
 const SUPPORT_BASE_Y = 1
-const CONE_TIP_PENETRATION = 1
+const CONE_TIP_PENETRATION = 0.1
 
 export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM: number): THREE.Vector3[] {
   if (shape === 'ellipse') {
@@ -166,8 +166,8 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
     }
     for (let j = 0; j < segs; j++) {
       const jn = (j + 1) % segs
-      indices.push(ring0Vtx + j, ring0Vtx + jn, ring1Vtx + jn)
-      indices.push(ring0Vtx + j, ring1Vtx + jn, ring1Vtx + j)
+      indices.push(ring0Vtx + j, ring1Vtx + j, ring1Vtx + jn)
+      indices.push(ring0Vtx + j, ring1Vtx + jn, ring0Vtx + jn)
     }
     const ring2Vtx = ring1Vtx + segs
     const yTip = yContact + CONE_TIP_PENETRATION
@@ -293,7 +293,7 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const cosT = Math.cos(tilt)
 
-  const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, tipRadius, segMM)
+  const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, segMM)
   const insetProjected = projectToGround(insetLocal, cosT)
   const perim = perimeterLength(insetProjected)
   const n = Math.max(4, Math.round(perim / supportParams.supportSpacing))
