@@ -34,6 +34,15 @@ export interface DrillJigParams {
   flattenTop: boolean
 }
 
+export interface SupportParams {
+  enabled: boolean
+  plinthAngle: number
+  raiseBy: number
+  supportSize: number
+  supportTipSize: number
+  supportSpacing: number
+}
+
 export const DOWNLOAD_BASE_SEGMENT_MM = 0.1
 export const DOWNLOAD_FILLET_SEGMENT_MM = 0.05
 export const RENDER_BASE_SEGMENT_MM = 1.5

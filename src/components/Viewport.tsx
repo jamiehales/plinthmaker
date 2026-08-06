@@ -2,15 +2,21 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei'
 import Plinth, { type PlinthParams } from './Plinth.tsx'
 import DrillJig, { type DrillJigParams } from './DrillJig.tsx'
+import SupportOverlay from './SupportOverlay.tsx'
+import type { SupportParams } from './geometryBuilder.ts'
 
 interface ViewportProps {
   plinthParams: PlinthParams
   drillJigParams: DrillJigParams
+  supportParams: SupportParams
   baseSegMM: number
   filletSegMM: number
 }
 
-export default function Viewport({ plinthParams, drillJigParams, baseSegMM, filletSegMM }: ViewportProps) {
+export default function Viewport({ plinthParams, drillJigParams, supportParams, baseSegMM, filletSegMM }: ViewportProps) {
+  const tilt = supportParams.enabled ? (supportParams.plinthAngle * Math.PI) / 180 : 0
+  const raise = supportParams.enabled ? supportParams.raiseBy : 0
+
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
       <Canvas
@@ -39,9 +45,15 @@ export default function Viewport({ plinthParams, drillJigParams, baseSegMM, fill
           followCamera={false}
         />
 
-        <Plinth params={plinthParams} baseSegMM={baseSegMM} filletSegMM={filletSegMM} />
-        {drillJigParams.enabled ? (
-          <DrillJig shape={plinthParams.shape} plinthParams={plinthParams} jigParams={drillJigParams} baseSegMM={baseSegMM} filletSegMM={filletSegMM} />
+        <group position={[0, raise, 0]} rotation={[tilt, 0, 0]}>
+          <Plinth params={plinthParams} baseSegMM={baseSegMM} filletSegMM={filletSegMM} />
+          {drillJigParams.enabled ? (
+            <DrillJig shape={plinthParams.shape} plinthParams={plinthParams} jigParams={drillJigParams} baseSegMM={baseSegMM} filletSegMM={filletSegMM} />
+          ) : null}
+        </group>
+
+        {supportParams.enabled ? (
+          <SupportOverlay shape={plinthParams.shape} plinthParams={plinthParams} supportParams={supportParams} baseSegMM={baseSegMM} />
         ) : null}
 
         <OrbitControls

@@ -17,7 +17,7 @@ import DownloadIcon from '@mui/icons-material/Download'
 import SquareIcon from '@mui/icons-material/Square'
 import CircleIcon from '@mui/icons-material/Circle'
 import Viewport from './components/Viewport.tsx'
-import { type Shape, type PlinthParams, type RoundStyle, type RoundLocation } from './components/geometryBuilder.ts'
+import { type Shape, type PlinthParams, type RoundStyle, type RoundLocation, type SupportParams } from './components/geometryBuilder.ts'
 import { type DrillJigParams } from './components/geometryBuilder.ts'
 import { useGeometryWorker, deserializeGeometry, useBuilding } from './components/useGeometryWorker.ts'
 import LabeledSlider from './components/LabeledSlider.tsx'
@@ -81,6 +81,12 @@ function App() {
   const [downloadResolution, setDownloadResolution] = useState(0.05)
   const [downloadingPlinth, setDownloadingPlinth] = useState(false)
   const [downloadingJig, setDownloadingJig] = useState(false)
+  const [addSupports, setAddSupports] = useState(false)
+  const [plinthAngle, setPlinthAngle] = useState(15)
+  const [raiseBy, setRaiseBy] = useState(10)
+  const [supportSize, setSupportSize] = useState(2)
+  const [supportTipSize, setSupportTipSize] = useState(0.2)
+  const [supportSpacing, setSupportSpacing] = useState(5)
   const { build } = useGeometryWorker()
 
   const handleShape = (_e: unknown, v: Shape | null) => {
@@ -139,6 +145,15 @@ function App() {
     lift: jigLift,
     flattenTop: jigFlattenTop,
   }), [addDrillJig, jigWallSize, jigHeight, jigOverlap, jigTolerance, jigLift, jigFlattenTop])
+
+  const supportParams: SupportParams = useMemo(() => ({
+    enabled: addSupports,
+    plinthAngle,
+    raiseBy,
+    supportSize,
+    supportTipSize,
+    supportSpacing,
+  }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing])
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
@@ -381,6 +396,62 @@ function App() {
                 />
               </>
             ) : null}
+
+            <Divider sx={{ my: 1.5 }} />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={addSupports}
+                  onChange={(e) => setAddSupports(e.target.checked)}
+                  size="small"
+                />
+              }
+              label="Add Supports"
+              sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
+            />
+            {addSupports ? (
+              <>
+                <LabeledSlider
+                  label="Plinth Angle"
+                  value={plinthAngle}
+                  onChange={setPlinthAngle}
+                  min={0}
+                  max={30}
+                  step={1}
+                  unit="°"
+                />
+                <LabeledSlider
+                  label="Raise By"
+                  value={raiseBy}
+                  onChange={setRaiseBy}
+                  min={0}
+                  max={30}
+                />
+                <LabeledSlider
+                  label="Support Size"
+                  value={supportSize}
+                  onChange={setSupportSize}
+                  min={0}
+                  max={5}
+                />
+                <LabeledSlider
+                  label="Support Tip Size"
+                  value={supportTipSize}
+                  onChange={setSupportTipSize}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                />
+                <LabeledSlider
+                  label="Support Spacing"
+                  value={supportSpacing}
+                  onChange={setSupportSpacing}
+                  min={3}
+                  max={10}
+                />
+              </>
+            ) : null}
           </Box>
 
           <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
@@ -463,6 +534,7 @@ function App() {
         <Viewport
           plinthParams={plinthParams}
           drillJigParams={drillJigParams}
+          supportParams={supportParams}
           baseSegMM={1}
           filletSegMM={1}
         />
