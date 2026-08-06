@@ -23,8 +23,15 @@ import { useGeometryWorker, deserializeGeometry, useBuilding } from './component
 import LabeledSlider from './components/LabeledSlider.tsx'
 import { exportSTL } from './components/exportSTL.ts'
 import { buildSupportMeshGeometry, mergePlinthWithSupports, applySupportTransform, applyYUpToZUp } from './components/supportBuilder.ts'
-
-const DRAWER_WIDTH = 500
+import {
+  DEFAULT_SHAPE, DEFAULT_WIDTH, DEFAULT_DEPTH, DEFAULT_HEIGHT, DEFAULT_LOCKED_ASPECT,
+  DEFAULT_ADD_HOLE, DEFAULT_HOLE_DIAMETER, DEFAULT_HOLE_DEPTH, DEFAULT_ADD_DRILL_JIG,
+  DEFAULT_JIG_WALL_SIZE, DEFAULT_JIG_HEIGHT, DEFAULT_JIG_OVERLAP, DEFAULT_JIG_TOLERANCE,
+  DEFAULT_JIG_LIFT, DEFAULT_JIG_FLATTEN_TOP, DEFAULT_ANGLE_TOP, DEFAULT_TOP_ANGLE,
+  DEFAULT_ROUND_STYLE, DEFAULT_ROUND_LOCATION, DEFAULT_ROUND_SIZE, DEFAULT_DOWNLOAD_RESOLUTION,
+  DEFAULT_ADD_SUPPORTS, DEFAULT_PLINTH_ANGLE, DEFAULT_RAISE_BY, DEFAULT_SUPPORT_SIZE,
+  DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DRAWER_WIDTH,
+} from './defaults.ts'
 
 function BuildingIndicator() {
   const building = useBuilding()
@@ -59,35 +66,35 @@ function BuildingIndicator() {
 }
 
 function App() {
-  const [shape, setShape] = useState<Shape>('rectangle')
-  const [width, setWidth] = useState(20)
-  const [depth, setDepth] = useState(20)
-  const [height, setHeight] = useState(20)
-  const [lockedAspect, setLockedAspect] = useState(true)
-  const [addHole, setAddHole] = useState(false)
-  const [holeDiameter, setHoleDiameter] = useState(5)
-  const [holeDepth, setHoleDepth] = useState(10)
-  const [addDrillJig, setAddDrillJig] = useState(false)
-  const [jigWallSize, setJigWallSize] = useState(3)
-  const [jigHeight, setJigHeight] = useState(10)
-  const [jigOverlap, setJigOverlap] = useState(2)
-  const [jigTolerance, setJigTolerance] = useState(0.1)
-  const [jigLift, setJigLift] = useState(true)
-  const [jigFlattenTop, setJigFlattenTop] = useState(true)
-  const [angleTop, setAngleTop] = useState(false)
-  const [topAngle, setTopAngle] = useState(30)
-  const [roundStyle, setRoundStyle] = useState<RoundStyle>('none')
-  const [roundLocation, setRoundLocation] = useState<RoundLocation>('top')
-  const [roundSize, setRoundSize] = useState(1)
-  const [downloadResolution, setDownloadResolution] = useState(0.05)
+  const [shape, setShape] = useState<Shape>(DEFAULT_SHAPE)
+  const [width, setWidth] = useState(DEFAULT_WIDTH)
+  const [depth, setDepth] = useState(DEFAULT_DEPTH)
+  const [height, setHeight] = useState(DEFAULT_HEIGHT)
+  const [lockedAspect, setLockedAspect] = useState(DEFAULT_LOCKED_ASPECT)
+  const [addHole, setAddHole] = useState(DEFAULT_ADD_HOLE)
+  const [holeDiameter, setHoleDiameter] = useState(DEFAULT_HOLE_DIAMETER)
+  const [holeDepth, setHoleDepth] = useState(DEFAULT_HOLE_DEPTH)
+  const [addDrillJig, setAddDrillJig] = useState(DEFAULT_ADD_DRILL_JIG)
+  const [jigWallSize, setJigWallSize] = useState(DEFAULT_JIG_WALL_SIZE)
+  const [jigHeight, setJigHeight] = useState(DEFAULT_JIG_HEIGHT)
+  const [jigOverlap, setJigOverlap] = useState(DEFAULT_JIG_OVERLAP)
+  const [jigTolerance, setJigTolerance] = useState(DEFAULT_JIG_TOLERANCE)
+  const [jigLift, setJigLift] = useState(DEFAULT_JIG_LIFT)
+  const [jigFlattenTop, setJigFlattenTop] = useState(DEFAULT_JIG_FLATTEN_TOP)
+  const [angleTop, setAngleTop] = useState(DEFAULT_ANGLE_TOP)
+  const [topAngle, setTopAngle] = useState(DEFAULT_TOP_ANGLE)
+  const [roundStyle, setRoundStyle] = useState<RoundStyle>(DEFAULT_ROUND_STYLE)
+  const [roundLocation, setRoundLocation] = useState<RoundLocation>(DEFAULT_ROUND_LOCATION)
+  const [roundSize, setRoundSize] = useState(DEFAULT_ROUND_SIZE)
+  const [downloadResolution, setDownloadResolution] = useState(DEFAULT_DOWNLOAD_RESOLUTION)
   const [downloadingPlinth, setDownloadingPlinth] = useState(false)
   const [downloadingJig, setDownloadingJig] = useState(false)
-  const [addSupports, setAddSupports] = useState(false)
-  const [plinthAngle, setPlinthAngle] = useState(15)
-  const [raiseBy, setRaiseBy] = useState(10)
-  const [supportSize, setSupportSize] = useState(1)
-  const [supportTipSize, setSupportTipSize] = useState(0.2)
-  const [supportSpacing, setSupportSpacing] = useState(2.5)
+  const [addSupports, setAddSupports] = useState(DEFAULT_ADD_SUPPORTS)
+  const [plinthAngle, setPlinthAngle] = useState(DEFAULT_PLINTH_ANGLE)
+  const [raiseBy, setRaiseBy] = useState(DEFAULT_RAISE_BY)
+  const [supportSize, setSupportSize] = useState(DEFAULT_SUPPORT_SIZE)
+  const [supportTipSize, setSupportTipSize] = useState(DEFAULT_SUPPORT_TIP_SIZE)
+  const [supportSpacing, setSupportSpacing] = useState(DEFAULT_SUPPORT_SPACING)
   const { build } = useGeometryWorker()
 
   const handleShape = (_e: unknown, v: Shape | null) => {

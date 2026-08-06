@@ -2,12 +2,16 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Brush, Evaluator, ADDITION } from 'three-bvh-csg'
 import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM } from './geometryBuilder.ts'
+import {
+  DEFAULT_CONE_START_GAP, DEFAULT_RAFT_HEIGHT, DEFAULT_RAFT_BOTTOM_INSET,
+  DEFAULT_SUPPORT_BASE_Y, DEFAULT_CONE_TIP_PENETRATION,
+} from '../defaults.ts'
 
-const CONE_START_GAP = 1
-const RAFT_HEIGHT = 1.5
-const RAFT_BOTTOM_INSET = 1
-const SUPPORT_BASE_Y = 1
-const CONE_TIP_PENETRATION = 0.1
+const CONE_START_GAP = DEFAULT_CONE_START_GAP
+const RAFT_HEIGHT = DEFAULT_RAFT_HEIGHT
+const RAFT_BOTTOM_INSET = DEFAULT_RAFT_BOTTOM_INSET
+const SUPPORT_BASE_Y = DEFAULT_SUPPORT_BASE_Y
+const CONE_TIP_PENETRATION = DEFAULT_CONE_TIP_PENETRATION
 
 export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM: number): THREE.Vector3[] {
   if (shape === 'ellipse') {
