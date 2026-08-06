@@ -22,6 +22,7 @@ import { type DrillJigParams } from './components/geometryBuilder.ts'
 import { useGeometryWorker, deserializeGeometry, useBuilding } from './components/useGeometryWorker.ts'
 import LabeledSlider from './components/LabeledSlider.tsx'
 import { exportSTL } from './components/exportSTL.ts'
+import { buildSupportMeshGeometry, mergePlinthWithSupports, applySupportTransform, applyYUpToZUp } from './components/supportBuilder.ts'
 
 const DRAWER_WIDTH = 500
 
@@ -508,7 +509,21 @@ function App() {
                     const msg = await promise
                     if (msg.type !== 'plinth') return
                     const geo = deserializeGeometry(msg.geometry)
-                    exportSTL(geo, buildPlinthFilename(plinthParams, downloadResolution))
+                    if (addSupports) {
+                      const supportGeo = buildSupportMeshGeometry(shape, plinthParams, supportParams, 16)
+                      const transformedPlinth = applySupportTransform(geo, supportParams)
+                      const merged = mergePlinthWithSupports(transformedPlinth, supportGeo)
+                      const zup = applyYUpToZUp(merged)
+                      exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution))
+                      if (merged !== transformedPlinth) merged.dispose()
+                      transformedPlinth.dispose()
+                      supportGeo.dispose()
+                      zup.dispose()
+                    } else {
+                      const zup = applyYUpToZUp(geo)
+                      exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution))
+                      zup.dispose()
+                    }
                     geo.dispose()
                   } finally {
                     setDownloadingPlinth(false)
