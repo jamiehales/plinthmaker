@@ -84,9 +84,9 @@ function App() {
   const [addSupports, setAddSupports] = useState(false)
   const [plinthAngle, setPlinthAngle] = useState(15)
   const [raiseBy, setRaiseBy] = useState(10)
-  const [supportSize, setSupportSize] = useState(2)
+  const [supportSize, setSupportSize] = useState(1)
   const [supportTipSize, setSupportTipSize] = useState(0.2)
-  const [supportSpacing, setSupportSpacing] = useState(5)
+  const [supportSpacing, setSupportSpacing] = useState(2.5)
   const { build } = useGeometryWorker()
 
   const handleShape = (_e: unknown, v: Shape | null) => {
@@ -432,23 +432,23 @@ function App() {
                   label="Support Size"
                   value={supportSize}
                   onChange={setSupportSize}
-                  min={0}
-                  max={5}
+                  min={0.5}
+                  max={2}
                 />
                 <LabeledSlider
                   label="Support Tip Size"
                   value={supportTipSize}
                   onChange={setSupportTipSize}
                   min={0}
-                  max={1}
-                  step={0.05}
+                  max={0.5}
+                  step={0.025}
                 />
                 <LabeledSlider
                   label="Support Spacing"
                   value={supportSpacing}
                   onChange={setSupportSpacing}
-                  min={3}
-                  max={10}
+                  min={2}
+                  max={5}
                 />
               </>
             ) : null}

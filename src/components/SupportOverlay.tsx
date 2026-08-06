@@ -95,6 +95,67 @@ function buildSupportCircles(positions: THREE.Vector3[], radius: number, segs: n
   return geo
 }
 
+function buildConcentricRingPositions(shape: Shape, w: number, d: number, cosT: number, s: number, inset: number, segMM: number): THREE.Vector3[] {
+  const positions: THREE.Vector3[] = []
+  const ringStep = s * Math.sqrt(3) / 2
+  let shrink = inset
+  let ring = 0
+  let innermostMinDist = Infinity
+  while (true) {
+    const rw = w - 2 * shrink
+    const rd = (d - 2 * shrink) * cosT
+    const hw = rw / 2
+    const hd = rd / 2
+    if (hw < s / 2 || hd < s / 2) break
+    const ringPoints = shape === 'ellipse'
+      ? makeBaseOutlinePoints('ellipse', rw, rd, segMM)
+      : makeBaseOutlinePoints('rectangle', rw, rd, segMM)
+    const projected = projectToGround(ringPoints, 1)
+    const perim = perimeterLength(projected)
+    const n = Math.max(4, Math.round(perim / s))
+    const offset = (ring & 1) * (perim / n / 2)
+    const ringPositions = equidistantPointsWithOffset(projected, n, offset)
+    let ringMinDist = Infinity
+    for (const p of ringPositions) {
+      const dist = Math.sqrt(p.x * p.x + p.z * p.z)
+      if (dist < ringMinDist) ringMinDist = dist
+    }
+    innermostMinDist = ringMinDist
+    positions.push(...ringPositions)
+    shrink += ringStep
+    ring++
+  }
+  if (innermostMinDist >= s) {
+    positions.push(new THREE.Vector3(0, 0, 0))
+  }
+  return positions
+}
+
+function equidistantPointsWithOffset(points: THREE.Vector3[], n: number, offset: number): THREE.Vector3[] {
+  const m = points.length
+  const cum: number[] = [0]
+  for (let i = 0; i < m; i++) {
+    cum.push(cum[i] + points[i].distanceTo(points[(i + 1) % m]))
+  }
+  const total = cum[m]
+  if (total < 1e-6) return []
+  const step = total / n
+  const out: THREE.Vector3[] = []
+  let seg = 0
+  for (let i = 0; i < n; i++) {
+    let target = i * step + offset
+    while (target >= total) target -= total
+    while (seg < m && cum[seg + 1] < target) seg++
+    const segStart = cum[seg]
+    const segEnd = cum[seg + 1]
+    const t = segEnd - segStart < 1e-6 ? 0 : (target - segStart) / (segEnd - segStart)
+    const a = points[seg]
+    const b = points[(seg + 1) % m]
+    out.push(new THREE.Vector3(a.x + (b.x - a.x) * t, 0, a.z + (b.z - a.z) * t))
+  }
+  return out
+}
+
 export default function SupportOverlay({ shape, plinthParams, supportParams, baseSegMM = RENDER_BASE_SEGMENT_MM }: SupportOverlayProps) {
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const cosT = Math.cos(tilt)
@@ -108,16 +169,27 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
   }, [shape, plinthParams.width, plinthParams.depth, baseSegMM, cosT])
 
   const supportCircles = useMemo(() => {
-    const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, radius, baseSegMM)
+    if (radius <= 0) {
+      return new THREE.LineSegments(
+        new THREE.BufferGeometry(),
+        new THREE.LineBasicMaterial({ color: 0x6affb0, transparent: true, opacity: 0.8, depthTest: false }),
+      )
+    }
+    const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, supportParams.supportTipSize / 2, baseSegMM)
     const insetProjected = projectToGround(insetLocal, cosT)
     const perim = perimeterLength(insetProjected)
     const n = Math.max(4, Math.round(perim / supportParams.supportSpacing))
-    const positions = equidistantPoints(insetProjected, n)
+    const s = perim / n
+    const ringPositions = equidistantPoints(insetProjected, n)
+
+    const gap = Math.min(s, supportParams.supportSpacing)
+    const interiorPositions = buildConcentricRingPositions(shape, plinthParams.width, plinthParams.depth, cosT, s, supportParams.supportTipSize / 2 + gap, baseSegMM)
+    const positions = ringPositions.concat(interiorPositions)
     return new THREE.LineSegments(
       buildSupportCircles(positions, radius, 32),
       new THREE.LineBasicMaterial({ color: 0x6affb0, transparent: true, opacity: 0.8, depthTest: false }),
     )
-  }, [shape, plinthParams.width, plinthParams.depth, radius, baseSegMM, cosT, supportParams.supportSpacing])
+  }, [shape, plinthParams.width, plinthParams.depth, radius, baseSegMM, cosT, supportParams.supportSpacing, supportParams.supportTipSize])
 
   useEffect(() => {
     return () => {
