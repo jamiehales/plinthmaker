@@ -1,11 +1,13 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { Brush, Evaluator, ADDITION } from 'three-bvh-csg'
 import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM } from './geometryBuilder.ts'
 
 const CONE_START_GAP = 3
 const RAFT_HEIGHT = 1.5
 const RAFT_BOTTOM_INSET = 1
 const SUPPORT_BASE_Y = 1
+const CONE_TIP_PENETRATION = 1
 
 export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM: number): THREE.Vector3[] {
   if (shape === 'ellipse') {
@@ -168,11 +170,12 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
       indices.push(ring0Vtx + j, ring1Vtx + jn, ring1Vtx + j)
     }
     const ring2Vtx = ring1Vtx + segs
+    const yTip = yContact + CONE_TIP_PENETRATION
     for (let j = 0; j < segs; j++) {
       const a = (j / segs) * Math.PI * 2
       const cx = Math.cos(a)
       const cz = Math.sin(a)
-      verts.push(p.x + cx * tipRadius, yContact, p.z + cz * tipRadius)
+      verts.push(p.x + cx * tipRadius, yTip, p.z + cz * tipRadius)
     }
     for (let j = 0; j < segs; j++) {
       const jn = (j + 1) % segs
@@ -180,7 +183,7 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
       indices.push(ring1Vtx + j, ring2Vtx + jn, ring1Vtx + jn)
     }
     const tipCenterVtx = verts.length / 3
-    verts.push(p.x, yContact, p.z)
+    verts.push(p.x, yTip, p.z)
     for (let j = 0; j < segs; j++) {
       const jn = (j + 1) % segs
       indices.push(tipCenterVtx, ring2Vtx + jn, ring2Vtx + j)
@@ -326,6 +329,52 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
   return merged
 }
 
+function csgUnion(a: THREE.BufferGeometry, b: THREE.BufferGeometry): THREE.BufferGeometry {
+  const stripToPosition = (geo: THREE.BufferGeometry): THREE.BufferGeometry => {
+    const nonIndexed = geo.index ? geo.toNonIndexed() : geo.clone()
+    const out = new THREE.BufferGeometry()
+    out.setAttribute('position', nonIndexed.attributes.position.clone())
+    out.computeVertexNormals()
+    nonIndexed.dispose()
+    return out
+  }
+
+  const aGeo = stripToPosition(a)
+  const bGeo = stripToPosition(b)
+  const aBrush = new Brush(aGeo)
+  aBrush.updateMatrixWorld(true)
+  const bBrush = new Brush(bGeo)
+  bBrush.updateMatrixWorld(true)
+
+  const evaluator = new Evaluator()
+  ;(evaluator as unknown as { useCDTClipping: boolean }).useCDTClipping = true
+  evaluator.attributes = ['position', 'normal']
+  evaluator.useGroups = false
+  const result = evaluator.evaluate(aBrush, bBrush, ADDITION)
+
+  aGeo.dispose()
+  bGeo.dispose()
+  return result.geometry
+}
+
+export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number): THREE.BufferGeometry {
+  const radius = supportParams.supportSize / 2
+  const tipRadius = supportParams.supportTipSize / 2
+  const raise = supportParams.raiseBy
+  const tilt = (supportParams.plinthAngle * Math.PI) / 180
+  const tanT = Math.tan(tilt)
+  if (radius <= 0) return new THREE.BufferGeometry()
+
+  const positions = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
+  const contactHeights = positions.map((p) => raise - p.z * tanT)
+  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, segs)
+  const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
+  const unioned = csgUnion(supportGeo, raftGeo)
+  supportGeo.dispose()
+  raftGeo.dispose()
+  return unioned
+}
+
 export function applyYUpToZUp(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
   const matrix = new THREE.Matrix4()
   matrix.makeRotationX(Math.PI / 2)
@@ -345,6 +394,10 @@ export function applySupportTransform(geometry: THREE.BufferGeometry, supportPar
   out.applyMatrix4(matrix)
   out.computeVertexNormals()
   return out
+}
+
+export function unionGeometries(plinthGeometry: THREE.BufferGeometry, supportGeometry: THREE.BufferGeometry): THREE.BufferGeometry {
+  return csgUnion(plinthGeometry, supportGeometry)
 }
 
 export function mergePlinthWithSupports(plinthGeometry: THREE.BufferGeometry, supportGeometry: THREE.BufferGeometry): THREE.BufferGeometry {

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { type Shape, type PlinthParams, type SupportParams } from '../components/geometryBuilder.ts'
 import { buildSupportMeshGeometry, computeSupportPositions, mergePlinthWithSupports, applySupportTransform, applyYUpToZUp } from '../components/supportBuilder.ts'
+import { buildGeometry } from '../components/geometryBuilder.ts'
 
 type MeshCheckResult = {
   name: string
@@ -252,36 +253,27 @@ describe('computeSupportPositions', () => {
 
 describe('mergePlinthWithSupports', () => {
   for (const shape of ['rectangle', 'ellipse'] as Shape[]) {
-    it(`${shape}: merged geometry has combined triangles`, () => {
-      const p = buildPlinthConfig(shape)
-      const s = buildSupportConfig()
-      const plinthGeo = new THREE.BoxGeometry(p.width, p.height, p.depth)
-      plinthGeo.translate(0, p.height / 2, 0)
-      const supportGeo = buildSupportMeshGeometry(shape, p, s, 16)
-      const supportTris = (supportGeo.index ? supportGeo.index.count : supportGeo.attributes.position.count) / 3
-      const merged = mergePlinthWithSupports(plinthGeo, supportGeo)
-      const mergedTris = (merged.index ? merged.index.count : merged.attributes.position.count) / 3
-      const plinthTris = (plinthGeo.index ? plinthGeo.index.count : plinthGeo.attributes.position.count) / 3
-      expect(mergedTris).toBeGreaterThanOrEqual(plinthTris + supportTris - 1)
-      merged.dispose()
-      plinthGeo.dispose()
-      supportGeo.dispose()
-    })
-
-    it(`${shape}: merged geometry has no NaN or infinite positions`, () => {
-      const p = buildPlinthConfig(shape)
-      const s = buildSupportConfig()
-      const plinthGeo = new THREE.BoxGeometry(p.width, p.height, p.depth)
-      plinthGeo.translate(0, p.height / 2, 0)
-      const supportGeo = buildSupportMeshGeometry(shape, p, s, 16)
-      const merged = mergePlinthWithSupports(plinthGeo, supportGeo)
-      const pos = merged.attributes.position as THREE.BufferAttribute
-      expect(pos.array.some((v: number) => Number.isNaN(v))).toBe(false)
-      expect(pos.array.some((v: number) => !Number.isFinite(v))).toBe(false)
-      merged.dispose()
-      plinthGeo.dispose()
-      supportGeo.dispose()
-    })
+    for (const plinthAngle of [0, 15, 30]) {
+      it(`${shape}: merged geometry is valid and combined (tilt=${plinthAngle})`, () => {
+        const p = buildPlinthConfig(shape)
+        const s = buildSupportConfig({ plinthAngle })
+        const plinthGeo = buildGeometry(p, 1.0, 1.0, false)
+        const transformedPlinth = applySupportTransform(plinthGeo, s)
+        const supportGeo = buildSupportMeshGeometry(shape, p, s, 16)
+        const merged = mergePlinthWithSupports(transformedPlinth, supportGeo)
+        const pos = merged.attributes.position as THREE.BufferAttribute
+        expect(pos.count).toBeGreaterThan(0)
+        expect(pos.array.some((v: number) => Number.isNaN(v))).toBe(false)
+        expect(pos.array.some((v: number) => !Number.isFinite(v))).toBe(false)
+        const supportVertCount = supportGeo.attributes.position.count
+        const plinthVertCount = transformedPlinth.attributes.position.count
+        expect(pos.count).toBeGreaterThanOrEqual(plinthVertCount + supportVertCount - 1)
+        merged.dispose()
+        transformedPlinth.dispose()
+        plinthGeo.dispose()
+        supportGeo.dispose()
+      })
+    }
   }
 })
 
