@@ -6,6 +6,7 @@ import {
   projectToGround,
   buildSupportCircles,
   computeSupportPositions,
+  buildSupportMeshGeometry,
 } from './supportBuilder.ts'
 
 interface SupportOverlayProps {
@@ -18,10 +19,7 @@ interface SupportOverlayProps {
 export default function SupportOverlay({ shape, plinthParams, supportParams, baseSegMM = RENDER_BASE_SEGMENT_MM }: SupportOverlayProps) {
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const cosT = Math.cos(tilt)
-  const tanT = Math.tan(tilt)
   const radius = supportParams.supportSize / 2
-  const tipRadius = supportParams.supportTipSize / 2
-  const raise = supportParams.raiseBy
 
   const footprint = useMemo(() => {
     const local = makeBaseOutlinePoints(shape, plinthParams.width, plinthParams.depth, baseSegMM)
@@ -42,44 +40,9 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
   }, [supportPositions, radius])
 
   const supportMesh = useMemo(() => {
-    if (radius <= 0 || supportPositions.length === 0) return new THREE.BufferGeometry()
-    const contactHeights = supportPositions.map((p) => raise - p.z * tanT)
-    const verts: number[] = []
-    const indices: number[] = []
-    const segs = 16
-    const coneStartGap = 3
-    for (let i = 0; i < supportPositions.length; i++) {
-      const p = supportPositions[i]
-      const yContact = contactHeights[i]
-      const yConeStart = yContact - coneStartGap
-      if (yConeStart <= 0) continue
-      const baseVtx = verts.length / 3
-      for (let j = 0; j < segs; j++) {
-        const a = (j / segs) * Math.PI * 2
-        verts.push(p.x + Math.cos(a) * radius, 0, p.z + Math.sin(a) * radius)
-      }
-      for (let j = 0; j < segs; j++) {
-        const a = (j / segs) * Math.PI * 2
-        verts.push(p.x + Math.cos(a) * radius, yConeStart, p.z + Math.sin(a) * radius)
-      }
-      for (let j = 0; j < segs; j++) {
-        const a = (j / segs) * Math.PI * 2
-        verts.push(p.x + Math.cos(a) * tipRadius, yContact, p.z + Math.sin(a) * tipRadius)
-      }
-      for (let j = 0; j < segs; j++) {
-        const jn = (j + 1) % segs
-        indices.push(baseVtx + j, baseVtx + segs + j, baseVtx + segs + jn)
-        indices.push(baseVtx + j, baseVtx + segs + jn, baseVtx + jn)
-        indices.push(baseVtx + segs + j, baseVtx + 2 * segs + j, baseVtx + 2 * segs + jn)
-        indices.push(baseVtx + segs + j, baseVtx + 2 * segs + jn, baseVtx + segs + jn)
-      }
-    }
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
-    geo.setIndex(indices)
-    geo.computeVertexNormals()
-    return geo
-  }, [supportPositions, radius, tipRadius, raise, tanT])
+    if (radius <= 0) return new THREE.BufferGeometry()
+    return buildSupportMeshGeometry(shape, plinthParams, supportParams, 16)
+  }, [shape, plinthParams, supportParams, radius])
 
   useEffect(() => {
     return () => {

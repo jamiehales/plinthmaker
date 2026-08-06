@@ -128,12 +128,20 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
 
     const baseVtx = verts.length / 3
 
+    verts.push(p.x, 0, p.z)
+    const centerVtx = baseVtx
     for (let j = 0; j < segs; j++) {
       const a = (j / segs) * Math.PI * 2
       const cx = Math.cos(a)
       const cz = Math.sin(a)
       verts.push(p.x + cx * supportRadius, 0, p.z + cz * supportRadius)
     }
+    const ring0Vtx = baseVtx + 1
+    for (let j = 0; j < segs; j++) {
+      const jn = (j + 1) % segs
+      indices.push(centerVtx, ring0Vtx + jn, ring0Vtx + j)
+    }
+    const ring1Vtx = ring0Vtx + segs
     for (let j = 0; j < segs; j++) {
       const a = (j / segs) * Math.PI * 2
       const cx = Math.cos(a)
@@ -141,18 +149,21 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
       verts.push(p.x + cx * supportRadius, yConeStart, p.z + cz * supportRadius)
     }
     for (let j = 0; j < segs; j++) {
+      const jn = (j + 1) % segs
+      indices.push(ring0Vtx + j, ring0Vtx + jn, ring1Vtx + jn)
+      indices.push(ring0Vtx + j, ring1Vtx + jn, ring1Vtx + j)
+    }
+    const ring2Vtx = ring1Vtx + segs
+    for (let j = 0; j < segs; j++) {
       const a = (j / segs) * Math.PI * 2
       const cx = Math.cos(a)
       const cz = Math.sin(a)
       verts.push(p.x + cx * tipRadius, yContact, p.z + cz * tipRadius)
     }
-
     for (let j = 0; j < segs; j++) {
       const jn = (j + 1) % segs
-      indices.push(baseVtx + j, baseVtx + segs + j, baseVtx + segs + jn)
-      indices.push(baseVtx + j, baseVtx + segs + jn, baseVtx + jn)
-      indices.push(baseVtx + segs + j, baseVtx + 2 * segs + j, baseVtx + 2 * segs + jn)
-      indices.push(baseVtx + segs + j, baseVtx + 2 * segs + jn, baseVtx + segs + jn)
+      indices.push(ring1Vtx + j, ring2Vtx + j, ring2Vtx + jn)
+      indices.push(ring1Vtx + j, ring2Vtx + jn, ring1Vtx + jn)
     }
   }
 
