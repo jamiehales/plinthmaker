@@ -5,6 +5,7 @@ import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_
 const CONE_START_GAP = 3
 const RAFT_HEIGHT = 1.5
 const RAFT_BOTTOM_INSET = 1
+const SUPPORT_BASE_Y = 1
 
 export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM: number): THREE.Vector3[] {
   if (shape === 'ellipse') {
@@ -137,17 +138,17 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
     const p = positions[i]
     const yContact = contactHeights[i]
     const yConeStart = yContact - CONE_START_GAP
-    if (yConeStart <= 0) continue
+    if (yConeStart <= SUPPORT_BASE_Y) continue
 
     const baseVtx = verts.length / 3
 
-    verts.push(p.x, 0, p.z)
+    verts.push(p.x, SUPPORT_BASE_Y, p.z)
     const centerVtx = baseVtx
     for (let j = 0; j < segs; j++) {
       const a = (j / segs) * Math.PI * 2
       const cx = Math.cos(a)
       const cz = Math.sin(a)
-      verts.push(p.x + cx * supportRadius, 0, p.z + cz * supportRadius)
+      verts.push(p.x + cx * supportRadius, SUPPORT_BASE_Y, p.z + cz * supportRadius)
     }
     const ring0Vtx = baseVtx + 1
     for (let j = 0; j < segs; j++) {
@@ -177,6 +178,12 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
       const jn = (j + 1) % segs
       indices.push(ring1Vtx + j, ring2Vtx + j, ring2Vtx + jn)
       indices.push(ring1Vtx + j, ring2Vtx + jn, ring1Vtx + jn)
+    }
+    const tipCenterVtx = verts.length / 3
+    verts.push(p.x, yContact, p.z)
+    for (let j = 0; j < segs; j++) {
+      const jn = (j + 1) % segs
+      indices.push(tipCenterVtx, ring2Vtx + jn, ring2Vtx + j)
     }
   }
 
@@ -342,11 +349,17 @@ export function applySupportTransform(geometry: THREE.BufferGeometry, supportPar
 
 export function mergePlinthWithSupports(plinthGeometry: THREE.BufferGeometry, supportGeometry: THREE.BufferGeometry): THREE.BufferGeometry {
   if (supportGeometry.attributes.position.count === 0) return plinthGeometry
-  const normalizedPlinth = plinthGeometry.index ? plinthGeometry.toNonIndexed() : plinthGeometry.clone()
-  normalizedPlinth.computeVertexNormals()
+  const stripToPosition = (geo: THREE.BufferGeometry): THREE.BufferGeometry => {
+    const nonIndexed = geo.index ? geo.toNonIndexed() : geo.clone()
+    const out = new THREE.BufferGeometry()
+    out.setAttribute('position', nonIndexed.attributes.position.clone())
+    out.computeVertexNormals()
+    nonIndexed.dispose()
+    return out
+  }
 
-  const normalizedSupport = supportGeometry.index ? supportGeometry.toNonIndexed() : supportGeometry.clone()
-  normalizedSupport.computeVertexNormals()
+  const normalizedPlinth = stripToPosition(plinthGeometry)
+  const normalizedSupport = stripToPosition(supportGeometry)
 
   const merged = mergeGeometries([normalizedPlinth, normalizedSupport], false)
   normalizedPlinth.dispose()

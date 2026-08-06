@@ -1,0 +1,317 @@
+import { describe, it, expect } from 'vitest'
+import * as THREE from 'three'
+import { type Shape, type PlinthParams, type SupportParams } from '../components/geometryBuilder.ts'
+import { buildSupportMeshGeometry, computeSupportPositions, mergePlinthWithSupports, applySupportTransform, applyYUpToZUp } from '../components/supportBuilder.ts'
+
+type MeshCheckResult = {
+  name: string
+  pass: boolean
+  details: string
+}
+
+function checkMesh(name: string, geo: THREE.BufferGeometry): MeshCheckResult[] {
+  const results: MeshCheckResult[] = []
+  const pos = geo.attributes.position as THREE.BufferAttribute
+  const idx = geo.index
+  const vertCount = pos.count
+  const triCount = idx ? idx.count / 3 : vertCount / 3
+
+  results.push({
+    name: `${name}: has triangles`,
+    pass: triCount > 0,
+    details: `${vertCount} verts, ${triCount} tris`,
+  })
+
+  results.push({
+    name: `${name}: has normals`,
+    pass: !!geo.attributes.normal,
+    details: geo.attributes.normal ? `${geo.attributes.normal.count} normals` : 'missing',
+  })
+
+  results.push({
+    name: `${name}: no NaN positions`,
+    pass: !pos.array.some((v: number) => Number.isNaN(v)),
+    details: `checked ${pos.array.length} floats`,
+  })
+
+  results.push({
+    name: `${name}: no infinite positions`,
+    pass: !pos.array.some((v: number) => !Number.isFinite(v)),
+    details: `checked ${pos.array.length} floats`,
+  })
+
+  if (idx) {
+    const maxIdx = vertCount
+    let badIdx = 0
+    for (let i = 0; i < idx.count; i++) {
+      if (idx.getX(i) < 0 || idx.getX(i) >= maxIdx) badIdx++
+    }
+    results.push({
+      name: `${name}: indices in range`,
+      pass: badIdx === 0,
+      details: badIdx ? `${badIdx} out of range` : 'all valid',
+    })
+
+    const edgeCount = new Map<string, number>()
+    for (let t = 0; t < triCount; t++) {
+      const a = idx.getX(t * 3)
+      const b = idx.getX(t * 3 + 1)
+      const c = idx.getX(t * 3 + 2)
+      const edges = [[a, b], [b, c], [c, a]]
+      for (const [e0, e1] of edges) {
+        const key = e0 < e1 ? `${e0}-${e1}` : `${e1}-${e0}`
+        edgeCount.set(key, (edgeCount.get(key) ?? 0) + 1)
+      }
+    }
+
+    let boundaryEdges = 0
+    let nonManifoldEdges = 0
+    for (const [, count] of edgeCount) {
+      if (count === 1) boundaryEdges++
+      else if (count > 2) nonManifoldEdges++
+    }
+
+    results.push({
+      name: `${name}: watertight (no boundary edges)`,
+      pass: boundaryEdges === 0,
+      details: boundaryEdges ? `${boundaryEdges} boundary edges` : 'closed',
+    })
+
+    results.push({
+      name: `${name}: manifold (no edges shared by >2 triangles)`,
+      pass: nonManifoldEdges === 0,
+      details: nonManifoldEdges ? `${nonManifoldEdges} non-manifold edges` : 'manifold',
+    })
+  } else {
+    const edgeCount = new Map<string, number>()
+    const arr = pos.array as Float32Array
+    const keyFor = (i: number, j: number) => {
+      const ax = arr[i * 3], ay = arr[i * 3 + 1], az = arr[i * 3 + 2]
+      const bx = arr[j * 3], by = arr[j * 3 + 1], bz = arr[j * 3 + 2]
+      const ka = `${ax.toFixed(3)},${ay.toFixed(3)},${az.toFixed(3)}`
+      const kb = `${bx.toFixed(3)},${by.toFixed(3)},${bz.toFixed(3)}`
+      return ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`
+    }
+    for (let t = 0; t < triCount; t++) {
+      const a = t * 3, b = t * 3 + 1, c = t * 3 + 2
+      const edges = [[a, b], [b, c], [c, a]]
+      for (const [e0, e1] of edges) {
+        const key = keyFor(e0, e1)
+        edgeCount.set(key, (edgeCount.get(key) ?? 0) + 1)
+      }
+    }
+    let boundaryEdges = 0
+    let nonManifoldEdges = 0
+    for (const [, count] of edgeCount) {
+      if (count === 1) boundaryEdges++
+      else if (count > 2) nonManifoldEdges++
+    }
+    results.push({
+      name: `${name}: watertight (no boundary edges)`,
+      pass: boundaryEdges === 0,
+      details: boundaryEdges ? `${boundaryEdges} boundary edges` : 'closed',
+    })
+    results.push({
+      name: `${name}: manifold (no edges shared by >2 triangles)`,
+      pass: nonManifoldEdges === 0,
+      details: nonManifoldEdges ? `${nonManifoldEdges} non-manifold edges` : 'manifold',
+    })
+  }
+
+  const aabb = new THREE.Box3().setFromBufferAttribute(pos)
+  results.push({
+    name: `${name}: finite AABB`,
+    pass: Number.isFinite(aabb.min.x) && Number.isFinite(aabb.max.x) &&
+          Number.isFinite(aabb.min.y) && Number.isFinite(aabb.max.y) &&
+          Number.isFinite(aabb.min.z) && Number.isFinite(aabb.max.z),
+    details: `[${aabb.min.x.toFixed(1)},${aabb.min.y.toFixed(1)},${aabb.min.z.toFixed(1)}] → [${aabb.max.x.toFixed(1)},${aabb.max.y.toFixed(1)},${aabb.max.z.toFixed(1)}]`,
+  })
+
+  const size = new THREE.Vector3()
+  aabb.getSize(size)
+  results.push({
+    name: `${name}: reasonable AABB size`,
+    pass: size.x > 0 && size.y > 0 && size.z > 0 && size.x < 1000 && size.y < 1000 && size.z < 1000,
+    details: `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)}`,
+  })
+
+  return results
+}
+
+function buildPlinthConfig(shape: Shape, opts: Partial<PlinthParams> = {}): PlinthParams {
+  return {
+    shape,
+    width: 40,
+    depth: 40,
+    height: 30,
+    addHole: false,
+    holeDiameter: 5,
+    holeDepth: 5,
+    angleTop: false,
+    topAngle: 15,
+    roundStyle: 'none',
+    roundLocation: 'top',
+    roundSize: 0,
+    ...opts,
+  }
+}
+
+function buildSupportConfig(opts: Partial<SupportParams> = {}): SupportParams {
+  return {
+    enabled: true,
+    plinthAngle: 15,
+    raiseBy: 10,
+    supportSize: 2,
+    supportTipSize: 0.4,
+    supportSpacing: 5,
+    ...opts,
+  }
+}
+
+const configs: Array<{ name: string; shape: Shape; p: PlinthParams; s: SupportParams }> = []
+for (const shape of ['rectangle', 'ellipse'] as Shape[]) {
+  for (const angleTop of [false, true]) {
+    for (const plinthAngle of [0, 15, 30]) {
+      for (const raiseBy of [5, 10, 20]) {
+        const name = `${shape}-${angleTop ? 'angleTop' : 'flat'}-tilt${plinthAngle}-raise${raiseBy}`
+        configs.push({
+          name,
+          shape,
+          p: buildPlinthConfig(shape, { angleTop }),
+          s: buildSupportConfig({ plinthAngle, raiseBy }),
+        })
+      }
+    }
+  }
+}
+
+describe('buildSupportMeshGeometry mesh correctness', () => {
+  for (const { name, shape, p, s } of configs) {
+    describe(name, () => {
+      it('support mesh is valid', () => {
+        const geo = buildSupportMeshGeometry(shape, p, s, 16)
+        const results = checkMesh(name, geo)
+        for (const r of results) {
+          if (!r.pass) {
+            console.error(`FAIL ${r.name}: ${r.details}`)
+          }
+          expect(r.pass, `${r.name} — ${r.details}`).toBe(true)
+        }
+        geo.dispose()
+      })
+
+      it('support mesh fits within expected bounds', () => {
+        const geo = buildSupportMeshGeometry(shape, p, s, 16)
+        const pos = geo.attributes.position as THREE.BufferAttribute
+        const aabb = new THREE.Box3().setFromBufferAttribute(pos)
+        expect(aabb.min.y).toBeGreaterThanOrEqual(-0.01)
+        expect(aabb.max.y).toBeLessThanOrEqual(s.raiseBy + p.height + 1)
+        geo.dispose()
+      })
+    })
+  }
+})
+
+describe('computeSupportPositions', () => {
+  for (const shape of ['rectangle', 'ellipse'] as Shape[]) {
+    it(`${shape}: produces positions for default params`, () => {
+      const p = buildPlinthConfig(shape)
+      const s = buildSupportConfig()
+      const positions = computeSupportPositions(shape, p, s, 1.5)
+      expect(positions.length).toBeGreaterThan(0)
+    })
+
+    it(`${shape}: zero supportSize returns empty`, () => {
+      const p = buildPlinthConfig(shape)
+      const s = buildSupportConfig({ supportSize: 0 })
+      const positions = computeSupportPositions(shape, p, s, 1.5)
+      expect(positions).toHaveLength(0)
+    })
+
+    it(`${shape}: positions are within footprint bounds`, () => {
+      const p = buildPlinthConfig(shape, { width: 40, depth: 40 })
+      const s = buildSupportConfig()
+      const positions = computeSupportPositions(shape, p, s, 1.5)
+      const tilt = (s.plinthAngle * Math.PI) / 180
+      const cosT = Math.cos(tilt)
+      const hw = p.width / 2
+      const hd = (p.depth / 2) * cosT
+      for (const pt of positions) {
+        if (shape === 'ellipse') {
+          const nx = pt.x / hw
+          const nz = pt.z / hd
+          expect(nx * nx + nz * nz).toBeLessThanOrEqual(1.01)
+        } else {
+          expect(Math.abs(pt.x)).toBeLessThanOrEqual(hw + 0.01)
+          expect(Math.abs(pt.z)).toBeLessThanOrEqual(hd + 0.01)
+        }
+      }
+    })
+  }
+})
+
+describe('mergePlinthWithSupports', () => {
+  for (const shape of ['rectangle', 'ellipse'] as Shape[]) {
+    it(`${shape}: merged geometry has combined triangles`, () => {
+      const p = buildPlinthConfig(shape)
+      const s = buildSupportConfig()
+      const plinthGeo = new THREE.BoxGeometry(p.width, p.height, p.depth)
+      plinthGeo.translate(0, p.height / 2, 0)
+      const supportGeo = buildSupportMeshGeometry(shape, p, s, 16)
+      const supportTris = (supportGeo.index ? supportGeo.index.count : supportGeo.attributes.position.count) / 3
+      const merged = mergePlinthWithSupports(plinthGeo, supportGeo)
+      const mergedTris = (merged.index ? merged.index.count : merged.attributes.position.count) / 3
+      const plinthTris = (plinthGeo.index ? plinthGeo.index.count : plinthGeo.attributes.position.count) / 3
+      expect(mergedTris).toBeGreaterThanOrEqual(plinthTris + supportTris - 1)
+      merged.dispose()
+      plinthGeo.dispose()
+      supportGeo.dispose()
+    })
+
+    it(`${shape}: merged geometry has no NaN or infinite positions`, () => {
+      const p = buildPlinthConfig(shape)
+      const s = buildSupportConfig()
+      const plinthGeo = new THREE.BoxGeometry(p.width, p.height, p.depth)
+      plinthGeo.translate(0, p.height / 2, 0)
+      const supportGeo = buildSupportMeshGeometry(shape, p, s, 16)
+      const merged = mergePlinthWithSupports(plinthGeo, supportGeo)
+      const pos = merged.attributes.position as THREE.BufferAttribute
+      expect(pos.array.some((v: number) => Number.isNaN(v))).toBe(false)
+      expect(pos.array.some((v: number) => !Number.isFinite(v))).toBe(false)
+      merged.dispose()
+      plinthGeo.dispose()
+      supportGeo.dispose()
+    })
+  }
+})
+
+describe('applySupportTransform', () => {
+  it('applies tilt and raise to geometry', () => {
+    const s = buildSupportConfig({ plinthAngle: 30, raiseBy: 15 })
+    const box = new THREE.BoxGeometry(10, 10, 10)
+    box.translate(0, 5, 0)
+    const transformed = applySupportTransform(box, s)
+    const pos = transformed.attributes.position as THREE.BufferAttribute
+    const aabb = new THREE.Box3().setFromBufferAttribute(pos)
+    expect(aabb.min.y).toBeGreaterThan(0)
+    expect(aabb.max.y).toBeGreaterThan(s.raiseBy)
+    box.dispose()
+    transformed.dispose()
+  })
+})
+
+describe('applyYUpToZUp', () => {
+  it('converts Y-up to Z-up', () => {
+    const box = new THREE.BoxGeometry(10, 20, 30)
+    const zup = applyYUpToZUp(box)
+    const pos = zup.attributes.position as THREE.BufferAttribute
+    const aabb = new THREE.Box3().setFromBufferAttribute(pos)
+    const size = new THREE.Vector3()
+    aabb.getSize(size)
+    expect(size.x).toBeCloseTo(10, 1)
+    expect(size.y).toBeCloseTo(30, 1)
+    expect(size.z).toBeCloseTo(20, 1)
+    box.dispose()
+    zup.dispose()
+  })
+})
