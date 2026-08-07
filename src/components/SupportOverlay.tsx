@@ -7,6 +7,7 @@ import {
   buildSupportCircles,
   computeSupportPositions,
   buildSupportMeshGeometry,
+  trimFootprintOffset,
 } from './supportBuilder.ts'
 
 interface SupportOverlayProps {
@@ -22,11 +23,12 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
   const radius = supportParams.supportSize / 2
 
   const footprint = useMemo(() => {
-    const local = makeBaseOutlinePoints(shape, plinthParams.width, plinthParams.depth, baseSegMM)
+    const trimOff = trimFootprintOffset(plinthParams)
+    const local = makeBaseOutlinePoints(shape, plinthParams.width, plinthParams.depth, baseSegMM, trimOff)
     const projected = projectToGround(local, cosT)
     const geo = new THREE.BufferGeometry().setFromPoints(projected)
     return new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color: 0x4ad6ff, transparent: true, opacity: 0.8, depthTest: false }))
-  }, [shape, plinthParams.width, plinthParams.depth, baseSegMM, cosT])
+  }, [shape, plinthParams, baseSegMM, cosT])
 
   const supportPositions = useMemo(() => {
     return computeSupportPositions(shape, plinthParams, supportParams, baseSegMM)

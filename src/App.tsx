@@ -31,7 +31,10 @@ import {
   DEFAULT_ROUND_STYLE, DEFAULT_ROUND_LOCATION, DEFAULT_ROUND_SIZE, DEFAULT_DOWNLOAD_RESOLUTION,
   DEFAULT_ADD_SUPPORTS, DEFAULT_PLINTH_ANGLE, DEFAULT_RAISE_BY, DEFAULT_SUPPORT_SIZE,
   DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_SUPPORT_CAPS, DRAWER_WIDTH,
+  DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE,
 } from './defaults.ts'
+import { TRIM_PROFILES } from './components/trimProfiles.ts'
+import TrimProfileIcon from './components/TrimProfileIcon.tsx'
 
 function BuildingIndicator() {
   const building = useBuilding()
@@ -97,6 +100,10 @@ function App() {
   const [supportTipSize, setSupportTipSize] = useState(DEFAULT_SUPPORT_TIP_SIZE)
   const [supportSpacing, setSupportSpacing] = useState(DEFAULT_SUPPORT_SPACING)
   const [supportCaps] = useState(DEFAULT_SUPPORT_CAPS)
+  const [trimEnabled, setTrimEnabled] = useState(DEFAULT_TRIM_ENABLED)
+  const [trimProfileId, setTrimProfileId] = useState(DEFAULT_TRIM_PROFILE_ID)
+  const [trimHeight, setTrimHeight] = useState(DEFAULT_TRIM_HEIGHT)
+  const [trimSize, setTrimSize] = useState(DEFAULT_TRIM_SIZE)
   const { build } = useGeometryWorker()
 
   const handleShape = (_e: unknown, v: Shape | null) => {
@@ -129,14 +136,19 @@ function App() {
     roundStyle,
     roundLocation: shape === 'ellipse' ? 'top' : roundLocation,
     roundSize,
-  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize])
+    trimEnabled,
+    trimProfileId,
+    trimHeight,
+    trimSize,
+  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimProfileId, trimHeight, trimSize])
 
   const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
     const holePart = p.addHole ? `hole-${p.holeDiameter}mm` : 'hole-none'
     const anglePart = p.angleTop ? `angled-${p.topAngle}°` : 'flat'
+    const trimPart = p.trimEnabled ? `_trim-${p.trimProfileId}-${p.trimHeight}x${p.trimSize}` : ''
     const um = Math.round(resMM * 1000)
-    return `plinth_${p.shape}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}_${um}um.stl`
+    return `plinth_${p.shape}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}${trimPart}_${um}um.stl`
   }, [])
 
   const buildJigFilename = useCallback((p: PlinthParams, j: DrillJigParams) => {
@@ -295,6 +307,61 @@ function App() {
                   min={0}
                   max={5}
                   step={0.1}
+                />
+              </>
+            ) : null}
+
+            <Divider sx={{ my: 1.5 }} />
+
+            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
+              Trim Bottom
+            </Typography>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={trimEnabled}
+                  onChange={(e) => setTrimEnabled(e.target.checked)}
+                  size="small"
+                />
+              }
+              label="Add Trim"
+              sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
+            />
+            {trimEnabled ? (
+              <>
+                <ToggleButtonGroup
+                  value={trimProfileId}
+                  exclusive
+                  onChange={(_e, v: string | null) => { if (v !== null) setTrimProfileId(v) }}
+                  size="small"
+                  fullWidth
+                  sx={{ mb: 1 }}
+                >
+                  {TRIM_PROFILES.map((tp) => (
+                    <ToggleButton
+                      key={tp.id}
+                      value={tp.id}
+                      sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 0.75 }}
+                    >
+                      <TrimProfileIcon profile={tp} selected={trimProfileId === tp.id} />
+                    </ToggleButton>
+                  ))}
+                </ToggleButtonGroup>
+                <LabeledSlider
+                  label="Trim Height"
+                  value={trimHeight}
+                  onChange={setTrimHeight}
+                  min={1}
+                  max={height - 1}
+                  step={0.5}
+                />
+                <LabeledSlider
+                  label="Trim Size"
+                  value={trimSize}
+                  onChange={setTrimSize}
+                  min={0.5}
+                  max={15}
+                  step={0.5}
                 />
               </>
             ) : null}

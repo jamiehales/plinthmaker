@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Brush, Evaluator, ADDITION } from 'three-bvh-csg'
 import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM } from './geometryBuilder.ts'
+import { sampleTrimOffset, getTrimProfile } from './trimProfiles.ts'
 import {
   DEFAULT_CONE_START_GAP, DEFAULT_RAFT_HEIGHT, DEFAULT_RAFT_BOTTOM_INSET,
   DEFAULT_CONE_TIP_PENETRATION, DEFAULT_SUPPORT_CAPS,
@@ -13,10 +14,18 @@ const RAFT_BOTTOM_INSET = DEFAULT_RAFT_BOTTOM_INSET
 const CONE_TIP_PENETRATION = DEFAULT_CONE_TIP_PENETRATION
 const SUPPORT_CAPS = DEFAULT_SUPPORT_CAPS
 
-export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM: number): THREE.Vector3[] {
+export function trimFootprintOffset(p: PlinthParams): number {
+  if (!p.trimEnabled || p.trimSize <= 0 || p.trimHeight <= 0) return 0
+  const profile = getTrimProfile(p.trimProfileId)
+  return p.trimSize * sampleTrimOffset(profile, 0)
+}
+
+export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
+  const ew = w + 2 * trimOffset
+  const ed = d + 2 * trimOffset
   if (shape === 'ellipse') {
-    const hw = Math.max(0.01, w / 2)
-    const hd = Math.max(0.01, d / 2)
+    const hw = Math.max(0.01, ew / 2)
+    const hd = Math.max(0.01, ed / 2)
     const perim = Math.PI * (3 * (hw + hd) - Math.sqrt((3 * hw + hd) * (hw + 3 * hd)))
     const n = Math.max(16, Math.ceil(perim / segMM))
     const pts: THREE.Vector3[] = []
@@ -26,8 +35,8 @@ export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM:
     }
     return pts
   }
-  const hw = Math.max(0.01, w / 2)
-  const hd = Math.max(0.01, d / 2)
+  const hw = Math.max(0.01, ew / 2)
+  const hd = Math.max(0.01, ed / 2)
   return [
     new THREE.Vector3(-hw, 0, -hd),
     new THREE.Vector3(hw, 0, -hd),
@@ -47,9 +56,9 @@ function makeEllipseOutline(w: number, d: number, n: number, cosT: number): THRE
   return pts
 }
 
-export function makeInsetOutlinePoints(shape: Shape, w: number, d: number, inset: number, segMM: number): THREE.Vector3[] {
-  const iw = Math.max(0.01, w - 2 * inset)
-  const id = Math.max(0.01, d - 2 * inset)
+export function makeInsetOutlinePoints(shape: Shape, w: number, d: number, inset: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
+  const iw = Math.max(0.01, w + 2 * trimOffset - 2 * inset)
+  const id = Math.max(0.01, d + 2 * trimOffset - 2 * inset)
   return makeBaseOutlinePoints(shape, iw, id, segMM)
 }
 
@@ -135,9 +144,9 @@ function nearestArcLength(points: THREE.Vector3[], cum: number[], target: THREE.
   return bestArc
 }
 
-function computeOuterRingAnchors(shape: Shape, w: number, d: number, inset: number, cosT: number): THREE.Vector3[] {
-  const iw = Math.max(0.01, w - 2 * inset)
-  const id = Math.max(0.01, d - 2 * inset)
+function computeOuterRingAnchors(shape: Shape, w: number, d: number, inset: number, cosT: number, trimOffset = 0): THREE.Vector3[] {
+  const iw = Math.max(0.01, w + 2 * trimOffset - 2 * inset)
+  const id = Math.max(0.01, d + 2 * trimOffset - 2 * inset)
   const hw = iw / 2
   const hd = (id / 2) * cosT
   if (shape === 'ellipse') {
@@ -301,9 +310,10 @@ function buildRaftMesh(shape: Shape, plinthParams: PlinthParams, supportParams: 
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const cosT = Math.cos(tilt)
   const expand = supportParams.supportSize + 5
+  const trimOff = trimFootprintOffset(plinthParams)
 
-  const topW = plinthParams.width + expand
-  const topD = plinthParams.depth + expand
+  const topW = plinthParams.width + 2 * trimOff + expand
+  const topD = plinthParams.depth + 2 * trimOff + expand
   const botW = topW - 2 * RAFT_BOTTOM_INSET
   const botD = topD - 2 * RAFT_BOTTOM_INSET
 
@@ -350,15 +360,15 @@ function buildRaftMesh(shape: Shape, plinthParams: PlinthParams, supportParams: 
   return geo
 }
 
-function buildConcentricRingPositions(shape: Shape, w: number, d: number, cosT: number, s: number, inset: number, segMM: number): THREE.Vector3[] {
+function buildConcentricRingPositions(shape: Shape, w: number, d: number, cosT: number, s: number, inset: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
   const positions: THREE.Vector3[] = []
   const ringStep = s * Math.sqrt(3) / 2
   let shrink = inset
   let ring = 0
   let innermostMinDist = Infinity
   while (true) {
-    const rw = w - 2 * shrink
-    const rd = (d - 2 * shrink) * cosT
+    const rw = w + 2 * trimOffset - 2 * shrink
+    const rd = (d + 2 * trimOffset - 2 * shrink) * cosT
     const hw = rw / 2
     const hd = rd / 2
     if (hw < s / 2 || hd < s / 2) break
@@ -393,17 +403,18 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const cosT = Math.cos(tilt)
 
-  const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, segMM)
+  const trimOff = trimFootprintOffset(plinthParams)
+  const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, segMM, trimOff)
   const insetProjected = projectToGround(insetLocal, cosT)
   const perim = perimeterLength(insetProjected)
   if (perim < 1e-6) return []
 
-  const anchors = computeOuterRingAnchors(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, cosT)
+  const anchors = computeOuterRingAnchors(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, cosT, trimOff)
   const ringPositions = equidistantPointsWithAnchors(insetProjected, anchors, supportParams.supportSpacing)
   const s = ringPositions.length > 0 ? perim / ringPositions.length : supportParams.supportSpacing
 
   const gap = Math.min(s, supportParams.supportSpacing)
-  const interiorPositions = buildConcentricRingPositions(shape, plinthParams.width, plinthParams.depth, cosT, s, tipRadius + gap, segMM)
+  const interiorPositions = buildConcentricRingPositions(shape, plinthParams.width, plinthParams.depth, cosT, s, tipRadius + gap, segMM, trimOff)
   return ringPositions.concat(interiorPositions)
 }
 

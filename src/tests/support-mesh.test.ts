@@ -153,6 +153,10 @@ function buildPlinthConfig(shape: Shape, opts: Partial<PlinthParams> = {}): Plin
     roundStyle: 'none',
     roundLocation: 'top',
     roundSize: 0,
+    trimEnabled: false,
+    trimProfileId: 'quarterCircle',
+    trimHeight: 10,
+    trimSize: 5,
     ...opts,
   }
 }
@@ -361,4 +365,93 @@ describe('applyYUpToZUp', () => {
     box.dispose()
     zup.dispose()
   })
+})
+
+describe('trim bottom', () => {
+  for (const shape of ['rectangle', 'ellipse'] as Shape[]) {
+    it(`${shape}: plinth AABB grows by trimSize when trim enabled`, () => {
+      const pNoTrim = buildPlinthConfig(shape, { width: 40, depth: 40, height: 30 })
+      const pTrim = buildPlinthConfig(shape, {
+        width: 40, depth: 40, height: 30,
+        trimEnabled: true, trimSize: 5, trimHeight: 10, trimProfileId: 'quarterCircle',
+      })
+      const geoNoTrim = buildGeometry(pNoTrim, 1.0, 1.0, false)
+      const geoTrim = buildGeometry(pTrim, 1.0, 1.0, false)
+      const aabbNoTrim = new THREE.Box3().setFromBufferAttribute(geoNoTrim.attributes.position as THREE.BufferAttribute)
+      const aabbTrim = new THREE.Box3().setFromBufferAttribute(geoTrim.attributes.position as THREE.BufferAttribute)
+      const noTrimW = aabbNoTrim.max.x - aabbNoTrim.min.x
+      const trimW = aabbTrim.max.x - aabbTrim.min.x
+      expect(trimW).toBeGreaterThan(noTrimW + 9)
+      expect(trimW).toBeLessThan(noTrimW + 11)
+      geoNoTrim.dispose()
+      geoTrim.dispose()
+    })
+
+    it(`${shape}: plinth mesh is valid with trim enabled`, () => {
+      const p = buildPlinthConfig(shape, {
+        width: 40, depth: 40, height: 30,
+        trimEnabled: true, trimSize: 5, trimHeight: 10, trimProfileId: 'quarterCircle',
+      })
+      const geo = buildGeometry(p, 1.0, 1.0, false)
+      const results = checkMesh(`${shape}-trim`, geo)
+      for (const r of results) {
+        if (!r.pass) console.error(`FAIL ${r.name}: ${r.details}`)
+        expect(r.pass, `${r.name} — ${r.details}`).toBe(true)
+      }
+      geo.dispose()
+    })
+
+    it(`${shape}: stepped trim mesh is valid`, () => {
+      const p = buildPlinthConfig(shape, {
+        width: 40, depth: 40, height: 30,
+        trimEnabled: true, trimSize: 5, trimHeight: 10, trimProfileId: 'stepped2',
+      })
+      const geo = buildGeometry(p, 1.0, 1.0, false)
+      const results = checkMesh(`${shape}-trim-stepped`, geo)
+      for (const r of results) {
+        if (!r.pass) console.error(`FAIL ${r.name}: ${r.details}`)
+        expect(r.pass, `${r.name} — ${r.details}`).toBe(true)
+      }
+      geo.dispose()
+    })
+
+    it(`${shape}: supports use trimmed footprint`, () => {
+      const p = buildPlinthConfig(shape, {
+        width: 40, depth: 40, height: 30,
+        trimEnabled: true, trimSize: 5, trimHeight: 10, trimProfileId: 'quarterCircle',
+      })
+      const s = buildSupportConfig({ plinthAngle: 0 })
+      const positions = computeSupportPositions(shape, p, s, 1.5)
+      expect(positions.length).toBeGreaterThan(0)
+      const hw = (p.width + 2 * p.trimSize) / 2
+      const hd = (p.depth + 2 * p.trimSize) / 2
+      for (const pt of positions) {
+        if (shape === 'ellipse') {
+          const nx = pt.x / hw
+          const nz = pt.z / hd
+          expect(nx * nx + nz * nz).toBeLessThanOrEqual(1.05)
+        } else {
+          expect(Math.abs(pt.x)).toBeLessThanOrEqual(hw + 0.5)
+          expect(Math.abs(pt.z)).toBeLessThanOrEqual(hd + 0.5)
+        }
+      }
+    })
+  }
+
+  for (const profileId of ['quarterCircle', 'stepped2'] as const) {
+    it(`rectangle: trim with fillet edges is valid (${profileId})`, () => {
+      const p = buildPlinthConfig('rectangle', {
+        width: 40, depth: 40, height: 30,
+        roundStyle: 'fillet', roundLocation: 'edges', roundSize: 2,
+        trimEnabled: true, trimSize: 5, trimHeight: 10, trimProfileId: profileId,
+      })
+      const geo = buildGeometry(p, 1.0, 1.0, false)
+      const results = checkMesh(`rect-trim-fillet-${profileId}`, geo)
+      for (const r of results) {
+        if (!r.pass) console.error(`FAIL ${r.name}: ${r.details}`)
+        expect(r.pass, `${r.name} — ${r.details}`).toBe(true)
+      }
+      geo.dispose()
+    })
+  }
 })

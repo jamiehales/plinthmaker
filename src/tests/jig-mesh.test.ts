@@ -157,6 +157,10 @@ function buildConfig(
       roundStyle: 'none',
       roundLocation: 'top',
       roundSize: 0,
+      trimEnabled: false,
+      trimProfileId: 'quarterCircle',
+      trimHeight: 10,
+      trimSize: 5,
       ...opts,
     },
     jig: {
@@ -250,6 +254,10 @@ describe('jig bottom invariant with flatten toggle', () => {
         roundStyle: 'none',
         roundLocation: 'top',
         roundSize: 0,
+        trimEnabled: false,
+        trimProfileId: 'quarterCircle',
+        trimHeight: 10,
+        trimSize: 5,
       }
       const jigBase: DrillJigParams = {
         enabled: true,
@@ -299,6 +307,10 @@ describe('jig top size invariant with flatten toggle (angle=true)', () => {
         roundStyle: 'none',
         roundLocation: 'top',
         roundSize: 0,
+        trimEnabled: false,
+        trimProfileId: 'quarterCircle',
+        trimHeight: 10,
+        trimSize: 5,
       }
       const jigBase: DrillJigParams = {
         enabled: true,
@@ -355,6 +367,10 @@ describe('jig top size matches angle=false when flatten=true', () => {
         roundStyle: 'none',
         roundLocation: 'top',
         roundSize: 0,
+        trimEnabled: false,
+        trimProfileId: 'quarterCircle',
+        trimHeight: 10,
+        trimSize: 5,
       }
       const pNoAngle: PlinthParams = {
         shape,
@@ -369,6 +385,10 @@ describe('jig top size matches angle=false when flatten=true', () => {
         roundStyle: 'none',
         roundLocation: 'top',
         roundSize: 0,
+        trimEnabled: false,
+        trimProfileId: 'quarterCircle',
+        trimHeight: 10,
+        trimSize: 5,
       }
 
       const { jig: jigAngle } = buildJigGeometry(shape, pAngle, jigBase, 1.0, 1.0, false, false)

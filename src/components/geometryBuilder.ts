@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
+import { getTrimProfile, sampleTrimRings } from './trimProfiles.ts'
 
 export function enableCDT(evaluator: Evaluator): void {
   ;(evaluator as unknown as { useCDTClipping: boolean }).useCDTClipping = true
@@ -22,6 +23,10 @@ export interface PlinthParams {
   roundStyle: RoundStyle
   roundLocation: RoundLocation
   roundSize: number
+  trimEnabled: boolean
+  trimProfileId: string
+  trimHeight: number
+  trimSize: number
 }
 
 export interface DrillJigParams {
@@ -124,6 +129,63 @@ function makeOutline(shape: Shape, w: number, d: number, style: RoundStyle, edge
   return pts
 }
 
+function makeTrimOutline(shape: Shape, w: number, d: number, offset: number, style: RoundStyle, edgeRound: boolean, r: number, np: number): THREE.Vector2[] {
+  const wT = w + 2 * offset
+  const dT = d + 2 * offset
+  if (shape === 'ellipse') {
+    const pts: THREE.Vector2[] = []
+    const n = Math.max(np, 16)
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2
+      pts.push(new THREE.Vector2(wT / 2 * Math.cos(a), dT / 2 * Math.sin(a)))
+    }
+    return pts
+  }
+  if (!edgeRound) {
+    return [
+      new THREE.Vector2(-wT / 2, -dT / 2),
+      new THREE.Vector2(wT / 2, -dT / 2),
+      new THREE.Vector2(wT / 2, dT / 2),
+      new THREE.Vector2(-wT / 2, dT / 2),
+    ]
+  }
+  if (style === 'chamfer') {
+    const cx = r
+    const cz = r
+    return [
+      new THREE.Vector2(-wT / 2 + cx, -dT / 2),
+      new THREE.Vector2(wT / 2 - cx, -dT / 2),
+      new THREE.Vector2(wT / 2, -dT / 2 + cz),
+      new THREE.Vector2(wT / 2, dT / 2 - cz),
+      new THREE.Vector2(wT / 2 - cx, dT / 2),
+      new THREE.Vector2(-wT / 2 + cx, dT / 2),
+      new THREE.Vector2(-wT / 2, dT / 2 - cz),
+      new THREE.Vector2(-wT / 2, -dT / 2 + cz),
+    ]
+  }
+  const cr = Math.min(r, wT / 2 - 0.01, dT / 2 - 0.01)
+  const hw = wT / 2
+  const hd = dT / 2
+  const corners: Array<{ cx: number; cz: number; start: number; end: number }> = [
+    { cx: hw - cr, cz: -hd + cr, start: -Math.PI / 2, end: 0 },
+    { cx: hw - cr, cz: hd - cr, start: 0, end: Math.PI / 2 },
+    { cx: -hw + cr, cz: hd - cr, start: Math.PI / 2, end: Math.PI },
+    { cx: -hw + cr, cz: -hd + cr, start: Math.PI, end: 3 * Math.PI / 2 },
+  ]
+  const arcN = Math.max(4, Math.round(np / 4))
+  const pts: THREE.Vector2[] = []
+  for (let i = 0; i < corners.length; i++) {
+    const c = corners[i]
+    pts.push(new THREE.Vector2(c.cx + cr * Math.cos(c.start), c.cz + cr * Math.sin(c.start)))
+    for (let j = 1; j < arcN; j++) {
+      const t = j / arcN
+      const ang = c.start + (c.end - c.start) * t
+      pts.push(new THREE.Vector2(c.cx + cr * Math.cos(ang), c.cz + cr * Math.sin(ang)))
+    }
+  }
+  return pts
+}
+
 function computeNormals2D(pts: THREE.Vector2[]): THREE.Vector2[] {
   const n = pts.length
   const normals: THREE.Vector2[] = []
@@ -210,8 +272,13 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
 
   const drop = angleTop ? p.depth * tanA : 0
   const minTopY = Math.max(0.01, h - drop)
+
+  const trimOn = p.trimEnabled && p.trimHeight > 0 && p.trimSize > 0
+  const trimHeight = trimOn ? Math.min(p.trimHeight, h - 0.01) : 0
+  const trimSize = trimOn ? Math.max(0, p.trimSize) : 0
+
   const r = rounding
-    ? Math.min(p.roundSize, w / 2 - 0.01, d / 2 - 0.01, h / 2 - 0.01, minTopY - 0.01)
+    ? Math.min(p.roundSize, w / 2 - 0.01, d / 2 - 0.01, (h - trimHeight) / 2 - 0.01, minTopY - 0.01)
     : 0
 
   const baseOutline = makeOutline(p.shape, w, d, p.roundStyle, edgeRound, r, baseSegMM, filletSegMM)
@@ -221,7 +288,22 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
 
   type Ring = { y: number | null; ys: number[] | null; pts: THREE.Vector2[] }
   const constYs = (yv: number, n: number) => Array.from({ length: n }, () => yv)
-  const rings: Ring[] = [{ y: 0, ys: constYs(0, np), pts: baseOutline }]
+
+  const rings: Ring[] = []
+
+  if (trimOn) {
+    const profile = getTrimProfile(p.trimProfileId)
+    const trimSamples = sampleTrimRings(profile, trimHeight, baseSegMM)
+    for (const s of trimSamples) {
+      const offset = trimSize * s.offset
+      const outline = offset > 1e-6
+        ? makeTrimOutline(p.shape, w, d, offset, p.roundStyle, edgeRound, r, np)
+        : baseOutline.map((pp) => pp.clone())
+      rings.push({ y: s.y, ys: constYs(s.y, outline.length), pts: outline })
+    }
+  } else {
+    rings.push({ y: 0, ys: constYs(0, np), pts: baseOutline })
+  }
 
   if (topRound) {
     const normals = computeNormals2D(baseOutline)
@@ -275,6 +357,11 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
 
   const indices: number[] = []
   for (let j = 0; j < rings.length - 1; j++) {
+    const r0 = rings[j]
+    const r1 = rings[j + 1]
+    const y0 = r0.ys ? r0.ys[0] : (r0.y ?? 0)
+    const y1 = r1.ys ? r1.ys[0] : (r1.y ?? 0)
+    if (Math.abs(y0 - y1) < 1e-6) continue
     for (let k = 0; k < np; k++) {
       const a = j * np + k
       const b = j * np + (k + 1) % np
@@ -306,6 +393,27 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
   const topRingBase = (rings.length - 1) * np
   for (let k = 0; k < np; k++) {
     indices.push(centerIdx, topRingBase + ((k + 1) % np), topRingBase + k)
+  }
+
+  let nextVert = centerIdx + 1
+  for (let j = 0; j < rings.length - 1; j++) {
+    const r0 = rings[j]
+    const r1 = rings[j + 1]
+    const y0 = r0.ys ? r0.ys[0] : (r0.y ?? 0)
+    const y1 = r1.ys ? r1.ys[0] : (r1.y ?? 0)
+    if (Math.abs(y0 - y1) < 1e-6) {
+      const inner = r1.pts
+      const outer = r0.pts
+      const stepTri = triangulateOutline(outer, [inner])
+      for (let i = 0; i < stepTri.positions.length; i += 3) {
+        positions.push(stepTri.positions[i], y0, stepTri.positions[i + 1])
+      }
+      const stepBase = nextVert
+      nextVert += stepTri.positions.length / 3
+      for (let i = 0; i < stepTri.indices.length; i += 3) {
+        indices.push(stepBase + stepTri.indices[i], stepBase + stepTri.indices[i + 2], stepBase + stepTri.indices[i + 1])
+      }
+    }
   }
 
   const geo = new THREE.BufferGeometry()

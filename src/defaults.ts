@@ -38,4 +38,9 @@ export const DEFAULT_SUPPORT_CAPS = true
 
 export const DEFAULT_RENDER_THROTTLE_MS = 50
 
+export const DEFAULT_TRIM_ENABLED = false
+export const DEFAULT_TRIM_PROFILE_ID = 'quarterCircle'
+export const DEFAULT_TRIM_HEIGHT = 4
+export const DEFAULT_TRIM_SIZE = 3
+
 export const DRAWER_WIDTH = 500
