@@ -89,6 +89,97 @@ export function equidistantPoints(points: THREE.Vector3[], n: number): THREE.Vec
   return out
 }
 
+function cumulativeArcLength(points: THREE.Vector3[]): number[] {
+  const m = points.length
+  const cum: number[] = [0]
+  for (let i = 0; i < m; i++) {
+    cum.push(cum[i] + points[i].distanceTo(points[(i + 1) % m]))
+  }
+  return cum
+}
+
+function pointAtArcLength(points: THREE.Vector3[], cum: number[], arc: number): THREE.Vector3 {
+  const m = points.length
+  const total = cum[m]
+  let a = arc
+  while (a < 0) a += total
+  while (a >= total) a -= total
+  let seg = 0
+  while (seg < m && cum[seg + 1] < a) seg++
+  const segStart = cum[seg]
+  const segEnd = cum[seg + 1]
+  const t = segEnd - segStart < 1e-6 ? 0 : (a - segStart) / (segEnd - segStart)
+  const pa = points[seg]
+  const pb = points[(seg + 1) % m]
+  return new THREE.Vector3(pa.x + (pb.x - pa.x) * t, 0, pa.z + (pb.z - pa.z) * t)
+}
+
+function nearestArcLength(points: THREE.Vector3[], cum: number[], target: THREE.Vector3): number {
+  const m = points.length
+  let bestDist = Infinity
+  let bestArc = 0
+  for (let i = 0; i < m; i++) {
+    const a = points[i]
+    const b = points[(i + 1) % m]
+    const segLen = cum[i + 1] - cum[i]
+    if (segLen < 1e-9) continue
+    const t = Math.max(0, Math.min(1, ((target.x - a.x) * (b.x - a.x) + (target.z - a.z) * (b.z - a.z)) / (segLen * segLen)))
+    const px = a.x + (b.x - a.x) * t
+    const pz = a.z + (b.z - a.z) * t
+    const dist = (px - target.x) * (px - target.x) + (pz - target.z) * (pz - target.z)
+    if (dist < bestDist) {
+      bestDist = dist
+      bestArc = cum[i] + t * segLen
+    }
+  }
+  return bestArc
+}
+
+function computeOuterRingAnchors(shape: Shape, w: number, d: number, inset: number, cosT: number): THREE.Vector3[] {
+  const iw = Math.max(0.01, w - 2 * inset)
+  const id = Math.max(0.01, d - 2 * inset)
+  const hw = iw / 2
+  const hd = (id / 2) * cosT
+  if (shape === 'ellipse') {
+    return [
+      new THREE.Vector3(hw, 0, 0),
+      new THREE.Vector3(0, 0, hd),
+      new THREE.Vector3(-hw, 0, 0),
+      new THREE.Vector3(0, 0, -hd),
+    ]
+  }
+  return [
+    new THREE.Vector3(-hw, 0, -hd),
+    new THREE.Vector3(hw, 0, -hd),
+    new THREE.Vector3(hw, 0, hd),
+    new THREE.Vector3(-hw, 0, hd),
+  ]
+}
+
+export function equidistantPointsWithAnchors(points: THREE.Vector3[], anchors: THREE.Vector3[], spacing: number): THREE.Vector3[] {
+  const m = points.length
+  const cum = cumulativeArcLength(points)
+  const total = cum[m]
+  if (total < 1e-6) return []
+  if (anchors.length === 0) return equidistantPoints(points, Math.max(4, Math.round(total / spacing)))
+
+  const anchorArcs = anchors.map((a) => nearestArcLength(points, cum, a)).sort((x, y) => x - y)
+  const k = anchorArcs.length
+  const positions: THREE.Vector3[] = []
+  for (let i = 0; i < k; i++) {
+    const startArc = anchorArcs[i]
+    const endArc = i + 1 < k ? anchorArcs[i + 1] : anchorArcs[0] + total
+    const segLen = endArc - startArc
+    if (segLen <= 1e-6) continue
+    const count = Math.max(1, Math.round(segLen / spacing))
+    const step = segLen / count
+    for (let j = 0; j < count; j++) {
+      positions.push(pointAtArcLength(points, cum, startArc + j * step))
+    }
+  }
+  return positions
+}
+
 function equidistantPointsWithOffset(points: THREE.Vector3[], n: number, offset: number): THREE.Vector3[] {
   const m = points.length
   const cum: number[] = [0]
@@ -305,9 +396,11 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
   const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, segMM)
   const insetProjected = projectToGround(insetLocal, cosT)
   const perim = perimeterLength(insetProjected)
-  const n = Math.max(4, Math.round(perim / supportParams.supportSpacing))
-  const s = perim / n
-  const ringPositions = equidistantPoints(insetProjected, n)
+  if (perim < 1e-6) return []
+
+  const anchors = computeOuterRingAnchors(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, cosT)
+  const ringPositions = equidistantPointsWithAnchors(insetProjected, anchors, supportParams.supportSpacing)
+  const s = ringPositions.length > 0 ? perim / ringPositions.length : supportParams.supportSpacing
 
   const gap = Math.min(s, supportParams.supportSpacing)
   const interiorPositions = buildConcentricRingPositions(shape, plinthParams.width, plinthParams.depth, cosT, s, tipRadius + gap, segMM)

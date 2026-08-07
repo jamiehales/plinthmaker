@@ -272,6 +272,38 @@ describe('computeSupportPositions', () => {
       }
     })
   }
+
+  it('rectangle: outer ring places a support near each corner', () => {
+    const p = buildPlinthConfig('rectangle', { width: 40, depth: 30 })
+    const s = buildSupportConfig({ plinthAngle: 0 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const hw = p.width / 2
+    const hd = p.depth / 2
+    const corners = [
+      [hw, hd], [hw, -hd], [-hw, hd], [-hw, -hd],
+    ]
+    const tol = s.supportSpacing / 2 + 0.5
+    for (const [cx, cz] of corners) {
+      const found = positions.some((pt) => Math.abs(pt.x - cx) <= tol && Math.abs(pt.z - cz) <= tol)
+      expect(found, `corner (${cx},${cz}) missing`).toBe(true)
+    }
+  })
+
+  it('ellipse: outer ring places a support near each axis extremum', () => {
+    const p = buildPlinthConfig('ellipse', { width: 50, depth: 30 })
+    const s = buildSupportConfig({ plinthAngle: 0 })
+    const positions = computeSupportPositions('ellipse', p, s, 1.5)
+    const hw = p.width / 2
+    const hd = p.depth / 2
+    const extrema = [
+      [hw, 0], [-hw, 0], [0, hd], [0, -hd],
+    ]
+    const tol = s.supportSpacing / 2 + 0.5
+    for (const [cx, cz] of extrema) {
+      const found = positions.some((pt) => Math.abs(pt.x - cx) <= tol && Math.abs(pt.z - cz) <= tol)
+      expect(found, `extremum (${cx},${cz}) missing`).toBe(true)
+    }
+  })
 })
 
 describe('mergePlinthWithSupports', () => {
