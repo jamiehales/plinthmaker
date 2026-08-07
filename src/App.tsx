@@ -42,7 +42,7 @@ import {
   DEFAULT_ADD_SUPPORTS, DEFAULT_PLINTH_ANGLE, DEFAULT_RAISE_BY, DEFAULT_SUPPORT_SIZE,
   DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_SUPPORT_CAPS, DRAWER_WIDTH,
   DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE,
-  DEFAULT_CUSTOM_TRIM_POINTS,
+  DEFAULT_CUSTOM_TRIM_POINTS, DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER
 } from './defaults.ts'
 import { TRIM_PROFILES, getTrimProfile, type TrimProfilePoint } from './components/trimProfiles.ts'
 import TrimProfileIcon from './components/TrimProfileIcon.tsx'
@@ -483,7 +483,7 @@ function App() {
             />
             {addHole ? (
               <>
-                <LabeledSlider label="Hole Diameter" value={holeDiameter} onChange={(v) => { setHoleDiameter(v); if (!(jigDiffHole && addHole)) setJigHoleDiameter(v) }} min={2} max={8} step={0.5} />
+                <LabeledSlider label="Hole Diameter" value={holeDiameter} onChange={(v) => { setHoleDiameter(v); if (!(jigDiffHole && addHole)) setJigHoleDiameter(v) }} min={DEFAULT_MIN_HOLE_DIAMETER} max={DEFAULT_MAX_HOLE_DIAMETER} step={0.5} />
                 <LabeledSlider
                   label="Hole Depth"
                   value={holeDepth}
@@ -523,8 +523,8 @@ function App() {
                       setJigHoleDiameter(v)
                     }
                   }}
-                  min={2}
-                  max={8}
+                  min={DEFAULT_MIN_HOLE_DIAMETER}
+                  max={DEFAULT_MAX_HOLE_DIAMETER}
                   step={0.5}
                   disabled={addHole && !jigDiffHole}
                 />
