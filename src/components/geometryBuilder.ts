@@ -294,7 +294,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
 
   if (trimOn) {
     const profile = p.trimProfileId === 'custom' && p.customTrimPoints
-      ? { id: 'custom', name: 'Custom', interpolate: 'catmullRom' as const, points: p.customTrimPoints }
+      ? { id: 'custom', name: 'Custom', interpolate: 'bezier' as const, points: p.customTrimPoints }
       : getTrimProfile(p.trimProfileId)
     const trimSamples = sampleTrimRings(profile, trimHeight, baseSegMM)
     for (const s of trimSamples) {

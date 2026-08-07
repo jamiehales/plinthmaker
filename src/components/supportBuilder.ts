@@ -17,7 +17,7 @@ const SUPPORT_CAPS = DEFAULT_SUPPORT_CAPS
 export function trimFootprintOffset(p: PlinthParams): number {
   if (!p.trimEnabled || p.trimSize <= 0 || p.trimHeight <= 0) return 0
   const profile = p.trimProfileId === 'custom' && p.customTrimPoints
-    ? { id: 'custom', name: 'Custom', interpolate: 'catmullRom' as const, points: p.customTrimPoints }
+    ? { id: 'custom', name: 'Custom', interpolate: 'bezier' as const, points: p.customTrimPoints }
     : getTrimProfile(p.trimProfileId)
   return p.trimSize * sampleTrimOffset(profile, 0)
 }

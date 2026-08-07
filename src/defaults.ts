@@ -44,4 +44,7 @@ export const DEFAULT_TRIM_HEIGHT = 4
 export const DEFAULT_TRIM_SIZE = 3
 export { DEFAULT_CUSTOM_TRIM_POINTS } from './components/trimProfiles.ts'
 
+export const TRIM_HANDLE_SCALE = 1
+export const TRIM_MIN_HANDLE_LEN = 0.03
+
 export const DRAWER_WIDTH = 500
