@@ -163,6 +163,17 @@ export function sampleTrimRings(profile: TrimProfile, trimHeight: number, segMM:
 
 export const TRIM_PROFILES: TrimProfile[] = [
   {
+    id: 'chamfer',
+    name: 'Chamfer',
+    interpolate: 'bezier',
+    points: [
+      { y: 0, offset: 1, sharp: true },
+      { y: 0.2, offset: 1, sharp: true },
+      { y: 1, offset: 0.2, sharp: true },
+      { y: 1, offset: 0, sharp: true },
+    ],
+  },
+  {
     id: 'quarterCircle',
     name: 'Quarter Circle',
     interpolate: 'bezier',
@@ -189,12 +200,12 @@ export const TRIM_PROFILES: TrimProfile[] = [
     interpolate: 'bezier',
     points: [
       { y: 0, offset: 1, sharp: true },
-      { y: 0.1, offset: 1, sharp: true },
-      { y: 0.1, offset: 0.9, sharp: true },
-      { y: 0.62, offset: 0.59, sharp: false, inHandle: { dy: -0.25, dOffset: 0.25 }, outHandle: { dy: 0.25, dOffset: -0.25 } },
-      { y: 0.9, offset: 0.1, sharp: true },
-      { y: 1, offset: 0.1, sharp: true },
-      { y: 1, offset: 0, sharp: false },
+      { y: 0.2, offset: 1, sharp: true },
+      { y: 0.2, offset: 0.8, sharp: true },
+      { y: 0.65, offset: 0.65, sharp: false, inHandle: { dy: -0.2, dOffset: 0.2 }, outHandle: { dy: 0.2, dOffset: -0.2 } },
+      { y: 0.8, offset: 0.2, sharp: true },
+      { y: 1, offset: 0.2, sharp: true },
+      { y: 1, offset: 0, sharp: true },
     ],
   },
   {
@@ -203,8 +214,10 @@ export const TRIM_PROFILES: TrimProfile[] = [
     interpolate: 'bezier',
     points: [
       { y: 0, offset: 1, sharp: true },
-      { y: 0.1, offset: 1, sharp: false, outHandle: { dy: 0, dOffset: -0.4418 } },
-      { y: 1, offset: 0.1, sharp: false, inHandle: { dy: -0.4418, dOffset: 0 } },
+      { y: 0.2, offset: 1, sharp: true },
+      { y: 0.2, offset: 1, sharp: false, outHandle: { dy: 0, dOffset: -0.4418 } },
+      { y: 1, offset: 0.2, sharp: false, inHandle: { dy: -0.4418, dOffset: 0 } },
+      { y: 1, offset: 0.2, sharp: true },
       { y: 1, offset: 0, sharp: true },
     ],
   },
