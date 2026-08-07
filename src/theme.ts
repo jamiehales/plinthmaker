@@ -8,6 +8,9 @@ const theme = createTheme({
       paper: '#14181d',
     },
   },
+  typography: {
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  },
   shape: {
     borderRadius: 8,
   },

@@ -13,6 +13,7 @@ import {
   Button,
   CircularProgress,
   Tooltip,
+  Link,
   TextField,
   Dialog,
   DialogTitle,
@@ -224,8 +225,20 @@ function App() {
     <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
       <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
         <Toolbar variant="dense">
-          <Typography variant="h6" component="h1" noWrap>
-            mostlymaking.plinths
+          <Typography
+            component="h1"
+            noWrap
+            sx={{
+              fontFamily: '"Elms Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              fontSize: '1.25rem',
+              fontWeight: 400,
+              letterSpacing: '0.02em',
+            }}
+          >
+            <Link href="https://mostlymaking.net" target="_blank" rel="noopener noreferrer" color="inherit" underline="hover">
+              mostlymaking.
+            </Link>
+            plinths
           </Typography>
         </Toolbar>
       </AppBar>
