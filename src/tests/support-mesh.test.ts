@@ -165,6 +165,7 @@ function buildSupportConfig(opts: Partial<SupportParams> = {}): SupportParams {
     supportSize: 2,
     supportTipSize: 0.4,
     supportSpacing: 5,
+    supportCaps: false,
     ...opts,
   }
 }
@@ -189,8 +190,8 @@ for (const shape of ['rectangle', 'ellipse'] as Shape[]) {
 describe('buildSupportMeshGeometry mesh correctness', () => {
   for (const { name, shape, p, s } of configs) {
     describe(name, () => {
-      it('support mesh is valid', () => {
-        const geo = buildSupportMeshGeometry(shape, p, s, 16)
+      it('support mesh is valid (caps on)', () => {
+        const geo = buildSupportMeshGeometry(shape, p, { ...s, supportCaps: true }, 16)
         const results = checkMesh(name, geo)
         for (const r of results) {
           if (!r.pass) {
@@ -209,6 +210,28 @@ describe('buildSupportMeshGeometry mesh correctness', () => {
         expect(aabb.max.y).toBeLessThanOrEqual(s.raiseBy + p.height + 1)
         geo.dispose()
       })
+    })
+  }
+})
+
+describe('buildSupportMeshGeometry caps off produces open tubes', () => {
+  for (const shape of ['rectangle', 'ellipse'] as Shape[]) {
+    it(`${shape}: caps off has boundary edges, caps on is watertight`, () => {
+      const p = buildPlinthConfig(shape)
+      const s = buildSupportConfig({ plinthAngle: 15 })
+      const geoOff = buildSupportMeshGeometry(shape, p, { ...s, supportCaps: false }, 16)
+      const resultsOff = checkMesh(`${shape}-capsOff`, geoOff)
+      const watertightOff = resultsOff.find((r) => r.name.endsWith('watertight (no boundary edges)'))
+      expect(watertightOff?.pass).toBe(false)
+      geoOff.dispose()
+
+      const geoOn = buildSupportMeshGeometry(shape, p, { ...s, supportCaps: true }, 16)
+      const resultsOn = checkMesh(`${shape}-capsOn`, geoOn)
+      const watertightOn = resultsOn.find((r) => r.name.endsWith('watertight (no boundary edges)'))
+      const manifoldOn = resultsOn.find((r) => r.name.endsWith('manifold (no edges shared by >2 triangles)'))
+      expect(watertightOn?.pass).toBe(true)
+      expect(manifoldOn?.pass).toBe(true)
+      geoOn.dispose()
     })
   }
 })

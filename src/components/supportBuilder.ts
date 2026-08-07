@@ -4,14 +4,14 @@ import { Brush, Evaluator, ADDITION } from 'three-bvh-csg'
 import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM } from './geometryBuilder.ts'
 import {
   DEFAULT_CONE_START_GAP, DEFAULT_RAFT_HEIGHT, DEFAULT_RAFT_BOTTOM_INSET,
-  DEFAULT_SUPPORT_BASE_Y, DEFAULT_CONE_TIP_PENETRATION,
+  DEFAULT_CONE_TIP_PENETRATION, DEFAULT_SUPPORT_CAPS,
 } from '../defaults.ts'
 
 const CONE_START_GAP = DEFAULT_CONE_START_GAP
 const RAFT_HEIGHT = DEFAULT_RAFT_HEIGHT
 const RAFT_BOTTOM_INSET = DEFAULT_RAFT_BOTTOM_INSET
-const SUPPORT_BASE_Y = DEFAULT_SUPPORT_BASE_Y
 const CONE_TIP_PENETRATION = DEFAULT_CONE_TIP_PENETRATION
+const SUPPORT_CAPS = DEFAULT_SUPPORT_CAPS
 
 export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM: number): THREE.Vector3[] {
   if (shape === 'ellipse') {
@@ -135,7 +135,7 @@ export function buildSupportCircles(positions: THREE.Vector3[], radius: number, 
   return geo
 }
 
-function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], segs: number): THREE.BufferGeometry {
+function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], tanT: number, segs: number, caps: boolean): THREE.BufferGeometry {
   if (positions.length === 0) return new THREE.BufferGeometry()
   const verts: number[] = []
   const indices: number[] = []
@@ -144,22 +144,24 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
     const p = positions[i]
     const yContact = contactHeights[i]
     const yConeStart = yContact - CONE_START_GAP
-    if (yConeStart <= SUPPORT_BASE_Y) continue
+    if (yConeStart <= RAFT_HEIGHT) continue
 
     const baseVtx = verts.length / 3
 
-    verts.push(p.x, SUPPORT_BASE_Y, p.z)
+    verts.push(p.x, RAFT_HEIGHT, p.z)
     const centerVtx = baseVtx
     for (let j = 0; j < segs; j++) {
       const a = (j / segs) * Math.PI * 2
       const cx = Math.cos(a)
       const cz = Math.sin(a)
-      verts.push(p.x + cx * supportRadius, SUPPORT_BASE_Y, p.z + cz * supportRadius)
+      verts.push(p.x + cx * supportRadius, RAFT_HEIGHT, p.z + cz * supportRadius)
     }
     const ring0Vtx = baseVtx + 1
-    for (let j = 0; j < segs; j++) {
-      const jn = (j + 1) % segs
-      indices.push(centerVtx, ring0Vtx + jn, ring0Vtx + j)
+    if (caps) {
+      for (let j = 0; j < segs; j++) {
+        const jn = (j + 1) % segs
+        indices.push(centerVtx, ring0Vtx + jn, ring0Vtx + j)
+      }
     }
     const ring1Vtx = ring0Vtx + segs
     for (let j = 0; j < segs; j++) {
@@ -174,23 +176,26 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
       indices.push(ring0Vtx + j, ring1Vtx + jn, ring0Vtx + jn)
     }
     const ring2Vtx = ring1Vtx + segs
-    const yTip = yContact + CONE_TIP_PENETRATION
     for (let j = 0; j < segs; j++) {
       const a = (j / segs) * Math.PI * 2
       const cx = Math.cos(a)
       const cz = Math.sin(a)
-      verts.push(p.x + cx * tipRadius, yTip, p.z + cz * tipRadius)
+      const zTip = p.z + cz * tipRadius
+      const yTip = yContact - (zTip - p.z) * tanT
+      verts.push(p.x + cx * tipRadius, yTip, zTip)
     }
     for (let j = 0; j < segs; j++) {
       const jn = (j + 1) % segs
       indices.push(ring1Vtx + j, ring2Vtx + j, ring2Vtx + jn)
       indices.push(ring1Vtx + j, ring2Vtx + jn, ring1Vtx + jn)
     }
-    const tipCenterVtx = verts.length / 3
-    verts.push(p.x, yTip, p.z)
-    for (let j = 0; j < segs; j++) {
-      const jn = (j + 1) % segs
-      indices.push(tipCenterVtx, ring2Vtx + jn, ring2Vtx + j)
+    if (caps) {
+      const tipCenterVtx = verts.length / 3
+      verts.push(p.x, yContact, p.z)
+      for (let j = 0; j < segs; j++) {
+        const jn = (j + 1) % segs
+        indices.push(tipCenterVtx, ring2Vtx + jn, ring2Vtx + j)
+      }
     }
   }
 
@@ -319,7 +324,7 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
 
   const positions = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const contactHeights = positions.map((p) => raise - p.z * tanT)
-  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, segs)
+  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, tanT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
 
   const normSupport = supportGeo.index ? supportGeo.toNonIndexed() : supportGeo.clone()
@@ -371,7 +376,7 @@ export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: Plin
 
   const positions = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const contactHeights = positions.map((p) => raise - p.z * tanT)
-  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, segs)
+  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, tanT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const unioned = csgUnion(supportGeo, raftGeo)
   supportGeo.dispose()

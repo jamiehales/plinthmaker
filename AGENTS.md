@@ -1,5 +1,9 @@
 # Project Instructions
 
+## Behavior
+
+* Do not modify the visuals shown to the user in preview mode (ie. hiding parts of the mesh) unless you confirm the behavior change with the user first
+
 ## Overview
 
 **plinthgenerator** is a browser-based, fully client-side SPA that generates parametric STL plinth models from user-controlled parameters. No backend, no API calls — everything runs in the browser and works offline once loaded. Deployed to Vercel as a static site.

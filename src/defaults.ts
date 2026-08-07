@@ -34,5 +34,6 @@ export const DEFAULT_RAFT_HEIGHT = 1.5
 export const DEFAULT_RAFT_BOTTOM_INSET = 1
 export const DEFAULT_SUPPORT_BASE_Y = 1
 export const DEFAULT_CONE_TIP_PENETRATION = 0.1
+export const DEFAULT_SUPPORT_CAPS = true
 
 export const DRAWER_WIDTH = 500

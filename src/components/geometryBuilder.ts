@@ -41,6 +41,7 @@ export interface SupportParams {
   supportSize: number
   supportTipSize: number
   supportSpacing: number
+  supportCaps: boolean
 }
 
 export const DOWNLOAD_BASE_SEGMENT_MM = 0.1

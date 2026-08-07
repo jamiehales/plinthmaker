@@ -30,7 +30,7 @@ import {
   DEFAULT_JIG_LIFT, DEFAULT_JIG_FLATTEN_TOP, DEFAULT_ANGLE_TOP, DEFAULT_TOP_ANGLE,
   DEFAULT_ROUND_STYLE, DEFAULT_ROUND_LOCATION, DEFAULT_ROUND_SIZE, DEFAULT_DOWNLOAD_RESOLUTION,
   DEFAULT_ADD_SUPPORTS, DEFAULT_PLINTH_ANGLE, DEFAULT_RAISE_BY, DEFAULT_SUPPORT_SIZE,
-  DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DRAWER_WIDTH,
+  DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_SUPPORT_CAPS, DRAWER_WIDTH,
 } from './defaults.ts'
 
 function BuildingIndicator() {
@@ -95,6 +95,7 @@ function App() {
   const [supportSize, setSupportSize] = useState(DEFAULT_SUPPORT_SIZE)
   const [supportTipSize, setSupportTipSize] = useState(DEFAULT_SUPPORT_TIP_SIZE)
   const [supportSpacing, setSupportSpacing] = useState(DEFAULT_SUPPORT_SPACING)
+  const [supportCaps, setSupportCaps] = useState(DEFAULT_SUPPORT_CAPS)
   const { build } = useGeometryWorker()
 
   const handleShape = (_e: unknown, v: Shape | null) => {
@@ -161,7 +162,8 @@ function App() {
     supportSize,
     supportTipSize,
     supportSpacing,
-  }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing])
+    supportCaps,
+  }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, supportCaps])
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
@@ -457,6 +459,17 @@ function App() {
                   onChange={setSupportSpacing}
                   min={2}
                   max={5}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={supportCaps}
+                      onChange={(e) => setSupportCaps(e.target.checked)}
+                      size="small"
+                    />
+                  }
+                  label="Support Caps"
+                  sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
                 />
               </>
             ) : null}
