@@ -317,9 +317,9 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
 export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number): THREE.BufferGeometry {
   const radius = supportParams.supportSize / 2
   const tipRadius = supportParams.supportTipSize / 2
-  const raise = supportParams.raiseBy
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const tanT = Math.tan(tilt)
+  const raise = RAFT_HEIGHT + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
   if (radius <= 0) return new THREE.BufferGeometry()
 
   const positions = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
@@ -369,9 +369,9 @@ function csgUnion(a: THREE.BufferGeometry, b: THREE.BufferGeometry): THREE.Buffe
 export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number): THREE.BufferGeometry {
   const radius = supportParams.supportSize / 2
   const tipRadius = supportParams.supportTipSize / 2
-  const raise = supportParams.raiseBy
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const tanT = Math.tan(tilt)
+  const raise = RAFT_HEIGHT + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
   if (radius <= 0) return new THREE.BufferGeometry()
 
   const positions = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
@@ -393,9 +393,9 @@ export function applyYUpToZUp(geometry: THREE.BufferGeometry): THREE.BufferGeome
   return out
 }
 
-export function applySupportTransform(geometry: THREE.BufferGeometry, supportParams: SupportParams): THREE.BufferGeometry {
+export function applySupportTransform(geometry: THREE.BufferGeometry, supportParams: SupportParams, plinthDepth: number): THREE.BufferGeometry {
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
-  const raise = supportParams.raiseBy
+  const raise = RAFT_HEIGHT + supportParams.raiseBy + (plinthDepth / 2) * Math.sin(tilt)
   const matrix = new THREE.Matrix4()
   matrix.makeRotationX(tilt)
   matrix.setPosition(0, raise, 0)

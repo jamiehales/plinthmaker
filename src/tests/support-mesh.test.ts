@@ -281,7 +281,7 @@ describe('mergePlinthWithSupports', () => {
         const p = buildPlinthConfig(shape)
         const s = buildSupportConfig({ plinthAngle })
         const plinthGeo = buildGeometry(p, 1.0, 1.0, false)
-        const transformedPlinth = applySupportTransform(plinthGeo, s)
+        const transformedPlinth = applySupportTransform(plinthGeo, s, p.depth)
         const supportGeo = buildSupportMeshGeometry(shape, p, s, 16)
         const merged = mergePlinthWithSupports(transformedPlinth, supportGeo)
         const pos = merged.attributes.position as THREE.BufferAttribute
@@ -305,7 +305,7 @@ describe('applySupportTransform', () => {
     const s = buildSupportConfig({ plinthAngle: 30, raiseBy: 15 })
     const box = new THREE.BoxGeometry(10, 10, 10)
     box.translate(0, 5, 0)
-    const transformed = applySupportTransform(box, s)
+    const transformed = applySupportTransform(box, s, 10)
     const pos = transformed.attributes.position as THREE.BufferAttribute
     const aabb = new THREE.Box3().setFromBufferAttribute(pos)
     expect(aabb.min.y).toBeGreaterThan(0)

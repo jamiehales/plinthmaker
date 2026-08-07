@@ -24,7 +24,7 @@ export const DEFAULT_DOWNLOAD_RESOLUTION = 0.05
 
 export const DEFAULT_ADD_SUPPORTS = false
 export const DEFAULT_PLINTH_ANGLE = 15
-export const DEFAULT_RAISE_BY = 10
+export const DEFAULT_RAISE_BY = 3
 export const DEFAULT_SUPPORT_SIZE = 1
 export const DEFAULT_SUPPORT_TIP_SIZE = 0.2
 export const DEFAULT_SUPPORT_SPACING = 3.5

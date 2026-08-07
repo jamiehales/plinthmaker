@@ -463,7 +463,7 @@ function App() {
                   label="Raise By"
                   value={raiseBy}
                   onChange={setRaiseBy}
-                  min={0}
+                  min={1}
                   max={30}
                 />
                 <LabeledSlider
@@ -548,7 +548,7 @@ function App() {
                     const geo = deserializeGeometry(msg.geometry)
                     if (addSupports) {
                       const supportGeo = buildSupportMeshGeometry(shape, plinthParams, supportParams, 16)
-                      const transformedPlinth = applySupportTransform(geo, supportParams)
+                      const transformedPlinth = applySupportTransform(geo, supportParams, plinthParams.depth)
                       const merged = mergePlinthWithSupports(transformedPlinth, supportGeo)
                       const zup = applyYUpToZUp(merged)
                       exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution))
