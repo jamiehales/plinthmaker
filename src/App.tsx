@@ -27,7 +27,7 @@ import {
   DEFAULT_SHAPE, DEFAULT_WIDTH, DEFAULT_DEPTH, DEFAULT_HEIGHT, DEFAULT_LOCKED_ASPECT,
   DEFAULT_ADD_HOLE, DEFAULT_HOLE_DIAMETER, DEFAULT_HOLE_DEPTH, DEFAULT_ADD_DRILL_JIG,
   DEFAULT_JIG_WALL_SIZE, DEFAULT_JIG_HEIGHT, DEFAULT_JIG_OVERLAP, DEFAULT_JIG_TOLERANCE,
-  DEFAULT_JIG_LIFT, DEFAULT_JIG_FLATTEN_TOP, DEFAULT_ANGLE_TOP, DEFAULT_TOP_ANGLE,
+  DEFAULT_JIG_LIFT, DEFAULT_JIG_FLATTEN_TOP, DEFAULT_TOP_ANGLE,
   DEFAULT_ROUND_STYLE, DEFAULT_ROUND_LOCATION, DEFAULT_ROUND_SIZE, DEFAULT_DOWNLOAD_RESOLUTION,
   DEFAULT_ADD_SUPPORTS, DEFAULT_PLINTH_ANGLE, DEFAULT_RAISE_BY, DEFAULT_SUPPORT_SIZE,
   DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_SUPPORT_CAPS, DRAWER_WIDTH,
@@ -81,7 +81,8 @@ function App() {
   const [jigTolerance, setJigTolerance] = useState(DEFAULT_JIG_TOLERANCE)
   const [jigLift, setJigLift] = useState(DEFAULT_JIG_LIFT)
   const [jigFlattenTop, setJigFlattenTop] = useState(DEFAULT_JIG_FLATTEN_TOP)
-  const [angleTop, setAngleTop] = useState(DEFAULT_ANGLE_TOP)
+  const [jigDiffHole, setJigDiffHole] = useState(false)
+  const [jigHoleDiameter, setJigHoleDiameter] = useState(DEFAULT_HOLE_DIAMETER)
   const [topAngle, setTopAngle] = useState(DEFAULT_TOP_ANGLE)
   const [roundStyle, setRoundStyle] = useState<RoundStyle>(DEFAULT_ROUND_STYLE)
   const [roundLocation, setRoundLocation] = useState<RoundLocation>(DEFAULT_ROUND_LOCATION)
@@ -95,7 +96,7 @@ function App() {
   const [supportSize, setSupportSize] = useState(DEFAULT_SUPPORT_SIZE)
   const [supportTipSize, setSupportTipSize] = useState(DEFAULT_SUPPORT_TIP_SIZE)
   const [supportSpacing, setSupportSpacing] = useState(DEFAULT_SUPPORT_SPACING)
-  const [supportCaps, setSupportCaps] = useState(DEFAULT_SUPPORT_CAPS)
+  const [supportCaps] = useState(DEFAULT_SUPPORT_CAPS)
   const { build } = useGeometryWorker()
 
   const handleShape = (_e: unknown, v: Shape | null) => {
@@ -123,12 +124,12 @@ function App() {
     addHole,
     holeDiameter,
     holeDepth,
-    angleTop,
+    angleTop: topAngle > 0,
     topAngle,
     roundStyle,
     roundLocation: shape === 'ellipse' ? 'top' : roundLocation,
     roundSize,
-  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, angleTop, topAngle, roundStyle, roundLocation, roundSize])
+  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize])
 
   const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
@@ -141,7 +142,8 @@ function App() {
   const buildJigFilename = useCallback((p: PlinthParams, j: DrillJigParams) => {
     const anglePart = p.angleTop ? `${p.topAngle}°` : 'flat'
     const flattenPart = j.flattenTop ? 'flat' : 'angled'
-    const holePart = p.addHole ? `hole-${p.holeDiameter}mm` : 'hole-none'
+    const jigHole = j.holeDiameter ?? p.holeDiameter
+    const holePart = p.addHole ? `hole-${jigHole}mm${j.holeDiameter != null && j.holeDiameter !== p.holeDiameter ? '-diff' : ''}` : 'hole-none'
     return `plinth_drilljig_${p.width}x${p.depth}x${p.height}_${anglePart}_${flattenPart}_${holePart}.stl`
   }, [])
 
@@ -153,7 +155,8 @@ function App() {
     tolerance: jigTolerance,
     lift: jigLift,
     flattenTop: jigFlattenTop,
-  }), [addDrillJig, jigWallSize, jigHeight, jigOverlap, jigTolerance, jigLift, jigFlattenTop])
+    holeDiameter: jigDiffHole && addHole ? jigHoleDiameter : undefined,
+  }), [addDrillJig, jigWallSize, jigHeight, jigOverlap, jigTolerance, jigLift, jigFlattenTop, jigDiffHole, jigHoleDiameter, addHole])
 
   const supportParams: SupportParams = useMemo(() => ({
     enabled: addSupports,
@@ -191,7 +194,7 @@ function App() {
       >
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
           <Box sx={{ p: 2, overflowY: 'auto', flexGrow: 1 }}>
-            <Typography variant="overline" sx={{ color: 'text.secondary' }}>
+            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
               Shape
             </Typography>
             <ToggleButtonGroup
@@ -212,19 +215,18 @@ function App() {
               </ToggleButton>
             </ToggleButtonGroup>
 
-            <Typography variant="overline" sx={{ color: 'text.secondary' }}>
+            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
               Dimensions
             </Typography>
             <LabeledSlider label="Width" value={width} onChange={handleWidth} min={20} max={60} />
-            {!lockedAspect ? (
-              <LabeledSlider
-                label="Depth"
-                value={depth}
-                onChange={setDepth}
-                min={20}
-                max={60}
-              />
-            ) : null}
+            <LabeledSlider
+              label="Depth"
+              value={depth}
+              onChange={setDepth}
+              min={20}
+              max={60}
+              disabled={lockedAspect}
+            />
             <FormControlLabel
               control={
                 <Checkbox
@@ -233,38 +235,25 @@ function App() {
                   size="small"
                 />
               }
-              label="Locked Aspect Ratio"
+              label="Lock Depth to Width"
               sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
             />
 
             <LabeledSlider label="Height" value={height} onChange={setHeight} min={20} max={60} />
 
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={angleTop}
-                  onChange={(e) => setAngleTop(e.target.checked)}
-                  size="small"
-                />
-              }
-              label="Angle Top"
-              sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
+            <LabeledSlider
+              label="Top Angle"
+              value={topAngle}
+              onChange={setTopAngle}
+              min={0}
+              max={45}
+              step={1}
+              unit="°"
             />
-            {angleTop ? (
-              <LabeledSlider
-                label="Top Angle"
-                value={topAngle}
-                onChange={setTopAngle}
-                min={1}
-                max={45}
-                step={1}
-                unit="°"
-              />
-            ) : null}
 
             <Divider sx={{ my: 1.5 }} />
 
-            <Typography variant="overline" sx={{ color: 'text.secondary' }}>
+            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
               Chamfer / Fillet
             </Typography>
             <ToggleButtonGroup
@@ -312,8 +301,9 @@ function App() {
 
             <Divider sx={{ my: 1.5 }} />
 
-            <LabeledSlider label="Hole Diameter" value={holeDiameter} onChange={setHoleDiameter} min={2} max={8} step={0.5} />
-
+            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
+              Plinth Hole
+            </Typography>
             <FormControlLabel
               control={
                 <Checkbox
@@ -322,21 +312,27 @@ function App() {
                   size="small"
                 />
               }
-              label="Add Hole to Plinth"
+              label="Add Hole"
               sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
             />
             {addHole ? (
-              <LabeledSlider
-                label="Hole Depth"
-                value={holeDepth}
-                onChange={setHoleDepth}
-                min={1}
-                max={50}
-              />
+              <>
+                <LabeledSlider label="Hole Diameter" value={holeDiameter} onChange={(v) => { setHoleDiameter(v); if (!(jigDiffHole && addHole)) setJigHoleDiameter(v) }} min={2} max={8} step={0.5} />
+                <LabeledSlider
+                  label="Hole Depth"
+                  value={holeDepth}
+                  onChange={setHoleDepth}
+                  min={1}
+                  max={50}
+                />
+              </>
             ) : null}
 
             <Divider sx={{ my: 1.5 }} />
 
+            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
+              Drill Jig
+            </Typography>
             <FormControlLabel
               control={
                 <Checkbox
@@ -345,11 +341,40 @@ function App() {
                   size="small"
                 />
               }
-              label="Add Drill Jig"
+              label="Generate Drill Jig"
               sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
             />
             {addDrillJig ? (
               <>
+                <LabeledSlider
+                  label="Hole Diameter"
+                  value={jigDiffHole && addHole ? jigHoleDiameter : holeDiameter}
+                  onChange={(v) => {
+                    if (jigDiffHole && addHole) {
+                      setJigHoleDiameter(v)
+                    } else {
+                      setHoleDiameter(v)
+                      setJigHoleDiameter(v)
+                    }
+                  }}
+                  min={2}
+                  max={8}
+                  step={0.5}
+                  disabled={addHole && !jigDiffHole}
+                />
+                {addHole ? (
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={jigDiffHole}
+                        onChange={(e) => setJigDiffHole(e.target.checked)}
+                        size="small"
+                      />
+                    }
+                    label="Use Different Hole Size to Plinth"
+                    sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
+                  />
+                ) : null}
                 <LabeledSlider
                   label="Wall Size"
                   value={jigWallSize}
@@ -409,6 +434,9 @@ function App() {
 
             <Divider sx={{ my: 1.5 }} />
 
+            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
+              Supports
+            </Typography>
             <FormControlLabel
               control={
                 <Checkbox
@@ -417,7 +445,7 @@ function App() {
                   size="small"
                 />
               }
-              label="Add Supports"
+              label="Generate Resin Supports"
               sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
             />
             {addSupports ? (
@@ -459,17 +487,6 @@ function App() {
                   onChange={setSupportSpacing}
                   min={2}
                   max={5}
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={supportCaps}
-                      onChange={(e) => setSupportCaps(e.target.checked)}
-                      size="small"
-                    />
-                  }
-                  label="Support Caps"
-                  sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
                 />
               </>
             ) : null}
@@ -570,8 +587,8 @@ function App() {
           plinthParams={plinthParams}
           drillJigParams={drillJigParams}
           supportParams={supportParams}
-          baseSegMM={1}
-          filletSegMM={1}
+          baseSegMM={0.5}
+          filletSegMM={0.5}
         />
         <BuildingIndicator />
       </Box>

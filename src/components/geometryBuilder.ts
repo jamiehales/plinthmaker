@@ -32,6 +32,7 @@ export interface DrillJigParams {
   tolerance: number
   lift: boolean
   flattenTop: boolean
+  holeDiameter?: number
 }
 
 export interface SupportParams {
@@ -417,7 +418,7 @@ function buildJigMesh(
   }
   outerBotOutline = dedupOutline(outerBotOutline)
 
-  const holeRadius = Math.max(0.05, p.holeDiameter / 2)
+  const holeRadius = Math.max(0.05, (jig.holeDiameter ?? p.holeDiameter) / 2)
   const holeBottomZScale = p.angleTop ? 1 / Math.max(0.01, cosA) : 1
   const holeTopZScale = p.angleTop && !flatten ? 1 / Math.max(0.01, cosA) : 1
   const holeSegs = Math.max(8, Math.ceil((2 * Math.PI * holeRadius) / baseSegMM))

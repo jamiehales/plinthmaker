@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { type Shape, type PlinthParams, type DrillJigParams, topDrop, RENDER_BASE_SEGMENT_MM, RENDER_FILLET_SEGMENT_MM } from './geometryBuilder.ts'
 import { useGeometryWorker, deserializeGeometry, markBuilding, markDone } from './useGeometryWorker.ts'
+import { DEFAULT_RENDER_THROTTLE_MS } from '../defaults.ts'
 
 export type { DrillJigParams } from './geometryBuilder.ts'
 
@@ -54,7 +55,7 @@ export default function DrillJig({
   useEffect(() => {
     const now = Date.now()
     const elapsed = now - lastBuildRef.current
-    const throttleMs = 150
+    const throttleMs = DEFAULT_RENDER_THROTTLE_MS
     pendingParamsRef.current = { shape, plinthParams, jigParams, baseSegMM, filletSegMM }
 
     if (activeRef.current) {
@@ -115,7 +116,7 @@ export default function DrillJig({
   const topOutline = useMemo(() => makeOutlineLoop(shape, plinthParams.width, plinthParams.depth, baseSegMM, topOutlineZScale), [shape, plinthParams.width, plinthParams.depth, baseSegMM, topOutlineZScale])
   const makeHoleCircle = useMemo(() => {
     return (skewed: boolean) => {
-      const r = Math.max(0.05, plinthParams.holeDiameter / 2)
+      const r = Math.max(0.05, (jigParams.holeDiameter ?? plinthParams.holeDiameter) / 2)
       const angleR = plinthParams.angleTop
         ? (Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180
         : 0
@@ -133,7 +134,7 @@ export default function DrillJig({
       g.setAttribute('position', new THREE.BufferAttribute(pts, 3))
       return new THREE.LineLoop(g, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthTest: false }))
     }
-  }, [plinthParams.holeDiameter, plinthParams.angleTop, plinthParams.topAngle])
+  }, [jigParams.holeDiameter, plinthParams.holeDiameter, plinthParams.angleTop, plinthParams.topAngle])
   const holeCircleBottom = useMemo(() => makeHoleCircle(true), [makeHoleCircle])
   const holeCircleTop = useMemo(() => makeHoleCircle(!jigParams.flattenTop), [makeHoleCircle, jigParams.flattenTop])
 

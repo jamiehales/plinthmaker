@@ -9,6 +9,7 @@ interface LabeledSliderProps {
   max: number
   step?: number
   unit?: string
+  disabled?: boolean
 }
 
 export default function LabeledSlider({
@@ -19,6 +20,7 @@ export default function LabeledSlider({
   max,
   step = 0.1,
   unit = 'mm',
+  disabled = false,
 }: LabeledSliderProps) {
   const [text, setText] = useState(String(value))
 
@@ -49,7 +51,7 @@ export default function LabeledSlider({
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-      <Typography variant="body2" sx={{ color: 'text.secondary', width: 96, flexShrink: 0 }}>
+      <Typography variant="body2" sx={{ color: disabled ? 'text.disabled' : 'text.secondary', width: 96, flexShrink: 0 }}>
         {label}
       </Typography>
       <Box
@@ -59,11 +61,13 @@ export default function LabeledSlider({
         max={max}
         step={step}
         value={value}
+        disabled={disabled}
         onChange={(e) => handleSliderChange(e, parseFloat(e.target.value))}
         style={{
           flex: 1,
           accentColor: '#1976d2',
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1,
         }}
       />
       <TextField
@@ -72,6 +76,7 @@ export default function LabeledSlider({
         onBlur={handleTextBlur}
         size="small"
         variant="outlined"
+        disabled={disabled}
         sx={{ width: 110, flexShrink: 0 }}
         slotProps={{
           htmlInput: {

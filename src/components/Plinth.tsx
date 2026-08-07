@@ -7,6 +7,7 @@ export { topDrop, buildPlinthBody, buildGeometry, DOWNLOAD_BASE_SEGMENT_MM, DOWN
 
 import type { Shape, PlinthParams } from './geometryBuilder.ts'
 import { topDrop, RENDER_BASE_SEGMENT_MM, RENDER_FILLET_SEGMENT_MM } from './geometryBuilder.ts'
+import { DEFAULT_RENDER_THROTTLE_MS } from '../defaults.ts'
 
 const DEBUG_OUTLINES = false
 
@@ -47,7 +48,7 @@ export default function Plinth({ params, baseSegMM = RENDER_BASE_SEGMENT_MM, fil
   useEffect(() => {
     const now = Date.now()
     const elapsed = now - lastBuildRef.current
-    const throttleMs = 150
+    const throttleMs = DEFAULT_RENDER_THROTTLE_MS
     pendingParamsRef.current = { params, baseSegMM, filletSegMM }
 
     if (activeRef.current) {

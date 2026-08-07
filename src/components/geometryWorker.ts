@@ -90,7 +90,7 @@ export function handleBuild(msg: BuildMessage): BuildResultMessage {
     `[jig] ${(t1 - t0).toFixed(1)}ms | ${vertCount} verts / ${Math.round(triCount)} tris | ` +
     `shape=${msg.shape} w=${msg.plinthParams.width} d=${msg.plinthParams.depth} h=${msg.plinthParams.height} ` +
     `wall=${msg.jigParams.wallSize} jigH=${msg.jigParams.jigHeight} overlap=${msg.jigParams.overlap} ` +
-    `hole=${msg.plinthParams.addHole ? msg.plinthParams.holeDiameter + 'mm' : 'none'} ` +
+    `hole=${msg.plinthParams.addHole ? (msg.jigParams.holeDiameter ?? msg.plinthParams.holeDiameter) + 'mm' : 'none'} ` +
     `angle=${msg.plinthParams.angleTop ? msg.plinthParams.topAngle + '°' : 'none'} ` +
     `flatten=${msg.jigParams.flattenTop} ` +
     `segMM=${msg.baseSegMM} CDT=${msg.useCDT}`
