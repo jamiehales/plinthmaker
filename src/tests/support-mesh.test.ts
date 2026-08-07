@@ -404,7 +404,7 @@ describe('trim bottom', () => {
     it(`${shape}: stepped trim mesh is valid`, () => {
       const p = buildPlinthConfig(shape, {
         width: 40, depth: 40, height: 30,
-        trimEnabled: true, trimSize: 5, trimHeight: 10, trimProfileId: 'stepped2',
+        trimEnabled: true, trimSize: 5, trimHeight: 10, trimProfileId: 'stepped',
       })
       const geo = buildGeometry(p, 1.0, 1.0, false)
       const results = checkMesh(`${shape}-trim-stepped`, geo)
@@ -438,7 +438,7 @@ describe('trim bottom', () => {
     })
   }
 
-  for (const profileId of ['quarterCircle', 'stepped2'] as const) {
+  for (const profileId of ['quarterCircle', 'stepped'] as const) {
     it(`rectangle: trim with fillet edges is valid (${profileId})`, () => {
       const p = buildPlinthConfig('rectangle', {
         width: 40, depth: 40, height: 30,

@@ -21,7 +21,7 @@ export default function Viewport({ plinthParams, drillJigParams, supportParams, 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
       <Canvas
-        camera={{ position: [80, 60, 80], fov: 45, near: 0.1, far: 50000 }}
+        camera={{ position: [120, 90, 120], fov: 45, near: 0.1, far: 50000 }}
         gl={{ antialias: true, preserveDrawingBuffer: true }}
         style={{ width: '100%', height: '100%' }}
       >

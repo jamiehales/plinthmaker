@@ -13,10 +13,18 @@ import {
   Button,
   CircularProgress,
   Tooltip,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material'
 import DownloadIcon from '@mui/icons-material/Download'
 import SquareIcon from '@mui/icons-material/Square'
 import CircleIcon from '@mui/icons-material/Circle'
+import EditIcon from '@mui/icons-material/Edit'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import ContentPasteIcon from '@mui/icons-material/ContentPaste'
 import Viewport from './components/Viewport.tsx'
 import { type Shape, type PlinthParams, type RoundStyle, type RoundLocation, type SupportParams } from './components/geometryBuilder.ts'
 import { type DrillJigParams } from './components/geometryBuilder.ts'
@@ -35,7 +43,7 @@ import {
   DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE,
   DEFAULT_CUSTOM_TRIM_POINTS,
 } from './defaults.ts'
-import { TRIM_PROFILES, type TrimProfilePoint } from './components/trimProfiles.ts'
+import { TRIM_PROFILES, getTrimProfile, type TrimProfilePoint } from './components/trimProfiles.ts'
 import TrimProfileIcon from './components/TrimProfileIcon.tsx'
 import TrimProfileEditor from './components/TrimProfileEditor.tsx'
 
@@ -108,7 +116,34 @@ function App() {
   const [trimHeight, setTrimHeight] = useState(DEFAULT_TRIM_HEIGHT)
   const [trimSize, setTrimSize] = useState(DEFAULT_TRIM_SIZE)
   const [customTrimPoints, setCustomTrimPoints] = useState<TrimProfilePoint[]>(DEFAULT_CUSTOM_TRIM_POINTS)
+  const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
+  const [jsonText, setJsonText] = useState('')
   const { build } = useGeometryWorker()
+
+  const handleEditPreset = useCallback(() => {
+    const preset = getTrimProfile(trimProfileId)
+    if (preset.points.length > 0) {
+      setCustomTrimPoints(preset.points.map((p) => ({ ...p, inHandle: p.inHandle ? { ...p.inHandle } : undefined, outHandle: p.outHandle ? { ...p.outHandle } : undefined })))
+      setTrimProfileId('custom')
+    }
+  }, [trimProfileId])
+
+  const handleSaveJson = useCallback(() => {
+    setJsonText(JSON.stringify(customTrimPoints, null, 2))
+    setJsonDialogOpen(true)
+  }, [customTrimPoints])
+
+  const handleLoadJson = useCallback(() => {
+    try {
+      const parsed = JSON.parse(jsonText)
+      if (Array.isArray(parsed) && parsed.length >= 2) {
+        setCustomTrimPoints(parsed)
+        setJsonDialogOpen(false)
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, [jsonText])
 
   const handleShape = (_e: unknown, v: Shape | null) => {
     if (v !== null) {
@@ -319,7 +354,7 @@ function App() {
             <Divider sx={{ my: 1.5 }} />
 
             <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
-              Trim Bottom
+              Trim
             </Typography>
             <FormControlLabel
               control={
@@ -358,12 +393,44 @@ function App() {
                     )
                   })}
                 </ToggleButtonGroup>
-                {trimProfileId === 'custom' ? (
+                {trimProfileId !== 'custom' ? (
                   <Box sx={{ mb: 1, display: 'flex', justifyContent: 'center' }}>
-                    <TrimProfileEditor
-                      points={customTrimPoints}
-                      onChange={setCustomTrimPoints}
-                    />
+                    <Button
+                      size="small"
+                      startIcon={<EditIcon />}
+                      onClick={handleEditPreset}
+                      variant="outlined"
+                    >
+                      Edit Preset
+                    </Button>
+                  </Box>
+                ) : null}
+                {trimProfileId === 'custom' ? (
+                  <Box sx={{ mb: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+                      <TrimProfileEditor
+                        points={customTrimPoints}
+                        onChange={setCustomTrimPoints}
+                      />
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                      <Button
+                        size="small"
+                        startIcon={<ContentCopyIcon />}
+                        onClick={handleSaveJson}
+                        variant="outlined"
+                      >
+                        Export
+                      </Button>
+                      <Button
+                        size="small"
+                        startIcon={<ContentPasteIcon />}
+                        onClick={() => { setJsonDialogOpen(true) }}
+                        variant="outlined"
+                      >
+                        Import
+                      </Button>
+                    </Box>
                   </Box>
                 ) : null}
                 <LabeledSlider
@@ -678,6 +745,26 @@ function App() {
         />
         <BuildingIndicator />
       </Box>
+
+      <Dialog open={jsonDialogOpen} onClose={() => setJsonDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Trim Profile JSON</DialogTitle>
+        <DialogContent>
+          <TextField
+            multiline
+            fullWidth
+            minRows={6}
+            maxRows={16}
+            value={jsonText}
+            onChange={(e) => setJsonText(e.target.value)}
+            sx={{ mt: 1, fontFamily: 'monospace' }}
+            size="small"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setJsonDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleLoadJson} variant="contained">Load</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

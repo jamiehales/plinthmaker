@@ -1,9 +1,9 @@
 import type { Shape, RoundStyle, RoundLocation } from './components/geometryBuilder.ts'
 
 export const DEFAULT_SHAPE: Shape = 'rectangle'
-export const DEFAULT_WIDTH = 20
-export const DEFAULT_DEPTH = 20
-export const DEFAULT_HEIGHT = 20
+export const DEFAULT_WIDTH = 40
+export const DEFAULT_DEPTH = 40
+export const DEFAULT_HEIGHT = 40
 export const DEFAULT_LOCKED_ASPECT = true
 export const DEFAULT_ADD_HOLE = false
 export const DEFAULT_HOLE_DIAMETER = 4
@@ -39,9 +39,9 @@ export const DEFAULT_SUPPORT_CAPS = true
 export const DEFAULT_RENDER_THROTTLE_MS = 50
 
 export const DEFAULT_TRIM_ENABLED = false
-export const DEFAULT_TRIM_PROFILE_ID = 'quarterCircle'
-export const DEFAULT_TRIM_HEIGHT = 4
-export const DEFAULT_TRIM_SIZE = 3
+export const DEFAULT_TRIM_PROFILE_ID = 'bead'
+export const DEFAULT_TRIM_HEIGHT = 6
+export const DEFAULT_TRIM_SIZE = 6
 export { DEFAULT_CUSTOM_TRIM_POINTS } from './components/trimProfiles.ts'
 
 export const TRIM_HANDLE_SCALE = 1

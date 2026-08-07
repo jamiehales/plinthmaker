@@ -167,14 +167,13 @@ export const TRIM_PROFILES: TrimProfile[] = [
     name: 'Quarter Circle',
     interpolate: 'bezier',
     points: [
-      { y: 0, offset: 1, sharp: false, outHandle: { dy: 0.25, dOffset: 0 } },
-      { y: 0.5, offset: 0.866, sharp: false, inHandle: { dy: -0.22, dOffset: -0.05 }, outHandle: { dy: 0.22, dOffset: -0.13 } },
-      { y: 1, offset: 0, sharp: false, inHandle: { dy: -0.25, dOffset: -0.4 } },
+      { y: 0, offset: 1, sharp: false, outHandle: { dy: 0.5523, dOffset: 0 } },
+      { y: 1, offset: 0, sharp: false, inHandle: { dy: 0, dOffset: 0.5523 } },
     ],
   },
   {
-    id: 'stepped2',
-    name: 'Stepped (2)',
+    id: 'stepped',
+    name: 'Stepped',
     interpolate: 'linear',
     points: [
       { y: 0, offset: 1, sharp: true },
@@ -191,10 +190,10 @@ export const TRIM_PROFILES: TrimProfile[] = [
     points: [
       { y: 0, offset: 1, sharp: true },
       { y: 0.1, offset: 1, sharp: true },
-      { y: 0.2, offset: 0.85, sharp: false, inHandle: { dy: -0.03, dOffset: 0.08 }, outHandle: { dy: 0.03, dOffset: -0.08 } },
-      { y: 0.5, offset: 0.4, sharp: false, inHandle: { dy: -0.08, dOffset: 0.15 }, outHandle: { dy: 0.08, dOffset: -0.15 } },
-      { y: 0.8, offset: 0.05, sharp: false, inHandle: { dy: -0.08, dOffset: 0.1 }, outHandle: { dy: 0.03, dOffset: -0.02 } },
-      { y: 0.9, offset: 0, sharp: true },
+      { y: 0.1, offset: 0.9, sharp: true },
+      { y: 0.62, offset: 0.59, sharp: false, inHandle: { dy: -0.25, dOffset: 0.25 }, outHandle: { dy: 0.25, dOffset: -0.25 } },
+      { y: 0.9, offset: 0.1, sharp: true },
+      { y: 1, offset: 0.1, sharp: true },
       { y: 1, offset: 0, sharp: false },
     ],
   },
@@ -204,10 +203,9 @@ export const TRIM_PROFILES: TrimProfile[] = [
     interpolate: 'bezier',
     points: [
       { y: 0, offset: 1, sharp: true },
-      { y: 0.1, offset: 1, sharp: true },
-      { y: 0.4, offset: 0.4, sharp: false, inHandle: { dy: -0.1, dOffset: 0.3 }, outHandle: { dy: 0.1, dOffset: -0.25 } },
-      { y: 0.8, offset: 0, sharp: true },
-      { y: 1, offset: 0, sharp: false },
+      { y: 0.1, offset: 1, sharp: false, outHandle: { dy: 0, dOffset: -0.4418 } },
+      { y: 1, offset: 0.1, sharp: false, inHandle: { dy: -0.4418, dOffset: 0 } },
+      { y: 1, offset: 0, sharp: true },
     ],
   },
   {
@@ -217,10 +215,11 @@ export const TRIM_PROFILES: TrimProfile[] = [
     points: [
       { y: 0, offset: 1, sharp: true },
       { y: 0.1, offset: 1, sharp: true },
-      { y: 0.35, offset: 0.7, sharp: false, inHandle: { dy: -0.08, dOffset: 0.12 }, outHandle: { dy: 0.1, dOffset: -0.3 } },
-      { y: 0.65, offset: 0.1, sharp: false, inHandle: { dy: -0.1, dOffset: -0.3 }, outHandle: { dy: 0.08, dOffset: -0.05 } },
-      { y: 0.85, offset: 0, sharp: true },
-      { y: 1, offset: 0, sharp: false },
+      { y: 0.1, offset: 1, sharp: false, outHandle: { dy: 0.2209, dOffset: 0 } },
+      { y: 0.5, offset: 0.5, sharp: false, inHandle: { dy: 0, dOffset: 0.2209 }, outHandle: { dy: 0, dOffset: -0.2209 } },
+      { y: 0.9, offset: 0, sharp: false, inHandle: { dy: -0.2209, dOffset: 0 } },
+      { y: 0.9, offset: 0, sharp: true },
+      { y: 1, offset: 0, sharp: true },
     ],
   },
   {
@@ -229,27 +228,10 @@ export const TRIM_PROFILES: TrimProfile[] = [
     interpolate: 'bezier',
     points: [
       { y: 0, offset: 1, sharp: true },
-      { y: 0.08, offset: 1, sharp: true },
-      { y: 0.35, offset: 0.7, sharp: false, inHandle: { dy: -0.08, dOffset: 0.12 }, outHandle: { dy: 0.1, dOffset: -0.3 } },
-      { y: 0.6, offset: 0.15, sharp: false, inHandle: { dy: -0.1, dOffset: -0.25 }, outHandle: { dy: 0.06, dOffset: -0.05 } },
-      { y: 0.76, offset: 0.03, sharp: true },
-      { y: 0.82, offset: 0.03, sharp: true },
-      { y: 0.85, offset: 0, sharp: true },
-      { y: 1, offset: 0, sharp: false },
-    ],
-  },
-  {
-    id: 'frenchProvincial',
-    name: 'French Provincial',
-    interpolate: 'bezier',
-    points: [
-      { y: 0, offset: 1, sharp: true },
-      { y: 0.08, offset: 1, sharp: true },
-      { y: 0.2, offset: 0.8, sharp: false, inHandle: { dy: -0.04, dOffset: 0.1 }, outHandle: { dy: 0.06, dOffset: -0.15 } },
-      { y: 0.42, offset: 0.35, sharp: true },
-      { y: 0.55, offset: 0.15, sharp: false, inHandle: { dy: -0.06, dOffset: 0.1 }, outHandle: { dy: 0.08, dOffset: -0.08 } },
-      { y: 0.85, offset: 0, sharp: true },
-      { y: 1, offset: 0, sharp: false },
+      { y: 0.16, offset: 1, sharp: true },
+      { y: 0.16, offset: 1, sharp: false, outHandle: { dy: 0.1878, dOffset: 0 } },
+      { y: 0.54, offset: 0.5, sharp: false, inHandle: { dy: -0.365, dOffset: 0.015 }, outHandle: { dy: 0.4375, dOffset: -0.011 } },
+      { y: 1, offset: 0, sharp: true },
     ],
   },
   {
@@ -258,9 +240,9 @@ export const TRIM_PROFILES: TrimProfile[] = [
     interpolate: 'bezier',
     points: [
       { y: 0, offset: 1, sharp: true },
-      { y: 0.55, offset: 1, sharp: true },
-      { y: 0.75, offset: 0.8, sharp: false, inHandle: { dy: -0.05, dOffset: 0.08 }, outHandle: { dy: 0.06, dOffset: -0.15 } },
-      { y: 1, offset: 0, sharp: false, inHandle: { dy: -0.15, dOffset: -0.4 } },
+      { y: 0.25, offset: 1, sharp: false, inHandle: { dy: -0.09, dOffset: 0 }, outHandle: { dy: 0.38, dOffset: 0 } },
+      { y: 1, offset: 0.25, sharp: false, inHandle: { dy: -0.01, dOffset: 0.46 }, outHandle: { dy: 0.015, dOffset: 0 } },
+      { y: 1, offset: 0, sharp: true },
     ],
   },
   {
@@ -273,11 +255,7 @@ export const TRIM_PROFILES: TrimProfile[] = [
 
 export const DEFAULT_CUSTOM_TRIM_POINTS: TrimProfilePoint[] = [
   { y: 0, offset: 1, sharp: true },
-  { y: 0.1, offset: 1, sharp: true },
-  { y: 0.35, offset: 0.7, sharp: false, inHandle: { dy: -0.08, dOffset: 0.12 }, outHandle: { dy: 0.1, dOffset: -0.25 } },
-  { y: 0.65, offset: 0.2, sharp: false, inHandle: { dy: -0.1, dOffset: -0.2 }, outHandle: { dy: 0.08, dOffset: -0.1 } },
-  { y: 0.85, offset: 0, sharp: true },
-  { y: 1, offset: 0, sharp: false },
+  { y: 1, offset: 0, sharp: true },
 ]
 
 export function getTrimProfile(id: string): TrimProfile {
