@@ -12,6 +12,7 @@ import {
   Divider,
   Button,
   CircularProgress,
+  Tooltip,
 } from '@mui/material'
 import DownloadIcon from '@mui/icons-material/Download'
 import SquareIcon from '@mui/icons-material/Square'
@@ -338,13 +339,14 @@ function App() {
                   sx={{ mb: 1 }}
                 >
                   {TRIM_PROFILES.map((tp) => (
-                    <ToggleButton
-                      key={tp.id}
-                      value={tp.id}
-                      sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 0.75 }}
-                    >
-                      <TrimProfileIcon profile={tp} selected={trimProfileId === tp.id} />
-                    </ToggleButton>
+                    <Tooltip key={tp.id} title={tp.name} placement="top" arrow>
+                      <ToggleButton
+                        value={tp.id}
+                        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 0.75 }}
+                      >
+                        <TrimProfileIcon profile={tp} selected={trimProfileId === tp.id} />
+                      </ToggleButton>
+                    </Tooltip>
                   ))}
                 </ToggleButtonGroup>
                 <LabeledSlider

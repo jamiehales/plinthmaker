@@ -44,6 +44,123 @@ export const TRIM_PROFILES: TrimProfile[] = [
       { y: 1, offset: 0, sharp: true },
     ],
   },
+  {
+    id: 'bead',
+    name: 'Bead',
+    interpolate: 'catmullRom',
+    points: [
+      { y: 0, offset: 1, sharp: true },
+      { y: 0.1, offset: 1, sharp: true },
+      { y: 0.12, offset: 0.97, sharp: false },
+      { y: 0.18, offset: 0.917, sharp: false },
+      { y: 0.28, offset: 0.8, sharp: false },
+      { y: 0.38, offset: 0.7, sharp: false },
+      { y: 0.5, offset: 0.6, sharp: false },
+      { y: 0.62, offset: 0.5, sharp: false },
+      { y: 0.72, offset: 0.3, sharp: false },
+      { y: 0.82, offset: 0.08, sharp: false },
+      { y: 0.88, offset: 0.03, sharp: false },
+      { y: 0.9, offset: 0, sharp: true },
+      { y: 1, offset: 0, sharp: false },
+    ],
+  },
+  {
+    id: 'cove',
+    name: 'Cove',
+    interpolate: 'catmullRom',
+    points: [
+      { y: 0, offset: 1, sharp: true },
+      { y: 0.1, offset: 1, sharp: true },
+      { y: 0.12, offset: 0.97, sharp: false },
+      { y: 0.2, offset: 0.8, sharp: false },
+      { y: 0.3, offset: 0.5, sharp: false },
+      { y: 0.4, offset: 0.2, sharp: false },
+      { y: 0.5, offset: 0.08, sharp: false },
+      { y: 0.6, offset: 0.03, sharp: false },
+      { y: 0.7, offset: 0.005, sharp: false },
+      { y: 0.8, offset: 0, sharp: true },
+      { y: 1, offset: 0, sharp: false },
+    ],
+  },
+  {
+    id: 'ogee',
+    name: 'Ogee',
+    interpolate: 'catmullRom',
+    points: [
+      { y: 0, offset: 1, sharp: true },
+      { y: 0.1, offset: 1, sharp: true },
+      { y: 0.12, offset: 0.98, sharp: false },
+      { y: 0.2, offset: 0.93, sharp: false },
+      { y: 0.3, offset: 0.8, sharp: false },
+      { y: 0.42, offset: 0.5, sharp: false },
+      { y: 0.5, offset: 0.3, sharp: false },
+      { y: 0.6, offset: 0.1, sharp: false },
+      { y: 0.7, offset: 0.03, sharp: false },
+      { y: 0.8, offset: 0.005, sharp: false },
+      { y: 0.85, offset: 0, sharp: true },
+      { y: 1, offset: 0, sharp: false },
+    ],
+  },
+  {
+    id: 'romanOgee',
+    name: 'Roman Ogee',
+    interpolate: 'catmullRom',
+    points: [
+      { y: 0, offset: 1, sharp: true },
+      { y: 0.08, offset: 1, sharp: true },
+      { y: 0.1, offset: 0.98, sharp: false },
+      { y: 0.18, offset: 0.93, sharp: false },
+      { y: 0.28, offset: 0.8, sharp: false },
+      { y: 0.4, offset: 0.5, sharp: false },
+      { y: 0.5, offset: 0.25, sharp: false },
+      { y: 0.6, offset: 0.1, sharp: false },
+      { y: 0.7, offset: 0.04, sharp: false },
+      { y: 0.76, offset: 0.03, sharp: true },
+      { y: 0.82, offset: 0.03, sharp: true },
+      { y: 0.85, offset: 0, sharp: true },
+      { y: 1, offset: 0, sharp: false },
+    ],
+  },
+  {
+    id: 'frenchProvincial',
+    name: 'French Provincial',
+    interpolate: 'catmullRom',
+    points: [
+      { y: 0, offset: 1, sharp: true },
+      { y: 0.08, offset: 1, sharp: true },
+      { y: 0.1, offset: 0.97, sharp: false },
+      { y: 0.18, offset: 0.9, sharp: false },
+      { y: 0.28, offset: 0.7, sharp: false },
+      { y: 0.38, offset: 0.5, sharp: false },
+      { y: 0.42, offset: 0.35, sharp: true },
+      { y: 0.48, offset: 0.2, sharp: false },
+      { y: 0.58, offset: 0.08, sharp: false },
+      { y: 0.68, offset: 0.03, sharp: false },
+      { y: 0.78, offset: 0.005, sharp: false },
+      { y: 0.85, offset: 0, sharp: true },
+      { y: 1, offset: 0, sharp: false },
+    ],
+  },
+  {
+    id: 'roundover',
+    name: 'Roundover',
+    interpolate: 'catmullRom',
+    points: [
+      { y: 0, offset: 1, sharp: true },
+      { y: 0.55, offset: 1, sharp: true },
+      { y: 0.6, offset: 0.995, sharp: false },
+      { y: 0.65, offset: 0.97, sharp: false },
+      { y: 0.7, offset: 0.93, sharp: false },
+      { y: 0.75, offset: 0.866, sharp: false },
+      { y: 0.8, offset: 0.78, sharp: false },
+      { y: 0.85, offset: 0.66, sharp: false },
+      { y: 0.9, offset: 0.5, sharp: false },
+      { y: 0.93, offset: 0.3, sharp: false },
+      { y: 0.96, offset: 0.1, sharp: false },
+      { y: 0.98, offset: 0.02, sharp: false },
+      { y: 1, offset: 0, sharp: false },
+    ],
+  },
 ]
 
 export function getTrimProfile(id: string): TrimProfile {
@@ -104,7 +221,7 @@ export function sampleTrimRings(profile: TrimProfile, trimHeight: number, segMM:
     const yB = b.y * trimHeight
     const isVertical = Math.abs(b.y - a.y) < 1e-9
 
-    if (a.sharp || b.sharp || profile.interpolate === 'linear') {
+    if (a.sharp || b.sharp) {
       if (!isVertical) {
         if (yA > 1e-6 && Math.abs(yA - samples[samples.length - 1].y) > 1e-6) {
           samples.push({ y: yA, offset: a.offset })
@@ -118,7 +235,7 @@ export function sampleTrimRings(profile: TrimProfile, trimHeight: number, segMM:
       }
     } else {
       const arcLen = Math.hypot(yB - yA, (b.offset - a.offset) * trimHeight)
-      const steps = Math.max(1, Math.ceil(arcLen / Math.max(0.01, segMM)))
+      const steps = Math.max(2, Math.ceil(arcLen / Math.max(0.01, segMM)))
       for (let j = 1; j < steps; j++) {
         const t = j / steps
         const yT = a.y + (b.y - a.y) * t
