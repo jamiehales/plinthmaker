@@ -1,0 +1,39 @@
+diff --git a/build/three.cjs b/build/three.cjs
+index 8939a67dd76325ccd25ee8806fc4d22b1caea88a..baf7fa2733c6061fb31b3ac0864a3bf2bb7d1275 100644
+--- a/build/three.cjs
++++ b/build/three.cjs
+@@ -56249,8 +56249,6 @@ class Clock {
+ 		 */
+ 		this.running = false;
+ 
+-		warn( 'Clock: This module has been deprecated. Please use THREE.Timer instead.' ); // @deprecated, r183
+-
+ 	}
+ 
+ 	/**
+diff --git a/build/three.core.js b/build/three.core.js
+index 0bb9262cd029f411933d077fd44197a51ec5e8e9..945c2d4feb1cad9a956b04bb475832efc71c00a9 100644
+--- a/build/three.core.js
++++ b/build/three.core.js
+@@ -56269,8 +56269,6 @@ class Clock {
+ 		 */
+ 		this.running = false;
+ 
+-		warn( 'Clock: This module has been deprecated. Please use THREE.Timer instead.' ); // @deprecated, r183
+-
+ 	}
+ 
+ 	/**
+diff --git a/src/core/Clock.js b/src/core/Clock.js
+index ee1a528b07b1d1a6cb1f736459bf05024de9fc81..5b07ba87981d52b25a37068cb758564457d7181b 100644
+--- a/src/core/Clock.js
++++ b/src/core/Clock.js
+@@ -58,8 +58,6 @@ class Clock {
+ 		 */
+ 		this.running = false;
+ 
+-		warn( 'Clock: This module has been deprecated. Please use THREE.Timer instead.' ); // @deprecated, r183
+-
+ 	}
+ 
+ 	/**
