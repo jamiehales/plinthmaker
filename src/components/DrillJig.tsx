@@ -111,9 +111,9 @@ export default function DrillJig({
   const topZScale = plinthParams.angleTop ? 1 / Math.max(0.01, cosA) : 1
   const flatten = jigParams.flattenTop
 
-  const bottomOutline = useMemo(() => makeOutlineLoop(shape, plinthParams.width, plinthParams.depth, baseSegMM, topZScale), [shape, plinthParams.width, plinthParams.depth, baseSegMM, topZScale])
+  const bottomOutline = useMemo(() => makeOutlineLoop(shape, plinthParams.width + jigParams.tolerance, plinthParams.depth + jigParams.tolerance, baseSegMM, topZScale), [shape, plinthParams.width, plinthParams.depth,  jigParams.tolerance, baseSegMM, topZScale])
   const topOutlineZScale = topZScale
-  const topOutline = useMemo(() => makeOutlineLoop(shape, plinthParams.width, plinthParams.depth, baseSegMM, topOutlineZScale), [shape, plinthParams.width, plinthParams.depth, baseSegMM, topOutlineZScale])
+  const topOutline = useMemo(() => makeOutlineLoop(shape, plinthParams.width + jigParams.tolerance, plinthParams.depth + jigParams.tolerance, baseSegMM, topOutlineZScale), [shape, plinthParams.width, plinthParams.depth, jigParams.tolerance, baseSegMM, topOutlineZScale])
   const makeHoleCircle = useMemo(() => {
     return (skewed: boolean) => {
       const r = Math.max(0.05, (jigParams.holeDiameter ?? plinthParams.holeDiameter) / 2)

@@ -544,8 +544,8 @@ function buildJigMesh(
   const holeDedupedBot = dedupOutline(holeOutlineBot)
   const M = holeDeduped.length
 
-  const cavityOW = w
-  const cavityOD = d * cavityZScale
+  const cavityOW = w + jig.tolerance
+  const cavityOD = d * cavityZScale + jig.tolerance
   const cavityOutlineRaw = makeOutline(shape, cavityOW, cavityOD, 'none', false, 0, baseSegMM, filletSegMM)
   const cavityOutline = dedupOutline(cavityOutlineRaw)
 
