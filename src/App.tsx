@@ -33,9 +33,11 @@ import {
   DEFAULT_ADD_SUPPORTS, DEFAULT_PLINTH_ANGLE, DEFAULT_RAISE_BY, DEFAULT_SUPPORT_SIZE,
   DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_SUPPORT_CAPS, DRAWER_WIDTH,
   DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE,
+  DEFAULT_CUSTOM_TRIM_POINTS,
 } from './defaults.ts'
-import { TRIM_PROFILES } from './components/trimProfiles.ts'
+import { TRIM_PROFILES, type TrimProfilePoint } from './components/trimProfiles.ts'
 import TrimProfileIcon from './components/TrimProfileIcon.tsx'
+import TrimProfileEditor from './components/TrimProfileEditor.tsx'
 
 function BuildingIndicator() {
   const building = useBuilding()
@@ -105,6 +107,7 @@ function App() {
   const [trimProfileId, setTrimProfileId] = useState(DEFAULT_TRIM_PROFILE_ID)
   const [trimHeight, setTrimHeight] = useState(DEFAULT_TRIM_HEIGHT)
   const [trimSize, setTrimSize] = useState(DEFAULT_TRIM_SIZE)
+  const [customTrimPoints, setCustomTrimPoints] = useState<TrimProfilePoint[]>(DEFAULT_CUSTOM_TRIM_POINTS)
   const { build } = useGeometryWorker()
 
   const handleShape = (_e: unknown, v: Shape | null) => {
@@ -141,7 +144,8 @@ function App() {
     trimProfileId,
     trimHeight,
     trimSize,
-  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimProfileId, trimHeight, trimSize])
+    customTrimPoints: trimProfileId === 'custom' ? customTrimPoints : undefined,
+  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimProfileId, trimHeight, trimSize, customTrimPoints])
 
   const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
@@ -338,17 +342,30 @@ function App() {
                   fullWidth
                   sx={{ mb: 1 }}
                 >
-                  {TRIM_PROFILES.map((tp) => (
+                  {TRIM_PROFILES.map((tp) => {
+                    const profile = tp.id === 'custom'
+                      ? { ...tp, points: customTrimPoints }
+                      : tp
+                    return (
                     <Tooltip key={tp.id} title={tp.name} placement="top" arrow>
                       <ToggleButton
                         value={tp.id}
                         sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 0.75 }}
                       >
-                        <TrimProfileIcon profile={tp} selected={trimProfileId === tp.id} />
+                        <TrimProfileIcon profile={profile} selected={trimProfileId === tp.id} />
                       </ToggleButton>
                     </Tooltip>
-                  ))}
+                    )
+                  })}
                 </ToggleButtonGroup>
+                {trimProfileId === 'custom' ? (
+                  <Box sx={{ mb: 1, display: 'flex', justifyContent: 'center' }}>
+                    <TrimProfileEditor
+                      points={customTrimPoints}
+                      onChange={setCustomTrimPoints}
+                    />
+                  </Box>
+                ) : null}
                 <LabeledSlider
                   label="Trim Height"
                   value={trimHeight}

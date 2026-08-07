@@ -42,5 +42,6 @@ export const DEFAULT_TRIM_ENABLED = false
 export const DEFAULT_TRIM_PROFILE_ID = 'quarterCircle'
 export const DEFAULT_TRIM_HEIGHT = 4
 export const DEFAULT_TRIM_SIZE = 3
+export { DEFAULT_CUSTOM_TRIM_POINTS } from './components/trimProfiles.ts'
 
 export const DRAWER_WIDTH = 500

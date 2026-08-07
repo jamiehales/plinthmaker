@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
-import { getTrimProfile, sampleTrimRings } from './trimProfiles.ts'
+import { getTrimProfile, sampleTrimRings, type TrimProfilePoint } from './trimProfiles.ts'
 
 export function enableCDT(evaluator: Evaluator): void {
   ;(evaluator as unknown as { useCDTClipping: boolean }).useCDTClipping = true
@@ -27,6 +27,7 @@ export interface PlinthParams {
   trimProfileId: string
   trimHeight: number
   trimSize: number
+  customTrimPoints?: TrimProfilePoint[]
 }
 
 export interface DrillJigParams {
@@ -292,7 +293,9 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
   const rings: Ring[] = []
 
   if (trimOn) {
-    const profile = getTrimProfile(p.trimProfileId)
+    const profile = p.trimProfileId === 'custom' && p.customTrimPoints
+      ? { id: 'custom', name: 'Custom', interpolate: 'catmullRom' as const, points: p.customTrimPoints }
+      : getTrimProfile(p.trimProfileId)
     const trimSamples = sampleTrimRings(profile, trimHeight, baseSegMM)
     for (const s of trimSamples) {
       const offset = trimSize * s.offset

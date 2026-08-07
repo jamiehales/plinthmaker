@@ -161,6 +161,23 @@ export const TRIM_PROFILES: TrimProfile[] = [
       { y: 1, offset: 0, sharp: false },
     ],
   },
+  {
+    id: 'custom',
+    name: 'Custom',
+    interpolate: 'catmullRom',
+    points: [],
+  },
+]
+
+export const DEFAULT_CUSTOM_TRIM_POINTS: TrimProfilePoint[] = [
+  { y: 0, offset: 1, sharp: true },
+  { y: 0.1, offset: 1, sharp: true },
+  { y: 0.12, offset: 0.98, sharp: false },
+  { y: 0.3, offset: 0.8, sharp: false },
+  { y: 0.5, offset: 0.5, sharp: false },
+  { y: 0.7, offset: 0.2, sharp: false },
+  { y: 0.85, offset: 0, sharp: true },
+  { y: 1, offset: 0, sharp: false },
 ]
 
 export function getTrimProfile(id: string): TrimProfile {
