@@ -472,6 +472,26 @@ function buildConcentricRingPositions(shape: Shape, w: number, d: number, cosT: 
   return positions
 }
 
+function computeCavityEdgeRingPositions(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, cosT: number, segMM: number): THREE.Vector3[] {
+  if (!plinthParams.hollowEnabled) return []
+  const tipRadius = supportParams.supportTipSize / 2
+  const wall = Math.max(0.5, plinthParams.hollowWallThickness)
+  const cavityW = Math.max(0.1, plinthParams.width - 2 * wall)
+  const cavityD = Math.max(0.1, plinthParams.depth - 2 * wall)
+  const expand = tipRadius + CONE_TIP_PENETRATION
+  const ringW = cavityW + 2 * expand
+  const ringD = cavityD + 2 * expand
+  if (ringW > plinthParams.width || ringD > plinthParams.depth) return []
+
+  const ringLocal = makeBaseOutlinePoints(shape, ringW, ringD, segMM)
+  const ringProjected = projectToGround(ringLocal, cosT)
+  const perim = perimeterLength(ringProjected)
+  if (perim < 1e-6) return []
+
+  const anchors = computeOuterRingAnchors(shape, ringW, ringD, 0, cosT)
+  return equidistantPointsWithAnchors(ringProjected, anchors, supportParams.supportSpacing)
+}
+
 export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segMM: number): THREE.Vector3[] {
   const radius = supportParams.supportSize / 2
   const tipRadius = supportParams.supportTipSize / 2
@@ -489,9 +509,11 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
   const ringPositions = equidistantPointsWithAnchors(insetProjected, anchors, supportParams.supportSpacing)
   const s = ringPositions.length > 0 ? perim / ringPositions.length : supportParams.supportSpacing
 
+  const cavityRingPositions = computeCavityEdgeRingPositions(shape, plinthParams, supportParams, cosT, segMM)
+
   const gap = Math.min(s, supportParams.supportSpacing)
   const interiorPositions = buildConcentricRingPositions(shape, plinthParams.width, plinthParams.depth, cosT, s, tipRadius + gap, segMM, trimOff)
-  return ringPositions.concat(interiorPositions)
+  return ringPositions.concat(cavityRingPositions, interiorPositions)
 }
 
 export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number): THREE.BufferGeometry {
