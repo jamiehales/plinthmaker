@@ -31,6 +31,8 @@ export interface PlinthParams {
   hollowEnabled: boolean
   hollowHeight: number
   hollowWallThickness: number
+  suctionHoleEnabled: boolean
+  suctionHoleDiameter: number
 }
 
 export interface DrillJigParams {
@@ -76,6 +78,13 @@ export function topDrop(p: Pick<PlinthParams, 'angleTop' | 'topAngle' | 'depth'>
   if (!p.angleTop) return 0
   const angleRad = (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
   return p.depth * Math.tan(angleRad)
+}
+
+export function suctionHoleZ(p: PlinthParams): number {
+  const suctionRadius = Math.max(0.05, p.suctionHoleDiameter / 2)
+  const wall = Math.max(0.5, p.hollowWallThickness)
+  const hd = Math.max(0.01, (p.depth - 2 * wall) / 2)
+  return -(hd - suctionRadius)
 }
 
 function makeOutline(shape: Shape, w: number, d: number, style: RoundStyle, edgeRound: boolean, r: number, baseSegMM: number, filletSegMM: number): THREE.Vector2[] {
@@ -525,6 +534,33 @@ export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT
     currentGeo = result.geometry
     if (currentGeo !== prevGeo) prevGeo.dispose()
     cavityGeo.dispose()
+  }
+
+  if (p.hollowEnabled && p.suctionHoleEnabled) {
+    const ch = Math.max(0.1, p.hollowHeight)
+    const suctionRadius = Math.max(0.05, p.suctionHoleDiameter / 2)
+    const suctionZ = suctionHoleZ(p)
+    const extraBottom = 2
+    const extraTop = 2
+    const suctionHeight = (h - ch) + extraBottom + extraTop
+    const suctionGeo = new THREE.CylinderGeometry(suctionRadius, suctionRadius, suctionHeight, circleSegments(suctionRadius * 2, baseSegMM), 1)
+    suctionGeo.translate(0, ch - extraBottom + suctionHeight / 2, suctionZ)
+
+    const suctionBrush = new Brush(suctionGeo)
+    suctionBrush.updateMatrixWorld(true)
+    const bodyBrush = new Brush(currentGeo)
+    bodyBrush.updateMatrixWorld(true)
+
+    const evaluator = new Evaluator()
+    if (useCDT) enableCDT(evaluator)
+    evaluator.attributes = ['position', 'normal']
+    evaluator.useGroups = false
+    const result = evaluator.evaluate(bodyBrush, suctionBrush, SUBTRACTION)
+
+    const prevGeo = currentGeo
+    currentGeo = result.geometry
+    if (currentGeo !== prevGeo) prevGeo.dispose()
+    suctionGeo.dispose()
   }
 
   return currentGeo

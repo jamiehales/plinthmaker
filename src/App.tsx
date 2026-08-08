@@ -44,6 +44,7 @@ import {
   DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE,
   DEFAULT_CUSTOM_TRIM_POINTS, DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
   DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_HEIGHT, DEFAULT_HOLLOW_WALL_THICKNESS,
+  DEFAULT_SUCTION_HOLE_ENABLED, DEFAULT_SUCTION_HOLE_DIAMETER,
 } from './defaults.ts'
 import { TRIM_PROFILES, getTrimProfile, type TrimProfilePoint } from './components/trimProfiles.ts'
 import TrimProfileIcon from './components/TrimProfileIcon.tsx'
@@ -116,6 +117,8 @@ function App() {
   const [hollowEnabled, setHollowEnabled] = useState(DEFAULT_HOLLOW_ENABLED)
   const [hollowHeight, setHollowHeight] = useState(DEFAULT_HOLLOW_HEIGHT)
   const [hollowWallThickness, setHollowWallThickness] = useState(DEFAULT_HOLLOW_WALL_THICKNESS)
+  const [suctionHoleEnabled, setSuctionHoleEnabled] = useState(DEFAULT_SUCTION_HOLE_ENABLED)
+  const [suctionHoleDiameter, setSuctionHoleDiameter] = useState(DEFAULT_SUCTION_HOLE_DIAMETER)
   const [trimEnabled, setTrimEnabled] = useState(DEFAULT_TRIM_ENABLED)
   const [trimProfileId, setTrimProfileId] = useState(DEFAULT_TRIM_PROFILE_ID)
   const [trimHeight, setTrimHeight] = useState(DEFAULT_TRIM_HEIGHT)
@@ -188,7 +191,9 @@ function App() {
     hollowEnabled,
     hollowHeight,
     hollowWallThickness,
-  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimProfileId, trimHeight, trimSize, customTrimPoints, hollowEnabled, hollowHeight, hollowWallThickness])
+    suctionHoleEnabled,
+    suctionHoleDiameter,
+  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimProfileId, trimHeight, trimSize, customTrimPoints, hollowEnabled, hollowHeight, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter])
 
   const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
@@ -535,6 +540,27 @@ function App() {
                   max={Math.min(width, depth) / 2 - 0.5}
                   step={0.1}
                 />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={suctionHoleEnabled}
+                      onChange={(e) => setSuctionHoleEnabled(e.target.checked)}
+                      size="small"
+                    />
+                  }
+                  label="Suction Cup Release Hole"
+                  sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
+                />
+                {suctionHoleEnabled ? (
+                  <LabeledSlider
+                    label="Hole Diameter"
+                    value={suctionHoleDiameter}
+                    onChange={setSuctionHoleDiameter}
+                    min={1}
+                    max={Math.min(width, depth) - 2 * hollowWallThickness}
+                    step={0.5}
+                  />
+                ) : null}
               </>
             ) : null}
 

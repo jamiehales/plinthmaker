@@ -160,6 +160,8 @@ function buildPlinthConfig(shape: Shape, opts: Partial<PlinthParams> = {}): Plin
     hollowEnabled: false,
     hollowHeight: 20,
     hollowWallThickness: 2,
+    suctionHoleEnabled: false,
+    suctionHoleDiameter: 5,
     ...opts,
   }
 }

@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Brush, Evaluator, ADDITION } from 'three-bvh-csg'
-import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM } from './geometryBuilder.ts'
+import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM, suctionHoleZ } from './geometryBuilder.ts'
 import { sampleTrimOffset, getTrimProfile } from './trimProfiles.ts'
 import {
   DEFAULT_CONE_START_GAP, DEFAULT_RAFT_HEIGHT, DEFAULT_RAFT_BOTTOM_INSET,
@@ -513,7 +513,19 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
 
   const gap = Math.min(s, supportParams.supportSpacing)
   const interiorPositions = buildConcentricRingPositions(shape, plinthParams.width, plinthParams.depth, cosT, s, tipRadius + gap, segMM, trimOff)
-  return ringPositions.concat(cavityRingPositions, interiorPositions)
+  let allPositions = ringPositions.concat(cavityRingPositions, interiorPositions)
+
+  if (plinthParams.hollowEnabled && plinthParams.suctionHoleEnabled) {
+    const suctionRadius = Math.max(0.05, plinthParams.suctionHoleDiameter / 2)
+    const suctionZ = suctionHoleZ(plinthParams)
+    const exclusionRadius = suctionRadius + radius
+    allPositions = allPositions.filter((p) => {
+      const zLocal = p.z / Math.max(0.01, cosT)
+      return Math.sqrt(p.x * p.x + (zLocal - suctionZ) * (zLocal - suctionZ)) > exclusionRadius
+    })
+  }
+
+  return allPositions
 }
 
 export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number): THREE.BufferGeometry {

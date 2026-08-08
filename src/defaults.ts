@@ -29,6 +29,8 @@ export const DEFAULT_HOLLOW_ENABLED = false
 export const DEFAULT_HOLLOW_HEIGHT = 20
 export const DEFAULT_HOLLOW_WALL_THICKNESS = 2
 export const DEFAULT_HOLLOW_SEGMENT_MM = 3
+export const DEFAULT_SUCTION_HOLE_ENABLED = false
+export const DEFAULT_SUCTION_HOLE_DIAMETER = 5
 
 export const DEFAULT_ADD_SUPPORTS = false
 export const DEFAULT_PLINTH_ANGLE = 15
