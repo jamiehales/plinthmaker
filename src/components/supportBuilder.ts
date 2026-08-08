@@ -548,6 +548,18 @@ function createStrutCylinder(start: THREE.Vector3, end: THREE.Vector3, radius: n
   return geo
 }
 
+function segmentsIntersect2D(
+  a1x: number, a1z: number, a2x: number, a2z: number,
+  b1x: number, b1z: number, b2x: number, b2z: number,
+): boolean {
+  const d1 = (b2x - b1x) * (a1z - b1z) - (b2z - b1z) * (a1x - b1x)
+  const d2 = (b2x - b1x) * (a2z - b1z) - (b2z - b1z) * (a2x - b1x)
+  const d3 = (a2x - a1x) * (b1z - a1z) - (a2z - a1z) * (b1x - a1x)
+  const d4 = (a2x - a1x) * (b2z - a1z) - (a2z - a1z) * (b2x - a1x)
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true
+  return false
+}
+
 export function buildScaffoldingMesh(
   positions: THREE.Vector3[],
   overCavity: boolean[] | null,
@@ -576,6 +588,7 @@ export function buildScaffoldingMesh(
   const maxDist = supportSize + supportSpacing + SCAFFOLDING_GAP_TOLERANCE
 
   const geometries: THREE.BufferGeometry[] = []
+  const acceptedPairs: Array<[number, number]> = []
 
   for (let i = 0; i < positions.length; i++) {
     for (let j = i + 1; j < positions.length; j++) {
@@ -587,6 +600,20 @@ export function buildScaffoldingMesh(
       const dz = pj.z - pi.z
       const centerDist = Math.sqrt(dx * dx + dz * dz)
       if (centerDist < 1e-6 || centerDist > maxDist) continue
+
+      let overlaps = false
+      for (const [a, b] of acceptedPairs) {
+        if (a === i || a === j || b === i || b === j) continue
+        const pa = positions[a]
+        const pb = positions[b]
+        if (segmentsIntersect2D(pi.x, pi.z, pj.x, pj.z, pa.x, pa.z, pb.x, pb.z)) {
+          overlaps = true
+          break
+        }
+      }
+      if (overlaps) continue
+
+      acceptedPairs.push([i, j])
 
       const yTop = Math.min(yConeStarts[i], yConeStarts[j])
       const H = yTop - RAFT_HEIGHT

@@ -537,6 +537,35 @@ describe('buildScaffoldingMesh', () => {
     geo.dispose()
   })
 
+  it('crossing diagonals: second diagonal skipped to avoid overlap', () => {
+    const d = 3
+    const square = [
+      new THREE.Vector3(-d / 2, 0, -d / 2),
+      new THREE.Vector3(d / 2, 0, -d / 2),
+      new THREE.Vector3(-d / 2, 0, d / 2),
+      new THREE.Vector3(d / 2, 0, d / 2),
+    ]
+    const heights = [21.5, 21.5, 21.5, 21.5]
+    const geo = buildScaffoldingMesh(square, null, heights, null, 2, 5, 45, 8)
+    const idx = geo.index
+    const triCount = idx ? idx.count / 3 : geo.attributes.position.count / 3
+    const strutCount = Math.round(triCount / 32)
+
+    const pairsNoOverlap = [
+      [0, 1], [0, 2], [0, 3], [1, 3], [2, 3],
+    ]
+    let expectedStruts = 0
+    for (const [a, b] of pairsNoOverlap) {
+      const dist = Math.sqrt((square[a].x - square[b].x) ** 2 + (square[a].z - square[b].z) ** 2)
+      const rise = dist * Math.tan(Math.PI / 4)
+      const H = 20
+      const N = Math.ceil(H / rise)
+      expectedStruts += N
+    }
+    expect(strutCount).toBe(expectedStruts)
+    geo.dispose()
+  })
+
   it('buildSupportMeshGeometry respects scaffoldingEnabled=false even with includeScaffolding=true', () => {
     const p = buildPlinthConfig('rectangle')
     const s = buildSupportConfig({ scaffoldingEnabled: false })
