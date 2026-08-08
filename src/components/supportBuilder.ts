@@ -518,10 +518,12 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
   if (plinthParams.hollowEnabled && plinthParams.suctionHoleEnabled) {
     const suctionRadius = Math.max(0.05, plinthParams.suctionHoleDiameter / 2)
     const suctionZ = suctionHoleZ(plinthParams)
+    const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
+    const sinT = Math.sin(tilt)
+    const holeZWorld = hollowHeight * sinT + suctionZ * cosT
     const exclusionRadius = suctionRadius + radius
     allPositions = allPositions.filter((p) => {
-      const zLocal = p.z / Math.max(0.01, cosT)
-      return Math.sqrt(p.x * p.x + (zLocal - suctionZ) * (zLocal - suctionZ)) > exclusionRadius
+      return Math.sqrt(p.x * p.x + (p.z - holeZWorld) * (p.z - holeZWorld)) > exclusionRadius
     })
   }
 
