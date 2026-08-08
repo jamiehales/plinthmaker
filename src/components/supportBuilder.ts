@@ -495,6 +495,61 @@ function computeCavityEdgeRingPositions(shape: Shape, plinthParams: PlinthParams
   return equidistantPointsWithAnchors(ringProjected, anchors, supportParams.supportSpacing)
 }
 
+function computeHoleEdgeRingPositions(plinthParams: PlinthParams, supportParams: SupportParams, cosT: number, sinT: number, segMM: number): THREE.Vector3[] {
+  if (!plinthParams.addHole || !plinthParams.hollowEnabled) return []
+  const topThickness = plinthParams.height - plinthParams.hollowHeight
+  if (plinthParams.holeDepth < topThickness) return []
+  const supportRadius = supportParams.supportSize / 2
+  const holeRadius = Math.max(0.05, plinthParams.holeDiameter / 2)
+  const expand = supportRadius + CONE_TIP_PENETRATION
+  const ringRadius = holeRadius + expand
+  const ringW = ringRadius * 2
+  const ringD = ringRadius * 2
+  if (ringW > plinthParams.width || ringD > plinthParams.depth) return []
+
+  const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
+  const holeZWorld = hollowHeight * sinT
+  const ringLocal = makeBaseOutlinePoints('ellipse', ringW, ringD, segMM)
+  const ringProjected = projectToGround(ringLocal, cosT)
+  const perim = perimeterLength(ringProjected)
+  if (perim < 1e-6) return []
+
+  const anchors = computeOuterRingAnchors('ellipse', ringW, ringD, 0, cosT)
+  const ringPositions = equidistantPointsWithAnchors(ringProjected, anchors, supportParams.supportSpacing)
+  const plusZMin = new THREE.Vector3(0, 0, holeZWorld + ringRadius * cosT)
+  if (!ringPositions.some((p) => p.distanceTo(plusZMin) < supportParams.supportSpacing * 0.25)) {
+    ringPositions.push(plusZMin)
+  }
+  return ringPositions.map((p) => new THREE.Vector3(p.x, 0, p.z + holeZWorld))
+}
+
+function computeSuctionHoleEdgeRingPositions(plinthParams: PlinthParams, supportParams: SupportParams, cosT: number, sinT: number, segMM: number): THREE.Vector3[] {
+  if (!plinthParams.hollowEnabled || !plinthParams.suctionHoleEnabled) return []
+  const supportRadius = supportParams.supportSize / 2
+  const suctionRadius = Math.max(0.05, plinthParams.suctionHoleDiameter / 2)
+  const expand = supportRadius + CONE_TIP_PENETRATION
+  const ringRadius = suctionRadius + expand
+  const ringW = ringRadius * 2
+  const ringD = ringRadius * 2
+  if (ringW > plinthParams.width || ringD > plinthParams.depth) return []
+
+  const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
+  const suctionZ = suctionHoleZ(plinthParams)
+  const holeZWorld = hollowHeight * sinT + suctionZ * cosT
+  const ringLocal = makeBaseOutlinePoints('ellipse', ringW, ringD, segMM)
+  const ringProjected = projectToGround(ringLocal, cosT)
+  const perim = perimeterLength(ringProjected)
+  if (perim < 1e-6) return []
+
+  const anchors = computeOuterRingAnchors('ellipse', ringW, ringD, 0, cosT)
+  const ringPositions = equidistantPointsWithAnchors(ringProjected, anchors, supportParams.supportSpacing)
+  const plusZMin = new THREE.Vector3(0, 0, holeZWorld + ringRadius * cosT)
+  if (!ringPositions.some((p) => p.distanceTo(plusZMin) < supportParams.supportSpacing * 0.25)) {
+    ringPositions.push(plusZMin)
+  }
+  return ringPositions.map((p) => new THREE.Vector3(p.x, 0, p.z + holeZWorld))
+}
+
 export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segMM: number): THREE.Vector3[] {
   const radius = supportParams.supportSize / 2
   const tipRadius = supportParams.supportTipSize / 2
@@ -513,20 +568,41 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
   const s = ringPositions.length > 0 ? perim / ringPositions.length : supportParams.supportSpacing
 
   const cavityRingPositions = computeCavityEdgeRingPositions(shape, plinthParams, supportParams, cosT, segMM)
+  const sinT = Math.sin(tilt)
+  const holeRingPositions = computeHoleEdgeRingPositions(plinthParams, supportParams, cosT, sinT, segMM)
+  const suctionRingPositions = computeSuctionHoleEdgeRingPositions(plinthParams, supportParams, cosT, sinT, segMM)
 
   const gap = Math.min(s, supportParams.supportSpacing)
   const interiorPositions = buildConcentricRingPositions(shape, plinthParams.width, plinthParams.depth, cosT, s, tipRadius + gap, segMM, trimOff)
-  let allPositions = ringPositions.concat(cavityRingPositions, interiorPositions)
+  let allPositions = ringPositions.concat(cavityRingPositions, holeRingPositions, suctionRingPositions, interiorPositions)
+
+  if (plinthParams.addHole && plinthParams.hollowEnabled) {
+    const topThickness = plinthParams.height - plinthParams.hollowHeight
+    if (plinthParams.holeDepth >= topThickness) {
+      const holeRadius = Math.max(0.05, plinthParams.holeDiameter / 2)
+      const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
+      const holeZWorld = hollowHeight * sinT
+      const rx = holeRadius + radius
+      const rz = (holeRadius + radius) * cosT
+      allPositions = allPositions.filter((p) => {
+        const dx = p.x
+        const dz = p.z - holeZWorld
+        return (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz) > 1
+      })
+    }
+  }
 
   if (plinthParams.hollowEnabled && plinthParams.suctionHoleEnabled) {
     const suctionRadius = Math.max(0.05, plinthParams.suctionHoleDiameter / 2)
     const suctionZ = suctionHoleZ(plinthParams)
     const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
-    const sinT = Math.sin(tilt)
     const holeZWorld = hollowHeight * sinT + suctionZ * cosT
-    const exclusionRadius = suctionRadius + radius
+    const rx = suctionRadius + radius
+    const rz = (suctionRadius + radius) * cosT
     allPositions = allPositions.filter((p) => {
-      return Math.sqrt(p.x * p.x + (p.z - holeZWorld) * (p.z - holeZWorld)) > exclusionRadius
+      const dx = p.x
+      const dz = p.z - holeZWorld
+      return (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz) > 1
     })
   }
 

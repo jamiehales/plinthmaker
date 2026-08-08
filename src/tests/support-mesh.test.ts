@@ -315,6 +315,124 @@ describe('computeSupportPositions', () => {
       expect(found, `extremum (${cx},${cz}) missing`).toBe(true)
     }
   })
+
+  it('rectangle: no supports inside main hole footprint', () => {
+    const p = buildPlinthConfig('rectangle', { addHole: true, holeDiameter: 10, holeDepth: 15, hollowEnabled: true, hollowHeight: 20 })
+    const s = buildSupportConfig({ plinthAngle: 15 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const holeRadius = p.holeDiameter / 2
+    const supportRadius = s.supportSize / 2
+    const tilt = (s.plinthAngle * Math.PI) / 180
+    const cosT = Math.cos(tilt)
+    const holeZWorld = p.hollowHeight * Math.sin(tilt)
+    const rx = holeRadius + supportRadius
+    const rz = rx * cosT
+    for (const pt of positions) {
+      const dx = pt.x
+      const dz = pt.z - holeZWorld
+      expect((dx * dx) / (rx * rx) + (dz * dz) / (rz * rz)).toBeGreaterThan(1 - 0.01)
+    }
+  })
+
+  it('rectangle: ring of supports around main hole edge', () => {
+    const p = buildPlinthConfig('rectangle', { addHole: true, holeDiameter: 10, holeDepth: 15, hollowEnabled: true, hollowHeight: 20 })
+    const s = buildSupportConfig({ plinthAngle: 15 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const supportRadius = s.supportSize / 2
+    const tilt = (s.plinthAngle * Math.PI) / 180
+    const cosT = Math.cos(tilt)
+    const holeZWorld = p.hollowHeight * Math.sin(tilt)
+    const ringRadius = p.holeDiameter / 2 + supportRadius + 0.1
+    const rx = ringRadius
+    const rz = ringRadius * cosT
+    const nearRing = positions.filter((pt) => {
+      const dx = pt.x
+      const dz = pt.z - holeZWorld
+      const ratio = (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz)
+      return Math.abs(ratio - 1) < 0.15
+    })
+    expect(nearRing.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('rectangle: no hole ring or exclusion when hole does not break through top thickness', () => {
+    const p = buildPlinthConfig('rectangle', { addHole: true, holeDiameter: 10, holeDepth: 9, hollowEnabled: true, hollowHeight: 20, height: 30 })
+    const s = buildSupportConfig({ plinthAngle: 0 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const holeRadius = p.holeDiameter / 2
+    const supportRadius = s.supportSize / 2
+    const insideHole = positions.filter((pt) => {
+      const dist = Math.sqrt(pt.x * pt.x + pt.z * pt.z)
+      return dist < holeRadius + supportRadius
+    })
+    expect(insideHole.length).toBeGreaterThan(0)
+  })
+
+  it('rectangle: hole ring and exclusion when holeDepth equals top thickness', () => {
+    const p = buildPlinthConfig('rectangle', { addHole: true, holeDiameter: 10, holeDepth: 10, hollowEnabled: true, hollowHeight: 20, height: 30 })
+    const s = buildSupportConfig({ plinthAngle: 0 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const holeRadius = p.holeDiameter / 2
+    const supportRadius = s.supportSize / 2
+    for (const pt of positions) {
+      const dist = Math.sqrt(pt.x * pt.x + pt.z * pt.z)
+      expect(dist).toBeGreaterThan(holeRadius + supportRadius - 0.01)
+    }
+  })
+
+  it('rectangle: no hole ring when addHole disabled', () => {
+    const p = buildPlinthConfig('rectangle', { addHole: false, holeDepth: 15, hollowEnabled: true, hollowHeight: 20 })
+    const s = buildSupportConfig({ plinthAngle: 15 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const supportRadius = s.supportSize / 2
+    const tilt = (s.plinthAngle * Math.PI) / 180
+    const cosT = Math.cos(tilt)
+    const holeZWorld = p.hollowHeight * Math.sin(tilt)
+    const ringRadius = p.holeDiameter / 2 + supportRadius + 0.1
+    const rx = ringRadius
+    const rz = ringRadius * cosT
+    const nearRing = positions.filter((pt) => {
+      const dx = pt.x
+      const dz = pt.z - holeZWorld
+      const ratio = (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz)
+      return Math.abs(ratio - 1) < 0.15
+    })
+    expect(nearRing.length).toBeLessThan(4)
+  })
+
+  it('rectangle: no hole ring or exclusion when hollow disabled', () => {
+    const p = buildPlinthConfig('rectangle', { addHole: true, holeDiameter: 10, hollowEnabled: false })
+    const s = buildSupportConfig({ plinthAngle: 0 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const holeRadius = p.holeDiameter / 2
+    const supportRadius = s.supportSize / 2
+    const insideHole = positions.filter((pt) => {
+      const dist = Math.sqrt(pt.x * pt.x + pt.z * pt.z)
+      return dist < holeRadius + supportRadius
+    })
+    expect(insideHole.length).toBeGreaterThan(0)
+  })
+
+  it('rectangle: ring of supports around suction hole edge', () => {
+    const p = buildPlinthConfig('rectangle', { hollowEnabled: true, hollowHeight: 20, suctionHoleEnabled: true, suctionHoleDiameter: 8 })
+    const s = buildSupportConfig({ plinthAngle: 15 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const supportRadius = s.supportSize / 2
+    const tilt = (s.plinthAngle * Math.PI) / 180
+    const sinT = Math.sin(tilt)
+    const cosT = Math.cos(tilt)
+    const suctionZ = -(Math.max(0.01, (p.depth - 2 * Math.max(0.5, p.hollowWallThickness)) / 2) - p.suctionHoleDiameter / 2)
+    const holeZWorld = p.hollowHeight * sinT + suctionZ * cosT
+    const ringRadius = p.suctionHoleDiameter / 2 + supportRadius + 0.1
+    const rx = ringRadius
+    const rz = ringRadius * cosT
+    const nearRing = positions.filter((pt) => {
+      const dx = pt.x
+      const dz = pt.z - holeZWorld
+      const ratio = (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz)
+      return Math.abs(ratio - 1) < 0.15
+    })
+    expect(nearRing.length).toBeGreaterThanOrEqual(4)
+  })
 })
 
 describe('mergePlinthWithSupports', () => {
