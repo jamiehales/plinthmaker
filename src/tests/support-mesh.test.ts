@@ -157,6 +157,9 @@ function buildPlinthConfig(shape: Shape, opts: Partial<PlinthParams> = {}): Plin
     trimProfileId: 'quarterCircle',
     trimHeight: 10,
     trimSize: 5,
+    hollowEnabled: false,
+    hollowHeight: 20,
+    hollowWallThickness: 2,
     ...opts,
   }
 }

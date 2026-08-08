@@ -25,6 +25,11 @@ export const DEFAULT_DOWNLOAD_RESOLUTION = 0.05
 export const DEFAULT_MIN_HOLE_DIAMETER = 2
 export const DEFAULT_MAX_HOLE_DIAMETER = 10
 
+export const DEFAULT_HOLLOW_ENABLED = false
+export const DEFAULT_HOLLOW_HEIGHT = 20
+export const DEFAULT_HOLLOW_WALL_THICKNESS = 2
+export const DEFAULT_HOLLOW_SEGMENT_MM = 3
+
 export const DEFAULT_ADD_SUPPORTS = false
 export const DEFAULT_PLINTH_ANGLE = 15
 export const DEFAULT_RAISE_BY = 3

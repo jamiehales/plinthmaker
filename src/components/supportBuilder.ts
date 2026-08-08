@@ -22,6 +22,74 @@ export function trimFootprintOffset(p: PlinthParams): number {
   return p.trimSize * sampleTrimOffset(profile, 0)
 }
 
+function isSupportOverCavity(
+  p: THREE.Vector3,
+  supportRadius: number,
+  tipRadius: number,
+  plinthParams: PlinthParams,
+  cosT: number,
+): boolean {
+  if (!plinthParams.hollowEnabled) return false
+  const wall = Math.max(0.5, plinthParams.hollowWallThickness)
+  const hw = Math.max(0.01, (plinthParams.width - 2 * wall) / 2)
+  const hd = Math.max(0.01, (plinthParams.depth - 2 * wall) / 2)
+  const zLocal = p.z / Math.max(0.01, cosT)
+  const maxRadius = Math.max(supportRadius, tipRadius)
+
+  if (plinthParams.shape === 'ellipse') {
+    const ex = hw - maxRadius
+    const ez = hd - maxRadius
+    if (ex <= 0 || ez <= 0) return false
+    return (p.x * p.x) / (ex * ex) + (zLocal * zLocal) / (ez * ez) <= 1
+  }
+
+  return Math.abs(p.x) + maxRadius <= hw && Math.abs(zLocal) + maxRadius <= hd
+}
+
+interface CavityParams {
+  shape: Shape
+  hw: number
+  hd: number
+  hollowHeight: number
+  raise: number
+  sinT: number
+  cosT: number
+  tanT: number
+}
+
+function cavityIntersectionHeight(xW: number, zW: number, c: CavityParams): number {
+  const yCeiling = c.raise + c.hollowHeight / Math.max(0.01, c.cosT) - zW * c.tanT
+
+  if (Math.abs(c.sinT) < 1e-6) return yCeiling
+
+  let yWall = Infinity
+
+  if (c.shape === 'ellipse') {
+    const xTerm = (xW * xW) / (c.hw * c.hw)
+    if (xTerm >= 1) return yCeiling
+    const dz = c.hd * Math.sqrt(1 - xTerm)
+    const yL1 = (zW + dz * c.cosT) / c.sinT
+    const yL2 = (zW - dz * c.cosT) / c.sinT
+    for (const yL of [yL1, yL2]) {
+      if (yL >= 0 && yL <= c.hollowHeight) {
+        const yW = c.raise + yL / Math.max(0.01, c.cosT) - zW * c.tanT
+        if (yW < yWall) yWall = yW
+      }
+    }
+  } else {
+    const yL1 = (zW + c.hd * c.cosT) / c.sinT
+    const yL2 = (zW - c.hd * c.cosT) / c.sinT
+    for (const yL of [yL1, yL2]) {
+      if (yL >= 0 && yL <= c.hollowHeight) {
+        const yW = c.raise + yL / Math.max(0.01, c.cosT) - zW * c.tanT
+        if (yW < yWall) yWall = yW
+      }
+    }
+  }
+
+  return Math.min(yCeiling, yWall)
+}
+
 export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
   const ew = w + 2 * trimOffset
   const ed = d + 2 * trimOffset
@@ -237,15 +305,18 @@ export function buildSupportCircles(positions: THREE.Vector3[], radius: number, 
   return geo
 }
 
-function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], tanT: number, segs: number, caps: boolean): THREE.BufferGeometry {
+function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], overCavity: boolean[] | null, cavityParams: CavityParams | null, tanT: number, segs: number, caps: boolean): THREE.BufferGeometry {
   if (positions.length === 0) return new THREE.BufferGeometry()
   const verts: number[] = []
   const indices: number[] = []
 
   for (let i = 0; i < positions.length; i++) {
     const p = positions[i]
-    const yContact = contactHeights[i]
-    const yConeStart = yContact - CONE_START_GAP
+    const supportOverCavity = overCavity ? overCavity[i] : false
+    const yContactCenter = supportOverCavity && cavityParams
+      ? cavityIntersectionHeight(p.x, p.z, cavityParams)
+      : contactHeights[i]
+    const yConeStart = yContactCenter - CONE_START_GAP
     if (yConeStart <= RAFT_HEIGHT) continue
 
     const baseVtx = verts.length / 3
@@ -283,8 +354,11 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
       const cx = Math.cos(a)
       const cz = Math.sin(a)
       const zTip = p.z + cz * tipRadius
-      const yTip = yContact - (zTip - p.z) * tanT
-      verts.push(p.x + cx * tipRadius, yTip, zTip)
+      const xTip = p.x + cx * tipRadius
+      const yTip = supportOverCavity && cavityParams
+        ? cavityIntersectionHeight(xTip, zTip, cavityParams)
+        : contactHeights[i] - (zTip - p.z) * tanT
+      verts.push(xTip, yTip, zTip)
     }
     for (let j = 0; j < segs; j++) {
       const jn = (j + 1) % segs
@@ -293,7 +367,7 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
     }
     if (caps) {
       const tipCenterVtx = verts.length / 3
-      verts.push(p.x, yContact, p.z)
+      verts.push(p.x, yContactCenter, p.z)
       for (let j = 0; j < segs; j++) {
         const jn = (j + 1) % segs
         indices.push(tipCenterVtx, ring2Vtx + jn, ring2Vtx + j)
@@ -425,12 +499,30 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
   const tipRadius = supportParams.supportTipSize / 2
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const tanT = Math.tan(tilt)
+  const cosT = Math.cos(tilt)
   const raise = RAFT_HEIGHT + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
   if (radius <= 0) return new THREE.BufferGeometry()
 
   const positions = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const contactHeights = positions.map((p) => raise - p.z * tanT)
-  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, tanT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
+  const sinT = Math.sin(tilt)
+  const wall = Math.max(0.5, plinthParams.hollowWallThickness)
+  const cavityParams: CavityParams | null = plinthParams.hollowEnabled
+    ? {
+        shape,
+        hw: Math.max(0.01, (plinthParams.width - 2 * wall) / 2),
+        hd: Math.max(0.01, (plinthParams.depth - 2 * wall) / 2),
+        hollowHeight: Math.max(0.1, plinthParams.hollowHeight),
+        raise,
+        sinT,
+        cosT,
+        tanT,
+      }
+    : null
+  const overCavity = plinthParams.hollowEnabled
+    ? positions.map((p) => isSupportOverCavity(p, radius, tipRadius, plinthParams, cosT))
+    : null
+  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, overCavity, cavityParams, tanT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
 
   const normSupport = supportGeo.index ? supportGeo.toNonIndexed() : supportGeo.clone()
@@ -477,12 +569,30 @@ export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: Plin
   const tipRadius = supportParams.supportTipSize / 2
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const tanT = Math.tan(tilt)
+  const cosT = Math.cos(tilt)
   const raise = RAFT_HEIGHT + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
   if (radius <= 0) return new THREE.BufferGeometry()
 
   const positions = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const contactHeights = positions.map((p) => raise - p.z * tanT)
-  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, tanT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
+  const sinT = Math.sin(tilt)
+  const wall = Math.max(0.5, plinthParams.hollowWallThickness)
+  const cavityParams: CavityParams | null = plinthParams.hollowEnabled
+    ? {
+        shape,
+        hw: Math.max(0.01, (plinthParams.width - 2 * wall) / 2),
+        hd: Math.max(0.01, (plinthParams.depth - 2 * wall) / 2),
+        hollowHeight: Math.max(0.1, plinthParams.hollowHeight),
+        raise,
+        sinT,
+        cosT,
+        tanT,
+      }
+    : null
+  const overCavity = plinthParams.hollowEnabled
+    ? positions.map((p) => isSupportOverCavity(p, radius, tipRadius, plinthParams, cosT))
+    : null
+  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, overCavity, cavityParams, tanT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const unioned = csgUnion(supportGeo, raftGeo)
   supportGeo.dispose()

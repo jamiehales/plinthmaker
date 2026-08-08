@@ -28,6 +28,9 @@ export interface PlinthParams {
   trimHeight: number
   trimSize: number
   customTrimPoints?: TrimProfilePoint[]
+  hollowEnabled: boolean
+  hollowHeight: number
+  hollowWallThickness: number
 }
 
 export interface DrillJigParams {
@@ -432,40 +435,99 @@ export function buildPlinthBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_B
   return buildRoundedBody(p, tol, baseSegMM, filletSegMM)
 }
 
+function buildHollowCavity(p: PlinthParams, segMM: number): THREE.BufferGeometry {
+  const wall = Math.max(0.5, p.hollowWallThickness)
+  const cw = Math.max(0.1, p.width - 2 * wall)
+  const cd = Math.max(0.1, p.depth - 2 * wall)
+  const ch = Math.max(0.1, p.hollowHeight)
+  const extraBottom = 2
+  const totalHeight = ch + extraBottom
+
+  let geo: THREE.BufferGeometry
+  if (p.shape === 'ellipse') {
+    const n = segsForEllipse(cw / 2, cd / 2, segMM)
+    const shape = new THREE.Shape()
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2
+      const x = (cw / 2) * Math.cos(a)
+      const z = (cd / 2) * Math.sin(a)
+      if (i === 0) shape.moveTo(x, z)
+      else shape.lineTo(x, z)
+    }
+    shape.closePath()
+    const extrudeGeo = new THREE.ExtrudeGeometry(shape, { depth: totalHeight, bevelEnabled: false, steps: 1 })
+    extrudeGeo.rotateX(-Math.PI / 2)
+    extrudeGeo.translate(0, -extraBottom, 0)
+    geo = extrudeGeo
+  } else {
+    geo = new THREE.BoxGeometry(cw, totalHeight, cd)
+    geo.translate(0, (ch - extraBottom) / 2, 0)
+  }
+
+  return geo
+}
+
 export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM, useCDT = true): THREE.BufferGeometry {
   const bodyGeo = buildPlinthBody(p, 0, baseSegMM, filletSegMM, useCDT)
   const h = Math.max(0.1, p.height)
 
-  if (!p.addHole) return bodyGeo
+  if (!p.addHole && !p.hollowEnabled) return bodyGeo
 
-  const drop = topDrop(p)
-  const angleRad = p.angleTop
-    ? (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
-    : 0
-  const tanA = Math.tan(angleRad)
+  let currentGeo = bodyGeo
 
-  const radius = Math.max(0.05, p.holeDiameter / 2)
-  const holeDepth = Math.max(0.1, p.holeDepth)
-  const topCenterY = h - drop / 2
-  const extraTop = 2 + radius * tanA
-  const holeGeo = new THREE.CylinderGeometry(radius, radius, holeDepth + extraTop, circleSegments(radius * 2, baseSegMM), 1)
-  holeGeo.translate(0, topCenterY + (extraTop - holeDepth) / 2, 0)
+  if (p.addHole) {
+    const drop = topDrop(p)
+    const angleRad = p.angleTop
+      ? (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
+      : 0
+    const tanA = Math.tan(angleRad)
 
-  const holeBrush = new Brush(holeGeo)
-  holeBrush.updateMatrixWorld(true)
-  const bodyBrush = new Brush(bodyGeo)
-  bodyBrush.updateMatrixWorld(true)
+    const radius = Math.max(0.05, p.holeDiameter / 2)
+    const holeDepth = Math.max(0.1, p.holeDepth)
+    const topCenterY = h - drop / 2
+    const extraTop = 2 + radius * tanA
+    const holeGeo = new THREE.CylinderGeometry(radius, radius, holeDepth + extraTop, circleSegments(radius * 2, baseSegMM), 1)
+    holeGeo.translate(0, topCenterY + (extraTop - holeDepth) / 2, 0)
 
-  const evaluator = new Evaluator()
-  if (useCDT) enableCDT(evaluator)
-  evaluator.attributes = ['position', 'normal']
-  evaluator.useGroups = false
-  const result = evaluator.evaluate(bodyBrush, holeBrush, SUBTRACTION)
+    const holeBrush = new Brush(holeGeo)
+    holeBrush.updateMatrixWorld(true)
+    const bodyBrush = new Brush(currentGeo)
+    bodyBrush.updateMatrixWorld(true)
 
-  const geo = result.geometry
-  if (geo !== bodyGeo) bodyGeo.dispose()
-  holeGeo.dispose()
-  return geo
+    const evaluator = new Evaluator()
+    if (useCDT) enableCDT(evaluator)
+    evaluator.attributes = ['position', 'normal']
+    evaluator.useGroups = false
+    const result = evaluator.evaluate(bodyBrush, holeBrush, SUBTRACTION)
+
+    const prevGeo = currentGeo
+    currentGeo = result.geometry
+    if (currentGeo !== prevGeo) prevGeo.dispose()
+    holeGeo.dispose()
+  }
+
+  if (p.hollowEnabled) {
+    const hollowSegMM = Math.max(baseSegMM, 3)
+    const cavityGeo = buildHollowCavity(p, hollowSegMM)
+
+    const cavityBrush = new Brush(cavityGeo)
+    cavityBrush.updateMatrixWorld(true)
+    const bodyBrush = new Brush(currentGeo)
+    bodyBrush.updateMatrixWorld(true)
+
+    const evaluator = new Evaluator()
+    if (useCDT) enableCDT(evaluator)
+    evaluator.attributes = ['position', 'normal']
+    evaluator.useGroups = false
+    const result = evaluator.evaluate(bodyBrush, cavityBrush, SUBTRACTION)
+
+    const prevGeo = currentGeo
+    currentGeo = result.geometry
+    if (currentGeo !== prevGeo) prevGeo.dispose()
+    cavityGeo.dispose()
+  }
+
+  return currentGeo
 }
 
 function buildJigMesh(

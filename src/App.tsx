@@ -42,7 +42,8 @@ import {
   DEFAULT_ADD_SUPPORTS, DEFAULT_PLINTH_ANGLE, DEFAULT_RAISE_BY, DEFAULT_SUPPORT_SIZE,
   DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_SUPPORT_CAPS, DRAWER_WIDTH,
   DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE,
-  DEFAULT_CUSTOM_TRIM_POINTS, DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER
+  DEFAULT_CUSTOM_TRIM_POINTS, DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
+  DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_HEIGHT, DEFAULT_HOLLOW_WALL_THICKNESS,
 } from './defaults.ts'
 import { TRIM_PROFILES, getTrimProfile, type TrimProfilePoint } from './components/trimProfiles.ts'
 import TrimProfileIcon from './components/TrimProfileIcon.tsx'
@@ -112,6 +113,9 @@ function App() {
   const [supportTipSize, setSupportTipSize] = useState(DEFAULT_SUPPORT_TIP_SIZE)
   const [supportSpacing, setSupportSpacing] = useState(DEFAULT_SUPPORT_SPACING)
   const [supportCaps] = useState(DEFAULT_SUPPORT_CAPS)
+  const [hollowEnabled, setHollowEnabled] = useState(DEFAULT_HOLLOW_ENABLED)
+  const [hollowHeight, setHollowHeight] = useState(DEFAULT_HOLLOW_HEIGHT)
+  const [hollowWallThickness, setHollowWallThickness] = useState(DEFAULT_HOLLOW_WALL_THICKNESS)
   const [trimEnabled, setTrimEnabled] = useState(DEFAULT_TRIM_ENABLED)
   const [trimProfileId, setTrimProfileId] = useState(DEFAULT_TRIM_PROFILE_ID)
   const [trimHeight, setTrimHeight] = useState(DEFAULT_TRIM_HEIGHT)
@@ -181,7 +185,10 @@ function App() {
     trimHeight,
     trimSize,
     customTrimPoints: trimProfileId === 'custom' ? customTrimPoints : undefined,
-  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimProfileId, trimHeight, trimSize, customTrimPoints])
+    hollowEnabled,
+    hollowHeight,
+    hollowWallThickness,
+  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimProfileId, trimHeight, trimSize, customTrimPoints, hollowEnabled, hollowHeight, hollowWallThickness])
 
   const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
@@ -490,6 +497,43 @@ function App() {
                   onChange={setHoleDepth}
                   min={1}
                   max={50}
+                />
+              </>
+            ) : null}
+
+            <Divider sx={{ my: 1.5 }} />
+
+            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
+              Hollow
+            </Typography>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={hollowEnabled}
+                  onChange={(e) => setHollowEnabled(e.target.checked)}
+                  size="small"
+                />
+              }
+              label="Enable Hollowing"
+              sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
+            />
+            {hollowEnabled ? (
+              <>
+                <LabeledSlider
+                  label="Hollow Height"
+                  value={hollowHeight}
+                  onChange={setHollowHeight}
+                  min={1}
+                  max={height - 1}
+                  step={0.5}
+                />
+                <LabeledSlider
+                  label="Wall Thickness"
+                  value={hollowWallThickness}
+                  onChange={setHollowWallThickness}
+                  min={0.5}
+                  max={Math.min(width, depth) / 2 - 0.5}
+                  step={0.1}
                 />
               </>
             ) : null}
