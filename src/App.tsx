@@ -43,7 +43,7 @@ import {
   DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_SUPPORT_CAPS, DRAWER_WIDTH,
   DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE,
   DEFAULT_CUSTOM_TRIM_POINTS, DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
-  DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_HEIGHT, DEFAULT_HOLLOW_WALL_THICKNESS,
+  DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_TOP_THICKNESS, DEFAULT_HOLLOW_WALL_THICKNESS,
   DEFAULT_SUCTION_HOLE_ENABLED, DEFAULT_SUCTION_HOLE_DIAMETER,
 } from './defaults.ts'
 import { TRIM_PROFILES, getTrimProfile, type TrimProfilePoint } from './components/trimProfiles.ts'
@@ -115,7 +115,7 @@ function App() {
   const [supportSpacing, setSupportSpacing] = useState(DEFAULT_SUPPORT_SPACING)
   const [supportCaps] = useState(DEFAULT_SUPPORT_CAPS)
   const [hollowEnabled, setHollowEnabled] = useState(DEFAULT_HOLLOW_ENABLED)
-  const [topThickness, setTopThickness] = useState(DEFAULT_HEIGHT - DEFAULT_HOLLOW_HEIGHT)
+  const [topThickness, setTopThickness] = useState(DEFAULT_HOLLOW_TOP_THICKNESS)
   const [hollowWallThickness, setHollowWallThickness] = useState(DEFAULT_HOLLOW_WALL_THICKNESS)
   const [suctionHoleEnabled, setSuctionHoleEnabled] = useState(DEFAULT_SUCTION_HOLE_ENABLED)
   const [suctionHoleDiameter, setSuctionHoleDiameter] = useState(DEFAULT_SUCTION_HOLE_DIAMETER)
