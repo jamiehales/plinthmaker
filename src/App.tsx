@@ -115,7 +115,7 @@ function App() {
   const [supportSpacing, setSupportSpacing] = useState(DEFAULT_SUPPORT_SPACING)
   const [supportCaps] = useState(DEFAULT_SUPPORT_CAPS)
   const [hollowEnabled, setHollowEnabled] = useState(DEFAULT_HOLLOW_ENABLED)
-  const [hollowHeight, setHollowHeight] = useState(DEFAULT_HOLLOW_HEIGHT)
+  const [topThickness, setTopThickness] = useState(DEFAULT_HEIGHT - DEFAULT_HOLLOW_HEIGHT)
   const [hollowWallThickness, setHollowWallThickness] = useState(DEFAULT_HOLLOW_WALL_THICKNESS)
   const [suctionHoleEnabled, setSuctionHoleEnabled] = useState(DEFAULT_SUCTION_HOLE_ENABLED)
   const [suctionHoleDiameter, setSuctionHoleDiameter] = useState(DEFAULT_SUCTION_HOLE_DIAMETER)
@@ -189,11 +189,11 @@ function App() {
     trimSize,
     customTrimPoints: trimProfileId === 'custom' ? customTrimPoints : undefined,
     hollowEnabled,
-    hollowHeight,
+    hollowHeight: height - topThickness,
     hollowWallThickness,
     suctionHoleEnabled,
     suctionHoleDiameter,
-  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimProfileId, trimHeight, trimSize, customTrimPoints, hollowEnabled, hollowHeight, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter])
+  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimProfileId, trimHeight, trimSize, customTrimPoints, hollowEnabled, topThickness, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter])
 
   const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
@@ -525,9 +525,9 @@ function App() {
             {hollowEnabled ? (
               <>
                 <LabeledSlider
-                  label="Hollow Height"
-                  value={hollowHeight}
-                  onChange={setHollowHeight}
+                  label="Top Thickness"
+                  value={topThickness}
+                  onChange={setTopThickness}
                   min={1}
                   max={height - 1}
                   step={0.5}
