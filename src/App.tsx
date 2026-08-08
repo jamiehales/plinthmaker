@@ -553,7 +553,7 @@ function App() {
                       size="small"
                     />
                   }
-                  label="Suction Cup Release Hole"
+                  label="Add Hole for Suction Cup prevention"
                   sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
                 />
                 {suctionHoleEnabled ? (
@@ -737,7 +737,7 @@ function App() {
                       size="small"
                     />
                   }
-                  label="Scaffolding Between Supports"
+                  label="Add Scaffolding"
                   sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
                 />
                 {scaffoldingEnabled ? (
