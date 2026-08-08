@@ -572,15 +572,16 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
 
   const gap = Math.min(s, supportParams.supportSpacing)
   const interiorPositions = buildConcentricRingPositions(shape, plinthParams.width, plinthParams.depth, cosT, s, tipRadius + gap, segMM, trimOff)
-  let allPositions = ringPositions.concat(cavityRingPositions, holeRingPositions, suctionRingPositions, interiorPositions)
+  const ringPositionsAll = ringPositions.concat(cavityRingPositions, holeRingPositions, suctionRingPositions)
 
+  let interiorPositionsFiltered = interiorPositions
   if (plinthParams.addHole && plinthParams.hollowEnabled) {
     const topThickness = plinthParams.height - plinthParams.hollowHeight
     if (plinthParams.holeDepth >= topThickness) {
       const holeRadius = Math.max(0.05, plinthParams.holeDiameter / 2)
       const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
       const holeZWorld = hollowHeight * sinT
-      allPositions = filterEllipseExclusion(allPositions, 0, holeZWorld, holeRadius + radius, cosT)
+      interiorPositionsFiltered = filterEllipseExclusion(interiorPositionsFiltered, 0, holeZWorld, holeRadius + radius, cosT)
     }
   }
 
@@ -589,10 +590,15 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
     const suctionZ = suctionHoleZ(plinthParams)
     const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
     const holeZWorld = hollowHeight * sinT + suctionZ * cosT
-    allPositions = filterEllipseExclusion(allPositions, 0, holeZWorld, suctionRadius + radius, cosT)
+    interiorPositionsFiltered = filterEllipseExclusion(interiorPositionsFiltered, 0, holeZWorld, suctionRadius + radius, cosT)
   }
 
-  return allPositions
+  const minDist = supportParams.supportSpacing
+  const filteredInterior = interiorPositionsFiltered.filter(
+    (p) => !ringPositionsAll.some((q) => p.distanceTo(q) < minDist)
+  )
+
+  return ringPositionsAll.concat(filteredInterior)
 }
 
 function createStrutCylinder(start: THREE.Vector3, end: THREE.Vector3, radius: number, segs: number): THREE.BufferGeometry {

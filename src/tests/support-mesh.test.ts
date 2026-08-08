@@ -433,6 +433,48 @@ describe('computeSupportPositions', () => {
     })
     expect(nearRing.length).toBeGreaterThanOrEqual(4)
   })
+
+  it('rectangle: interior supports not closer than supportSpacing to ring supports', () => {
+    const p = buildPlinthConfig('rectangle', { addHole: true, holeDiameter: 10, holeDepth: 15, hollowEnabled: true, hollowHeight: 20 })
+    const s = buildSupportConfig({ plinthAngle: 15 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const minDist = s.supportSpacing - 0.01
+
+    const pNoInterior = buildPlinthConfig('rectangle', { addHole: true, holeDiameter: 10, holeDepth: 15, hollowEnabled: true, hollowHeight: 20 })
+    const ringPositions = computeSupportPositions('rectangle', pNoInterior, { ...s, supportSize: 0 }, 1.5)
+    expect(ringPositions.length).toBe(0)
+
+    const ringCount = ringPositions.length
+    const ringPart = positions.slice(0, ringCount)
+    const interiorPart = positions.slice(ringCount)
+    for (const interior of interiorPart) {
+      for (const ring of ringPart) {
+        const dist = interior.distanceTo(ring)
+        expect(dist, `interior too close to ring`).toBeGreaterThanOrEqual(minDist)
+      }
+    }
+  })
+
+  it('rectangle: rings are not removed by deduplication', () => {
+    const p = buildPlinthConfig('rectangle', { addHole: true, holeDiameter: 10, holeDepth: 15, hollowEnabled: true, hollowHeight: 20, suctionHoleEnabled: true, suctionHoleDiameter: 8 })
+    const s = buildSupportConfig({ plinthAngle: 15 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const supportRadius = s.supportSize / 2
+    const tilt = (s.plinthAngle * Math.PI) / 180
+    const sinT = Math.sin(tilt)
+    const cosT = Math.cos(tilt)
+    const holeZWorld = p.hollowHeight * sinT
+    const ringRadius = p.holeDiameter / 2 + supportRadius + 0.1
+    const rx = ringRadius
+    const rz = ringRadius * cosT
+    const nearHoleRing = positions.filter((pt) => {
+      const dx = pt.x
+      const dz = pt.z - holeZWorld
+      const ratio = (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz)
+      return Math.abs(ratio - 1) < 0.15
+    })
+    expect(nearHoleRing.length).toBeGreaterThanOrEqual(4)
+  })
 })
 
 describe('mergePlinthWithSupports', () => {
