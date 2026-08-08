@@ -9,6 +9,7 @@ import {
   buildSupportMeshGeometry,
   trimFootprintOffset,
 } from './supportBuilder.ts'
+import { SHOW_SCAFFOLDING_IN_PREVIEW } from '../defaults.ts'
 
 interface SupportOverlayProps {
   shape: Shape
@@ -43,7 +44,7 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
 
   const supportMesh = useMemo(() => {
     if (radius <= 0) return new THREE.BufferGeometry()
-    return buildSupportMeshGeometry(shape, plinthParams, supportParams, 16)
+    return buildSupportMeshGeometry(shape, plinthParams, supportParams, 16, SHOW_SCAFFOLDING_IN_PREVIEW && supportParams.scaffoldingEnabled)
   }, [shape, plinthParams, supportParams, radius])
 
   useEffect(() => {

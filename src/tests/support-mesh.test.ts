@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { type Shape, type PlinthParams, type SupportParams } from '../components/geometryBuilder.ts'
-import { buildSupportMeshGeometry, computeSupportPositions, mergePlinthWithSupports, applySupportTransform, applyYUpToZUp } from '../components/supportBuilder.ts'
+import { buildSupportMeshGeometry, computeSupportPositions, mergePlinthWithSupports, applySupportTransform, applyYUpToZUp, buildScaffoldingMesh } from '../components/supportBuilder.ts'
 import { buildGeometry } from '../components/geometryBuilder.ts'
 
 type MeshCheckResult = {
@@ -175,6 +175,8 @@ function buildSupportConfig(opts: Partial<SupportParams> = {}): SupportParams {
     supportTipSize: 0.4,
     supportSpacing: 5,
     supportCaps: false,
+    scaffoldingEnabled: false,
+    scaffoldingAngle: 45,
     ...opts,
   }
 }
@@ -459,4 +461,89 @@ describe('trim bottom', () => {
       geo.dispose()
     })
   }
+})
+
+describe('buildScaffoldingMesh', () => {
+  const TWO_SUPPORT_POSITIONS = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(6, 0, 0)]
+  const TWO_SUPPORT_HEIGHTS = [21.5, 21.5]
+  const Y_CONE_START = 21.5 - 1
+
+  it('angle 0 produces empty geometry', () => {
+    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 0, 8)
+    expect((geo.attributes.position?.count) ?? 0).toBe(0)
+    geo.dispose()
+  })
+
+  it('two adjacent supports produce struts at 45°', () => {
+    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    expect(geo.attributes.position.count).toBeGreaterThan(0)
+    geo.dispose()
+  })
+
+  it('expected strut count at 45° for known geometry', () => {
+    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    const idx = geo.index
+    const triCount = idx ? idx.count / 3 : geo.attributes.position.count / 3
+    const strutCount = Math.round(triCount / 32)
+    expect(strutCount).toBe(4)
+    geo.dispose()
+  })
+
+  it('steeper angle produces fewer struts', () => {
+    const geo45 = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    const geo60 = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 60, 8)
+    const tri45 = geo45.index ? geo45.index.count / 3 : geo45.attributes.position.count / 3
+    const tri60 = geo60.index ? geo60.index.count / 3 : geo60.attributes.position.count / 3
+    expect(tri60).toBeLessThan(tri45)
+    geo45.dispose()
+    geo60.dispose()
+  })
+
+  it('supports beyond proximity threshold produce no struts', () => {
+    const positions = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(20, 0, 0)]
+    const geo = buildScaffoldingMesh(positions, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    expect((geo.attributes.position?.count) ?? 0).toBe(0)
+    geo.dispose()
+  })
+
+  it('like-for-like exclusion: mixed cavity/rim supports produce no struts', () => {
+    const positions = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(3, 0, 0)]
+    const overCavity = [true, false]
+    const geo = buildScaffoldingMesh(positions, overCavity, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    expect((geo.attributes.position?.count) ?? 0).toBe(0)
+    geo.dispose()
+  })
+
+  it('like-for-like allows same-category supports', () => {
+    const positions = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(3, 0, 0)]
+    const overCavityTrue = [true, true]
+    const overCavityFalse = [false, false]
+    const geoTrue = buildScaffoldingMesh(positions, overCavityTrue, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    const geoFalse = buildScaffoldingMesh(positions, overCavityFalse, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    expect(geoTrue.attributes.position.count).toBeGreaterThan(0)
+    expect(geoFalse.attributes.position.count).toBeGreaterThan(0)
+    geoTrue.dispose()
+    geoFalse.dispose()
+  })
+
+  it('struts do not extend above yConeStart', () => {
+    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    const pos = geo.attributes.position as THREE.BufferAttribute
+    const arr = pos.array as Float32Array
+    const strutRadius = 0.5 * 2 / 2
+    for (let i = 1; i < arr.length; i += 3) {
+      expect(arr[i]).toBeLessThanOrEqual(Y_CONE_START + strutRadius + 0.01)
+    }
+    geo.dispose()
+  })
+
+  it('buildSupportMeshGeometry respects scaffoldingEnabled=false even with includeScaffolding=true', () => {
+    const p = buildPlinthConfig('rectangle')
+    const s = buildSupportConfig({ scaffoldingEnabled: false })
+    const geoNoFlag = buildSupportMeshGeometry('rectangle', p, s, 16, false)
+    const geoWithFlag = buildSupportMeshGeometry('rectangle', p, s, 16, true)
+    expect(geoWithFlag.attributes.position.count).toBe(geoNoFlag.attributes.position.count)
+    geoNoFlag.dispose()
+    geoWithFlag.dispose()
+  })
 })

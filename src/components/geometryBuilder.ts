@@ -54,6 +54,8 @@ export interface SupportParams {
   supportTipSize: number
   supportSpacing: number
   supportCaps: boolean
+  scaffoldingEnabled: boolean
+  scaffoldingAngle: number
 }
 
 export const DOWNLOAD_BASE_SEGMENT_MM = 0.1

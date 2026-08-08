@@ -6,6 +6,7 @@ import { sampleTrimOffset, getTrimProfile } from './trimProfiles.ts'
 import {
   DEFAULT_CONE_START_GAP, DEFAULT_RAFT_HEIGHT, DEFAULT_RAFT_BOTTOM_INSET,
   DEFAULT_CONE_TIP_PENETRATION, DEFAULT_SUPPORT_CAPS,
+  DEFAULT_SCAFFOLDING_SCALE, DEFAULT_SCAFFOLDING_GAP_TOLERANCE,
 } from '../defaults.ts'
 
 const CONE_START_GAP = DEFAULT_CONE_START_GAP
@@ -13,6 +14,8 @@ const RAFT_HEIGHT = DEFAULT_RAFT_HEIGHT
 const RAFT_BOTTOM_INSET = DEFAULT_RAFT_BOTTOM_INSET
 const CONE_TIP_PENETRATION = DEFAULT_CONE_TIP_PENETRATION
 const SUPPORT_CAPS = DEFAULT_SUPPORT_CAPS
+const SCAFFOLDING_SCALE = DEFAULT_SCAFFOLDING_SCALE
+const SCAFFOLDING_GAP_TOLERANCE = DEFAULT_SCAFFOLDING_GAP_TOLERANCE
 
 export function trimFootprintOffset(p: PlinthParams): number {
   if (!p.trimEnabled || p.trimSize <= 0 || p.trimHeight <= 0) return 0
@@ -530,7 +533,99 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
   return allPositions
 }
 
-export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number): THREE.BufferGeometry {
+function createStrutCylinder(start: THREE.Vector3, end: THREE.Vector3, radius: number, segs: number): THREE.BufferGeometry {
+  const dir = new THREE.Vector3().subVectors(end, start)
+  const length = dir.length()
+  if (length < 1e-6) return new THREE.BufferGeometry()
+  const geo = new THREE.CylinderGeometry(radius, radius, length, segs)
+  geo.deleteAttribute('uv')
+  const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5)
+  const up = new THREE.Vector3(0, 1, 0)
+  const normDir = dir.clone().normalize()
+  const quat = new THREE.Quaternion().setFromUnitVectors(up, normDir)
+  const matrix = new THREE.Matrix4().compose(mid, quat, new THREE.Vector3(1, 1, 1))
+  geo.applyMatrix4(matrix)
+  return geo
+}
+
+export function buildScaffoldingMesh(
+  positions: THREE.Vector3[],
+  overCavity: boolean[] | null,
+  contactHeights: number[],
+  cavityParams: CavityParams | null,
+  supportSize: number,
+  supportSpacing: number,
+  scaffoldingAngle: number,
+  segs: number,
+): THREE.BufferGeometry {
+  if (positions.length < 2 || scaffoldingAngle <= 0 || scaffoldingAngle >= 90) return new THREE.BufferGeometry()
+
+  const yConeStarts: number[] = []
+  for (let i = 0; i < positions.length; i++) {
+    const p = positions[i]
+    const supportOverCavity = overCavity ? overCavity[i] : false
+    const yContactCenter = supportOverCavity && cavityParams
+      ? cavityIntersectionHeight(p.x, p.z, cavityParams)
+      : contactHeights[i]
+    yConeStarts.push(yContactCenter - CONE_START_GAP)
+  }
+
+  const angleRad = (scaffoldingAngle * Math.PI) / 180
+  const tanAngle = Math.tan(angleRad)
+  const strutRadius = (SCAFFOLDING_SCALE * supportSize) / 2
+  const maxDist = supportSize + supportSpacing + SCAFFOLDING_GAP_TOLERANCE
+
+  const geometries: THREE.BufferGeometry[] = []
+
+  for (let i = 0; i < positions.length; i++) {
+    for (let j = i + 1; j < positions.length; j++) {
+      if (overCavity && overCavity[i] !== overCavity[j]) continue
+
+      const pi = positions[i]
+      const pj = positions[j]
+      const dx = pj.x - pi.x
+      const dz = pj.z - pi.z
+      const centerDist = Math.sqrt(dx * dx + dz * dz)
+      if (centerDist < 1e-6 || centerDist > maxDist) continue
+
+      const yTop = Math.min(yConeStarts[i], yConeStarts[j])
+      const H = yTop - RAFT_HEIGHT
+      if (H <= 0) continue
+
+      const rise = centerDist * tanAngle
+      if (rise < 1e-6) continue
+      const N = Math.ceil(H / rise)
+      const actualRise = H / N
+
+      for (let k = 0; k < N; k++) {
+        const yStart = RAFT_HEIGHT + k * actualRise
+        const yEnd = RAFT_HEIGHT + (k + 1) * actualRise
+
+        let start: THREE.Vector3
+        let end: THREE.Vector3
+        if (k % 2 === 0) {
+          start = new THREE.Vector3(pi.x, yStart, pi.z)
+          end = new THREE.Vector3(pj.x, yEnd, pj.z)
+        } else {
+          start = new THREE.Vector3(pj.x, yStart, pj.z)
+          end = new THREE.Vector3(pi.x, yEnd, pi.z)
+        }
+
+        const strutGeo = createStrutCylinder(start, end, strutRadius, segs)
+        if (strutGeo.attributes.position.count > 0) {
+          geometries.push(strutGeo)
+        }
+      }
+    }
+  }
+
+  if (geometries.length === 0) return new THREE.BufferGeometry()
+  const merged = mergeGeometries(geometries, false)
+  for (const g of geometries) g.dispose()
+  return merged ?? new THREE.BufferGeometry()
+}
+
+export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number, includeScaffolding = false): THREE.BufferGeometry {
   const radius = supportParams.supportSize / 2
   const tipRadius = supportParams.supportTipSize / 2
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
@@ -563,9 +658,20 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
 
   const normSupport = supportGeo.index ? supportGeo.toNonIndexed() : supportGeo.clone()
   const normRaft = raftGeo.index ? raftGeo.toNonIndexed() : raftGeo.clone()
-  const merged = mergeGeometries([normSupport, normRaft], false)
+  const mergeGeos: THREE.BufferGeometry[] = [normSupport, normRaft]
+
+  let scaffoldGeo: THREE.BufferGeometry | null = null
+  if (includeScaffolding && supportParams.scaffoldingEnabled) {
+    scaffoldGeo = buildScaffoldingMesh(positions, overCavity, contactHeights, cavityParams, supportParams.supportSize, supportParams.supportSpacing, supportParams.scaffoldingAngle, segs)
+    if (scaffoldGeo.attributes.position.count > 0) {
+      mergeGeos.push(scaffoldGeo.index ? scaffoldGeo.toNonIndexed() : scaffoldGeo.clone())
+    }
+  }
+
+  const merged = mergeGeometries(mergeGeos, false)
   normSupport.dispose()
   normRaft.dispose()
+  if (scaffoldGeo) scaffoldGeo.dispose()
   if (!merged) return supportGeo
   supportGeo.dispose()
   raftGeo.dispose()

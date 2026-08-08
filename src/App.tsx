@@ -41,6 +41,7 @@ import {
   DEFAULT_ROUND_STYLE, DEFAULT_ROUND_LOCATION, DEFAULT_ROUND_SIZE, DEFAULT_DOWNLOAD_RESOLUTION,
   DEFAULT_ADD_SUPPORTS, DEFAULT_PLINTH_ANGLE, DEFAULT_RAISE_BY, DEFAULT_SUPPORT_SIZE,
   DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_SUPPORT_CAPS, DRAWER_WIDTH,
+  DEFAULT_SCAFFOLDING_ENABLED, DEFAULT_SCAFFOLDING_ANGLE,
   DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE,
   DEFAULT_CUSTOM_TRIM_POINTS, DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
   DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_TOP_THICKNESS, DEFAULT_HOLLOW_WALL_THICKNESS,
@@ -114,6 +115,8 @@ function App() {
   const [supportTipSize, setSupportTipSize] = useState(DEFAULT_SUPPORT_TIP_SIZE)
   const [supportSpacing, setSupportSpacing] = useState(DEFAULT_SUPPORT_SPACING)
   const [supportCaps] = useState(DEFAULT_SUPPORT_CAPS)
+  const [scaffoldingEnabled, setScaffoldingEnabled] = useState(DEFAULT_SCAFFOLDING_ENABLED)
+  const [scaffoldingAngle, setScaffoldingAngle] = useState(DEFAULT_SCAFFOLDING_ANGLE)
   const [hollowEnabled, setHollowEnabled] = useState(DEFAULT_HOLLOW_ENABLED)
   const [topThickness, setTopThickness] = useState(DEFAULT_HOLLOW_TOP_THICKNESS)
   const [hollowWallThickness, setHollowWallThickness] = useState(DEFAULT_HOLLOW_WALL_THICKNESS)
@@ -231,7 +234,9 @@ function App() {
     supportTipSize,
     supportSpacing,
     supportCaps,
-  }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, supportCaps])
+    scaffoldingEnabled,
+    scaffoldingAngle,
+  }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, supportCaps, scaffoldingEnabled, scaffoldingAngle])
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
@@ -724,6 +729,28 @@ function App() {
                   min={2}
                   max={5}
                 />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={scaffoldingEnabled}
+                      onChange={(e) => setScaffoldingEnabled(e.target.checked)}
+                      size="small"
+                    />
+                  }
+                  label="Scaffolding Between Supports"
+                  sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
+                />
+                {scaffoldingEnabled ? (
+                  <LabeledSlider
+                    label="Scaffolding Angle"
+                    value={scaffoldingAngle}
+                    onChange={setScaffoldingAngle}
+                    min={15}
+                    max={75}
+                    step={1}
+                    unit="°"
+                  />
+                ) : null}
               </>
             ) : null}
           </Box>
@@ -783,7 +810,7 @@ function App() {
                     if (msg.type !== 'plinth') return
                     const geo = deserializeGeometry(msg.geometry)
                     if (addSupports) {
-                      const supportGeo = buildSupportMeshGeometry(shape, plinthParams, supportParams, 16)
+                      const supportGeo = buildSupportMeshGeometry(shape, plinthParams, supportParams, 16, scaffoldingEnabled)
                       const transformedPlinth = applySupportTransform(geo, supportParams, plinthParams.depth)
                       const merged = mergePlinthWithSupports(transformedPlinth, supportGeo)
                       const zup = applyYUpToZUp(merged)
