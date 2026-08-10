@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { useGeometryWorker, deserializeGeometry, markBuilding, markDone } from './useGeometryWorker.ts'
+import { useGeometryWorker, deserializeGeometry, markBuilding, markDone, markFailed, markSuccess } from './useGeometryWorker.ts'
 
 export type { Shape, RoundStyle, RoundLocation, PlinthParams } from './geometryBuilder.ts'
 export { topDrop, buildPlinthBody, buildGeometry, DOWNLOAD_BASE_SEGMENT_MM, DOWNLOAD_FILLET_SEGMENT_MM, RENDER_BASE_SEGMENT_MM, RENDER_FILLET_SEGMENT_MM } from './geometryBuilder.ts'
@@ -72,6 +72,7 @@ export default function Plinth({ params, baseSegMM = RENDER_BASE_SEGMENT_MM, fil
         }
         if (msg.type !== 'plinth') {
           console.error('plinth build error:', msg.type === 'error' ? msg.error : 'unexpected message type')
+          markFailed()
           markDone()
           activeRef.current = false
           if (pendingParamsRef.current) fire()
@@ -81,6 +82,7 @@ export default function Plinth({ params, baseSegMM = RENDER_BASE_SEGMENT_MM, fil
           prev?.dispose()
           return deserializeGeometry(msg.geometry)
         })
+        markSuccess()
         markDone()
         activeRef.current = false
         if (pendingParamsRef.current) {

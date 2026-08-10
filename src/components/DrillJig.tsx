@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { type Shape, type PlinthParams, type DrillJigParams, topDrop, RENDER_BASE_SEGMENT_MM, RENDER_FILLET_SEGMENT_MM } from './geometryBuilder.ts'
-import { useGeometryWorker, deserializeGeometry, markBuilding, markDone } from './useGeometryWorker.ts'
+import { useGeometryWorker, deserializeGeometry, markBuilding, markDone, markFailed, markSuccess } from './useGeometryWorker.ts'
 import { DEFAULT_RENDER_THROTTLE_MS } from '../defaults.ts'
 
 export type { DrillJigParams } from './geometryBuilder.ts'
@@ -79,6 +79,7 @@ export default function DrillJig({
         }
         if (msg.type !== 'jig') {
           console.error('jig build error:', msg.type === 'error' ? msg.error : 'unexpected message type')
+          markFailed()
           markDone()
           activeRef.current = false
           if (pendingParamsRef.current) fire()
@@ -88,6 +89,7 @@ export default function DrillJig({
           prev?.dispose()
           return deserializeGeometry(msg.jig)
         })
+        markSuccess()
         markDone()
         activeRef.current = false
         if (pendingParamsRef.current) {

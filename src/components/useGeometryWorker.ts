@@ -25,19 +25,27 @@ export type BuildJigMessageFields = Omit<BuildJigMessage, 'id'>
 type Resolver = (msg: BuildResultMessage) => void
 
 let buildingCount = 0
+let generationFailed = false
 const listeners = new Set<() => void>()
 function notify() { for (const l of listeners) l() }
 function subscribe(cb: () => void): () => void {
   listeners.add(cb)
   return () => { listeners.delete(cb) }
 }
-function getSnapshot(): number { return buildingCount }
+function getBuildingSnapshot(): number { return buildingCount }
+function getFailedSnapshot(): boolean { return generationFailed }
 
 export function markBuilding() { buildingCount += 1; notify() }
 export function markDone() { buildingCount = Math.max(0, buildingCount - 1); notify() }
+export function markFailed() { generationFailed = true; notify() }
+export function markSuccess() { generationFailed = false; notify() }
 
 export function useBuilding(): boolean {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot) > 0
+  return useSyncExternalStore(subscribe, getBuildingSnapshot, getBuildingSnapshot) > 0
+}
+
+export function useGenerationFailed(): boolean {
+  return useSyncExternalStore(subscribe, getFailedSnapshot, getFailedSnapshot)
 }
 
 let nextId = 0

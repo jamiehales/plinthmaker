@@ -29,7 +29,7 @@ import ContentPasteIcon from '@mui/icons-material/ContentPaste'
 import Viewport from './components/Viewport.tsx'
 import { type Shape, type PlinthParams, type RoundStyle, type RoundLocation, type SupportParams } from './components/geometryBuilder.ts'
 import { type DrillJigParams } from './components/geometryBuilder.ts'
-import { useGeometryWorker, deserializeGeometry, useBuilding } from './components/useGeometryWorker.ts'
+import { useGeometryWorker, deserializeGeometry, useBuilding, useGenerationFailed } from './components/useGeometryWorker.ts'
 import LabeledSlider from './components/LabeledSlider.tsx'
 import { exportSTL } from './components/exportSTL.ts'
 import { buildSupportMeshGeometry, mergePlinthWithSupports, applySupportTransform, applyYUpToZUp } from './components/supportBuilder.ts'
@@ -53,32 +53,41 @@ import TrimProfileEditor from './components/TrimProfileEditor.tsx'
 
 function BuildingIndicator() {
   const building = useBuilding()
+  const failed = useGenerationFailed()
   return (
     <div style={{
       position: 'absolute',
       bottom: '16px',
       left: '16px',
-      display: building ? 'flex' : 'none',
+      display: building || failed ? 'flex' : 'none',
       alignItems: 'center',
       gap: '8px',
-      color: '#fff',
+      color: failed ? '#ff6b6b' : '#fff',
       fontSize: '14px',
       whiteSpace: 'nowrap',
       pointerEvents: 'none',
       zIndex: 9999,
-      background: 'rgba(0,0,0,0.7)',
+      background: failed ? 'rgba(60,0,0,0.75)' : 'rgba(0,0,0,0.7)',
       padding: '6px 10px',
     }}>
-      <div style={{
-        width: '20px',
-        height: '20px',
-        border: '2px solid rgba(255,255,255,0.3)',
-        borderTopColor: '#fff',
-        borderRadius: '50%',
-        animation: 'spin 1s linear infinite',
-      }} />
-      Generating…
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      {failed ? (
+        <>
+          Generation failed
+        </>
+      ) : (
+        <>
+          <div style={{
+            width: '20px',
+            height: '20px',
+            border: '2px solid rgba(255,255,255,0.3)',
+            borderTopColor: '#fff',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }} />
+          Generating…
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </>
+      )}
     </div>
   )
 }
