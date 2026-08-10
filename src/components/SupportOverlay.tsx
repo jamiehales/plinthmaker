@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM } from './geometryBuilder.ts'
 import {
@@ -10,7 +10,7 @@ import {
   trimFootprintOffset,
 } from './supportBuilder.ts'
 import { SHOW_SCAFFOLDING_IN_PREVIEW } from '../defaults.ts'
-import { markFailed, markSuccess, useGenerationFailed } from './useGeometryWorker.ts'
+import { markBuilding, markDone, markFailed, markSuccess, useGenerationFailed } from './useGeometryWorker.ts'
 
 interface SupportOverlayProps {
   shape: Shape
@@ -26,6 +26,9 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
   const cosT = Math.cos(tilt)
   const radius = supportParams.supportSize / 2
   const failed = useGenerationFailed()
+  const [supportMesh, setSupportMesh] = useState<{ geo: THREE.BufferGeometry; error: boolean }>({ geo: EMPTY_GEO, error: false })
+  const supportMeshRef = useRef(supportMesh)
+  supportMeshRef.current = supportMesh
 
   const footprint = useMemo(() => {
     try {
@@ -65,21 +68,49 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
     }
   }, [supportPositions, radius])
 
-  const supportMesh = useMemo<{ geo: THREE.BufferGeometry; error: boolean }>(() => {
-    if (radius <= 0) return { geo: EMPTY_GEO, error: false }
-    try {
-      const geo = buildSupportMeshGeometry(shape, plinthParams, supportParams, 16, SHOW_SCAFFOLDING_IN_PREVIEW && supportParams.scaffoldingEnabled)
-      return { geo, error: false }
-    } catch (err) {
-      console.error('support mesh error:', err)
-      return { geo: new THREE.BufferGeometry(), error: true }
+  useEffect(() => {
+    if (radius <= 0) {
+      setSupportMesh((prev) => {
+        if (prev.geo !== EMPTY_GEO) prev.geo.dispose()
+        return { geo: EMPTY_GEO, error: false }
+      })
+      markSuccess()
+      return
+    }
+    markBuilding()
+    const includeScaffolding = SHOW_SCAFFOLDING_IN_PREVIEW && supportParams.scaffoldingEnabled
+    let cancelled = false
+    const run = () => {
+      try {
+        const geo = buildSupportMeshGeometry(shape, plinthParams, supportParams, 16, includeScaffolding)
+        if (cancelled) {
+          geo.dispose()
+          return
+        }
+        setSupportMesh((prev) => {
+          if (prev.geo !== EMPTY_GEO) prev.geo.dispose()
+          return { geo, error: false }
+        })
+        markSuccess()
+      } catch (err) {
+        console.error('support mesh error:', err)
+        if (cancelled) return
+        setSupportMesh((prev) => {
+          if (prev.geo !== EMPTY_GEO) prev.geo.dispose()
+          return { geo: new THREE.BufferGeometry(), error: true }
+        })
+        markFailed()
+      } finally {
+        if (!cancelled) markDone()
+      }
+    }
+    const t = setTimeout(run, 0)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+      markDone()
     }
   }, [shape, plinthParams, supportParams, radius])
-
-  useEffect(() => {
-    if (supportMesh.error) markFailed()
-    else markSuccess()
-  }, [supportMesh])
 
   useEffect(() => {
     return () => {
@@ -97,9 +128,10 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
 
   useEffect(() => {
     return () => {
-      if (supportMesh.geo !== EMPTY_GEO) supportMesh.geo.dispose()
+      const m = supportMeshRef.current
+      if (m.geo !== EMPTY_GEO) m.geo.dispose()
     }
-  }, [supportMesh])
+  }, [])
 
   if (failed) return null
 
