@@ -253,38 +253,13 @@ export function equidistantPointsWithAnchors(points: THREE.Vector3[], anchors: T
     const endArc = i + 1 < k ? anchorArcs[i + 1] : anchorArcs[0] + total
     const segLen = endArc - startArc
     if (segLen <= 1e-6) continue
-    const count = Math.max(1, Math.round(segLen / spacing))
+    const count = Math.max(1, Math.ceil(segLen / spacing))
     const step = segLen / count
     for (let j = 0; j < count; j++) {
       positions.push(pointAtArcLength(points, cum, startArc + j * step))
     }
   }
   return positions
-}
-
-function equidistantPointsWithOffset(points: THREE.Vector3[], n: number, offset: number): THREE.Vector3[] {
-  const m = points.length
-  const cum: number[] = [0]
-  for (let i = 0; i < m; i++) {
-    cum.push(cum[i] + points[i].distanceTo(points[(i + 1) % m]))
-  }
-  const total = cum[m]
-  if (total < 1e-6) return []
-  const step = total / n
-  const out: THREE.Vector3[] = []
-  let seg = 0
-  for (let i = 0; i < n; i++) {
-    let target = i * step + offset
-    while (target >= total) target -= total
-    while (seg < m && cum[seg + 1] < target) seg++
-    const segStart = cum[seg]
-    const segEnd = cum[seg + 1]
-    const t = segEnd - segStart < 1e-6 ? 0 : (target - segStart) / (segEnd - segStart)
-    const a = points[seg]
-    const b = points[(seg + 1) % m]
-    out.push(new THREE.Vector3(a.x + (b.x - a.x) * t, 0, a.z + (b.z - a.z) * t))
-  }
-  return out
 }
 
 export function buildSupportCircles(positions: THREE.Vector3[], radius: number, segs: number): THREE.BufferGeometry {
@@ -439,40 +414,186 @@ function buildRaftMesh(shape: Shape, plinthParams: PlinthParams, supportParams: 
   return geo
 }
 
-function buildConcentricRingPositions(shape: Shape, w: number, d: number, cosT: number, s: number, inset: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
-  const positions: THREE.Vector3[] = []
-  const ringStep = s * Math.sqrt(3) / 2
-  let shrink = inset
-  let ring = 0
-  let innermostMinDist = Infinity
-  while (true) {
-    const rw = w + 2 * trimOffset - 2 * shrink
-    const rd = (d + 2 * trimOffset - 2 * shrink) * cosT
-    const hw = rw / 2
-    const hd = rd / 2
-    if (hw < s / 2 || hd < s / 2) break
-    const ringPoints = shape === 'ellipse'
-      ? makeBaseOutlinePoints('ellipse', rw, rd, segMM)
-      : makeBaseOutlinePoints('rectangle', rw, rd, segMM)
-    const projected = projectToGround(ringPoints, 1)
-    const perim = perimeterLength(projected)
-    const n = Math.max(4, Math.round(perim / s))
-    const offset = (ring & 1) * (perim / n / 2)
-    const ringPositions = equidistantPointsWithOffset(projected, n, offset)
-    let ringMinDist = Infinity
-    for (const p of ringPositions) {
-      const dist = Math.sqrt(p.x * p.x + p.z * p.z)
-      if (dist < ringMinDist) ringMinDist = dist
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function hashSeed(parts: Array<number | string | boolean>): number {
+  let h = 2166136261
+  for (const part of parts) {
+    const v = typeof part === 'number' ? Math.round(part * 1000) : part
+    const s = String(v)
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i)
+      h = Math.imul(h, 16777619)
     }
-    innermostMinDist = ringMinDist
-    positions.push(...ringPositions)
-    shrink += ringStep
-    ring++
   }
-  if (innermostMinDist >= s) {
-    positions.push(new THREE.Vector3(0, 0, 0))
+  return h >>> 0
+}
+
+function pointInFootprint(shape: Shape, x: number, z: number, hw: number, hd: number): boolean {
+  if (hw <= 0 || hd <= 0) return false
+  if (shape === 'ellipse') {
+    const nx = x / hw
+    const nz = z / hd
+    return nx * nx + nz * nz <= 1
   }
-  return positions
+  return Math.abs(x) <= hw && Math.abs(z) <= hd
+}
+
+function inAnyExclusion(x: number, z: number, exclusions: Array<{ cx: number, cz: number, rx: number, rz: number }>): boolean {
+  for (const e of exclusions) {
+    const dx = x - e.cx
+    const dz = z - e.cz
+    if ((dx * dx) / (e.rx * e.rx) + (dz * dz) / (e.rz * e.rz) <= 1) return true
+  }
+  return false
+}
+
+function sampleInteriorPoisson(
+  shape: Shape,
+  hw: number,
+  hd: number,
+  minDist: number,
+  ringPoints: THREE.Vector3[],
+  exclusions: Array<{ cx: number, cz: number, rx: number, rz: number }>,
+  seed: number,
+): THREE.Vector3[] {
+  if (hw <= 0 || hd <= 0 || minDist <= 0) return []
+  const rng = mulberry32(seed)
+  const cell = minDist / Math.SQRT2
+  const cols = Math.max(1, Math.ceil((2 * hw) / cell))
+  const rows = Math.max(1, Math.ceil((2 * hd) / cell))
+  const grid: (THREE.Vector3 | null)[] = new Array(cols * rows).fill(null)
+  const x0 = -hw
+  const z0 = -hd
+  const toIdx = (x: number, z: number): number => {
+    const cx = Math.min(cols - 1, Math.max(0, Math.floor((x - x0) / cell)))
+    const cz = Math.min(rows - 1, Math.max(0, Math.floor((z - z0) / cell)))
+    return cz * cols + cx
+  }
+  const points: THREE.Vector3[] = []
+  const active: THREE.Vector3[] = []
+
+  const maxDim = Math.max(hw, hd)
+  const exclusionMargin = minDist
+  for (const e of exclusions) {
+    const n = Math.max(8, Math.ceil((2 * Math.PI * Math.max(e.rx, e.rz)) / minDist))
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2
+      const r = 1 + exclusionMargin / Math.max(e.rx, e.rz)
+      const x = e.cx + Math.cos(a) * e.rx * r
+      const z = e.cz + Math.sin(a) * e.rz * r
+      if (!pointInFootprint(shape, x, z, hw, hd)) continue
+      if (inAnyExclusion(x, z, exclusions)) continue
+      const p = new THREE.Vector3(x, 0, z)
+      points.push(p)
+      active.push(p)
+      grid[toIdx(x, z)] = p
+    }
+  }
+
+  const ringMinDist2 = minDist * minDist
+  for (let i = 0; i < ringPoints.length; i++) {
+    const rp = ringPoints[i]
+    const cx = Math.min(cols - 1, Math.max(0, Math.floor((rp.x - x0) / cell)))
+    const cz = Math.min(rows - 1, Math.max(0, Math.floor((rp.z - z0) / cell)))
+    for (let gz = Math.max(0, cz - 2); gz <= Math.min(rows - 1, cz + 2); gz++) {
+      for (let gx = Math.max(0, cx - 2); gx <= Math.min(cols - 1, cx + 2); gx++) {
+        const g = grid[gz * cols + gx]
+        if (g && g.distanceToSquared(rp) < ringMinDist2) {
+          grid[gz * cols + gx] = null
+          const idx = points.indexOf(g)
+          if (idx >= 0) points.splice(idx, 1)
+          const aidx = active.indexOf(g)
+          if (aidx >= 0) active.splice(aidx, 1)
+        }
+      }
+    }
+  }
+
+  if (active.length === 0 && points.length === 0) {
+    let placed = false
+    for (let tries = 0; tries < 30 && !placed; tries++) {
+      const x = (rng() * 2 - 1) * hw
+      const z = (rng() * 2 - 1) * hd
+      if (!pointInFootprint(shape, x, z, hw, hd)) continue
+      if (inAnyExclusion(x, z, exclusions)) continue
+      let tooClose = false
+      for (const rp of ringPoints) {
+        const dx = x - rp.x
+        const dz = z - rp.z
+        if (dx * dx + dz * dz < ringMinDist2) { tooClose = true; break }
+      }
+      if (tooClose) continue
+      const p = new THREE.Vector3(x, 0, z)
+      points.push(p)
+      active.push(p)
+      grid[toIdx(x, z)] = p
+      placed = true
+    }
+    if (!placed) return points
+  }
+
+  const k = 30
+  const r2 = minDist * minDist
+  let iterations = 0
+  const maxIterations = 20000
+  while (active.length > 0 && iterations < maxIterations) {
+    iterations++
+    const idx = Math.floor(rng() * active.length)
+    const base = active[idx]
+    let found = false
+    for (let j = 0; j < k; j++) {
+      const a = rng() * Math.PI * 2
+      const rad = minDist + rng() * minDist
+      const x = base.x + Math.cos(a) * rad
+      const z = base.z + Math.sin(a) * rad
+      if (!pointInFootprint(shape, x, z, hw, hd)) continue
+      if (inAnyExclusion(x, z, exclusions)) continue
+      let tooClose = false
+      for (const rp of ringPoints) {
+        const dx = x - rp.x
+        const dz = z - rp.z
+        if (dx * dx + dz * dz < ringMinDist2) { tooClose = true; break }
+      }
+      if (tooClose) continue
+      const cx = Math.min(cols - 1, Math.max(0, Math.floor((x - x0) / cell)))
+      const cz = Math.min(rows - 1, Math.max(0, Math.floor((z - z0) / cell)))
+      let neighborTooClose = false
+      for (let gz = Math.max(0, cz - 2); gz <= Math.min(rows - 1, cz + 2); gz++) {
+        for (let gx = Math.max(0, cx - 2); gx <= Math.min(cols - 1, cx + 2); gx++) {
+          const g = grid[gz * cols + gx]
+          if (g && g !== base) {
+            const dx = x - g.x
+            const dz = z - g.z
+            if (dx * dx + dz * dz < r2) { neighborTooClose = true; break }
+          }
+        }
+        if (neighborTooClose) break
+      }
+      if (neighborTooClose) continue
+      const p = new THREE.Vector3(x, 0, z)
+      points.push(p)
+      active.push(p)
+      grid[cz * cols + cx] = p
+      found = true
+      break
+    }
+    if (!found) {
+      active.splice(idx, 1)
+    }
+  }
+
+  void maxDim
+  return points
 }
 
 function computeRingPositionsAroundOutline(shape: Shape, ringW: number, ringD: number, spacing: number, cosT: number, segMM: number, centerZ: number, ensurePlusZ: boolean): THREE.Vector3[] {
@@ -492,15 +613,6 @@ function computeRingPositionsAroundOutline(shape: Shape, ringW: number, ringD: n
   }
 
   return ringPositions.map((p) => new THREE.Vector3(p.x, 0, p.z + centerZ))
-}
-
-function filterEllipseExclusion(positions: THREE.Vector3[], centerX: number, centerZ: number, radiusX: number, cosT: number): THREE.Vector3[] {
-  const radiusZ = radiusX * cosT
-  return positions.filter((p) => {
-    const dx = p.x - centerX
-    const dz = p.z - centerZ
-    return (dx * dx) / (radiusX * radiusX) + (dz * dz) / (radiusZ * radiusZ) > 1
-  })
 }
 
 function computeCavityEdgeRingPositions(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, cosT: number, segMM: number): THREE.Vector3[] {
@@ -563,42 +675,62 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
 
   const anchors = computeOuterRingAnchors(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, cosT, trimOff)
   const ringPositions = equidistantPointsWithAnchors(insetProjected, anchors, supportParams.supportSpacing)
-  const s = ringPositions.length > 0 ? perim / ringPositions.length : supportParams.supportSpacing
 
   const cavityRingPositions = computeCavityEdgeRingPositions(shape, plinthParams, supportParams, cosT, segMM)
   const sinT = Math.sin(tilt)
   const holeRingPositions = computeHoleEdgeRingPositions(plinthParams, supportParams, cosT, sinT, segMM)
   const suctionRingPositions = computeSuctionHoleEdgeRingPositions(plinthParams, supportParams, cosT, sinT, segMM)
 
-  const gap = Math.min(s, supportParams.supportSpacing)
-  const interiorPositions = buildConcentricRingPositions(shape, plinthParams.width, plinthParams.depth, cosT, s, tipRadius + gap, segMM, trimOff)
   const ringPositionsAll = ringPositions.concat(cavityRingPositions, holeRingPositions, suctionRingPositions)
 
-  let interiorPositionsFiltered = interiorPositions
+  const exclusions: Array<{ cx: number, cz: number, rx: number, rz: number }> = []
   if (plinthParams.addHole && plinthParams.hollowEnabled) {
     const topThickness = plinthParams.height - plinthParams.hollowHeight
     if (plinthParams.holeDepth >= topThickness) {
       const holeRadius = Math.max(0.05, plinthParams.holeDiameter / 2)
       const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
       const holeZWorld = hollowHeight * sinT
-      interiorPositionsFiltered = filterEllipseExclusion(interiorPositionsFiltered, 0, holeZWorld, holeRadius + radius, cosT)
+      const rx = holeRadius + radius
+      exclusions.push({ cx: 0, cz: holeZWorld, rx, rz: rx * cosT })
     }
   }
-
   if (plinthParams.hollowEnabled && plinthParams.suctionHoleEnabled) {
     const suctionRadius = Math.max(0.05, plinthParams.suctionHoleDiameter / 2)
     const suctionZ = suctionHoleZ(plinthParams)
     const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
     const holeZWorld = hollowHeight * sinT + suctionZ * cosT
-    interiorPositionsFiltered = filterEllipseExclusion(interiorPositionsFiltered, 0, holeZWorld, suctionRadius + radius, cosT)
+    const rx = suctionRadius + radius
+    exclusions.push({ cx: 0, cz: holeZWorld, rx, rz: rx * cosT })
   }
 
-  const minDist = supportParams.supportSpacing
-  const filteredInterior = interiorPositionsFiltered.filter(
-    (p) => !ringPositionsAll.some((q) => p.distanceTo(q) < minDist)
+  const inset = tipRadius + CONE_TIP_PENETRATION
+  const interiorHW = Math.max(0, (plinthParams.width + 2 * trimOff) / 2 - inset)
+  const interiorHD = Math.max(0, (plinthParams.depth + 2 * trimOff) / 2 * cosT - inset * cosT)
+
+  const seedParts: Array<number | string | boolean> = [
+    shape,
+    plinthParams.width, plinthParams.depth, plinthParams.height,
+    plinthParams.addHole, plinthParams.holeDiameter, plinthParams.holeDepth,
+    plinthParams.hollowEnabled, plinthParams.hollowHeight, plinthParams.hollowWallThickness,
+    plinthParams.suctionHoleEnabled, plinthParams.suctionHoleDiameter,
+    plinthParams.trimEnabled, plinthParams.trimSize, plinthParams.trimHeight, plinthParams.trimProfileId,
+    supportParams.supportSize, supportParams.supportTipSize,
+    supportParams.supportSpacing, supportParams.interiorSpacing,
+    supportParams.plinthAngle,
+  ]
+  const seed = hashSeed(seedParts)
+
+  const interiorPositions = sampleInteriorPoisson(
+    shape,
+    interiorHW,
+    interiorHD,
+    supportParams.interiorSpacing,
+    ringPositionsAll,
+    exclusions,
+    seed,
   )
 
-  return ringPositionsAll.concat(filteredInterior)
+  return ringPositionsAll.concat(interiorPositions)
 }
 
 function createStrutCylinder(start: THREE.Vector3, end: THREE.Vector3, radius: number, segs: number): THREE.BufferGeometry {

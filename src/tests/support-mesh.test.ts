@@ -174,6 +174,7 @@ function buildSupportConfig(opts: Partial<SupportParams> = {}): SupportParams {
     supportSize: 2,
     supportTipSize: 0.4,
     supportSpacing: 5,
+    interiorSpacing: 5,
     supportCaps: false,
     scaffoldingEnabled: false,
     scaffoldingAngle: 45,
@@ -474,6 +475,50 @@ describe('computeSupportPositions', () => {
       return Math.abs(ratio - 1) < 0.15
     })
     expect(nearHoleRing.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('rectangle: interior points respect interiorSpacing minimum from each other', () => {
+    const p = buildPlinthConfig('rectangle', { width: 40, depth: 40 })
+    const s = buildSupportConfig({ plinthAngle: 15, supportSpacing: 4, interiorSpacing: 3 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const interior = positions.slice(positions.length / 2)
+    const minD2 = (s.interiorSpacing - 0.01) ** 2
+    for (let i = 0; i < interior.length; i++) {
+      for (let j = i + 1; j < interior.length; j++) {
+        const d2 = interior[i].distanceToSquared(interior[j])
+        expect(d2, 'interior points closer than interiorSpacing').toBeGreaterThanOrEqual(minD2)
+      }
+    }
+  })
+
+  it('rectangle: no interior point inside hole exclusion zone', () => {
+    const p = buildPlinthConfig('rectangle', { addHole: true, holeDiameter: 10, holeDepth: 15, hollowEnabled: true, hollowHeight: 20 })
+    const s = buildSupportConfig({ plinthAngle: 15 })
+    const positions = computeSupportPositions('rectangle', p, s, 1.5)
+    const holeRadius = p.holeDiameter / 2
+    const supportRadius = s.supportSize / 2
+    const tilt = (s.plinthAngle * Math.PI) / 180
+    const cosT = Math.cos(tilt)
+    const holeZWorld = p.hollowHeight * Math.sin(tilt)
+    const rx = holeRadius + supportRadius
+    const rz = rx * cosT
+    for (const pt of positions) {
+      const dx = pt.x
+      const dz = pt.z - holeZWorld
+      expect((dx * dx) / (rx * rx) + (dz * dz) / (rz * rz)).toBeGreaterThan(1 - 0.01)
+    }
+  })
+
+  it('rectangle: deterministic — same params yield identical positions', () => {
+    const p = buildPlinthConfig('rectangle', { addHole: true, holeDiameter: 10, holeDepth: 15, hollowEnabled: true, hollowHeight: 20 })
+    const s = buildSupportConfig({ plinthAngle: 15 })
+    const a = computeSupportPositions('rectangle', p, s, 1.5)
+    const b = computeSupportPositions('rectangle', p, s, 1.5)
+    expect(a.length).toBe(b.length)
+    for (let i = 0; i < a.length; i++) {
+      expect(a[i].x).toBeCloseTo(b[i].x, 6)
+      expect(a[i].z).toBeCloseTo(b[i].z, 6)
+    }
   })
 })
 

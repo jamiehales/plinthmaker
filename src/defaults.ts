@@ -38,6 +38,7 @@ export const DEFAULT_RAISE_BY = 3
 export const DEFAULT_SUPPORT_SIZE = 1
 export const DEFAULT_SUPPORT_TIP_SIZE = 0.5
 export const DEFAULT_SUPPORT_SPACING = 3
+export const DEFAULT_INTERIOR_SPACING = 3
 
 export const DEFAULT_CONE_START_GAP = 1
 export const DEFAULT_RAFT_HEIGHT = 1.5

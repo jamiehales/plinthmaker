@@ -40,7 +40,7 @@ import {
   DEFAULT_JIG_LIFT, DEFAULT_JIG_FLATTEN_TOP, DEFAULT_TOP_ANGLE,
   DEFAULT_ROUND_STYLE, DEFAULT_ROUND_LOCATION, DEFAULT_ROUND_SIZE, DEFAULT_DOWNLOAD_RESOLUTION,
   DEFAULT_ADD_SUPPORTS, DEFAULT_PLINTH_ANGLE, DEFAULT_RAISE_BY, DEFAULT_SUPPORT_SIZE,
-  DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_SUPPORT_CAPS, DRAWER_WIDTH,
+  DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_INTERIOR_SPACING, DEFAULT_SUPPORT_CAPS, DRAWER_WIDTH,
   DEFAULT_SCAFFOLDING_ENABLED, DEFAULT_SCAFFOLDING_ANGLE,
   DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE,
   DEFAULT_CUSTOM_TRIM_POINTS, DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
@@ -114,6 +114,8 @@ function App() {
   const [supportSize, setSupportSize] = useState(DEFAULT_SUPPORT_SIZE)
   const [supportTipSize, setSupportTipSize] = useState(DEFAULT_SUPPORT_TIP_SIZE)
   const [supportSpacing, setSupportSpacing] = useState(DEFAULT_SUPPORT_SPACING)
+  const [interiorSpacing, setInteriorSpacing] = useState(DEFAULT_INTERIOR_SPACING)
+  const [lockEdgeToFill, setLockEdgeToFill] = useState(true)
   const [supportCaps] = useState(DEFAULT_SUPPORT_CAPS)
   const [scaffoldingEnabled, setScaffoldingEnabled] = useState(DEFAULT_SCAFFOLDING_ENABLED)
   const [scaffoldingAngle, setScaffoldingAngle] = useState(DEFAULT_SCAFFOLDING_ANGLE)
@@ -226,6 +228,8 @@ function App() {
     holeDiameter: jigDiffHole && addHole ? jigHoleDiameter : undefined,
   }), [addDrillJig, jigWallSize, jigHeight, jigOverlap, jigTolerance, jigLift, jigFlattenTop, jigDiffHole, jigHoleDiameter, addHole])
 
+  const effectiveInteriorSpacing = lockEdgeToFill ? supportSpacing : interiorSpacing
+
   const supportParams: SupportParams = useMemo(() => ({
     enabled: addSupports,
     plinthAngle,
@@ -233,10 +237,11 @@ function App() {
     supportSize,
     supportTipSize,
     supportSpacing,
+    interiorSpacing: effectiveInteriorSpacing,
     supportCaps,
     scaffoldingEnabled,
     scaffoldingAngle,
-  }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, supportCaps, scaffoldingEnabled, scaffoldingAngle])
+  }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, effectiveInteriorSpacing, supportCaps, scaffoldingEnabled, scaffoldingAngle])
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
@@ -723,11 +728,40 @@ function App() {
                   step={0.025}
                 />
                 <LabeledSlider
-                  label="Support Spacing"
+                  label="Support Spacing (Edges)"
                   value={supportSpacing}
                   onChange={setSupportSpacing}
                   min={2}
                   max={5}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={lockEdgeToFill}
+                      onChange={(e) => {
+                        setLockEdgeToFill(e.target.checked)
+                        if (e.target.checked) setInteriorSpacing(supportSpacing)
+                      }}
+                      size="small"
+                    />
+                  }
+                  label="Lock Edge Spacing to Fill"
+                  sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
+                />
+                <LabeledSlider
+                  label="Support Spacing (Fill)"
+                  value={lockEdgeToFill ? supportSpacing : interiorSpacing}
+                  onChange={(v) => {
+                    if (lockEdgeToFill) {
+                      setSupportSpacing(v)
+                      setInteriorSpacing(v)
+                    } else {
+                      setInteriorSpacing(v)
+                    }
+                  }}
+                  min={2}
+                  max={5}
+                  disabled={lockEdgeToFill}
                 />
                 <FormControlLabel
                   control={
