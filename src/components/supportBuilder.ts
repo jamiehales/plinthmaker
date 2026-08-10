@@ -760,6 +760,42 @@ function segmentsIntersect2D(
   return false
 }
 
+function pointToSegmentDistance2D(
+  px: number, pz: number,
+  ax: number, az: number,
+  bx: number, bz: number,
+): number {
+  const dx = bx - ax
+  const dz = bz - az
+  const lenSq = dx * dx + dz * dz
+  let t = lenSq < 1e-12 ? 0 : ((px - ax) * dx + (pz - az) * dz) / lenSq
+  t = t < 0 ? 0 : t > 1 ? 1 : t
+  const cx = ax + t * dx
+  const cz = az + t * dz
+  const ex = px - cx
+  const ez = pz - cz
+  return Math.sqrt(ex * ex + ez * ez)
+}
+
+function segmentToSegmentMinDistance2D(
+  a1x: number, a1z: number, a2x: number, a2z: number,
+  b1x: number, b1z: number, b2x: number, b2z: number,
+): number {
+  if (segmentsIntersect2D(a1x, a1z, a2x, a2z, b1x, b1z, b2x, b2z)) return 0
+  const d1 = pointToSegmentDistance2D(a1x, a1z, b1x, b1z, b2x, b2z)
+  const d2 = pointToSegmentDistance2D(a2x, a2z, b1x, b1z, b2x, b2z)
+  const d3 = pointToSegmentDistance2D(b1x, b1z, a1x, a1z, a2x, a2z)
+  const d4 = pointToSegmentDistance2D(b2x, b2z, a1x, a1z, a2x, a2z)
+  return Math.min(d1, d2, d3, d4)
+}
+
+function aabbOverlaps(
+  minAx: number, minAz: number, maxAx: number, maxAz: number,
+  minBx: number, minBz: number, maxBx: number, maxBz: number,
+): boolean {
+  return minAx <= maxBx && maxAx >= minBx && minAz <= maxBz && maxAz >= minBz
+}
+
 export function buildScaffoldingMesh(
   positions: THREE.Vector3[],
   overCavity: boolean[] | null,
@@ -785,7 +821,10 @@ export function buildScaffoldingMesh(
   const angleRad = (scaffoldingAngle * Math.PI) / 180
   const tanAngle = Math.tan(angleRad)
   const strutRadius = (SCAFFOLDING_SCALE * supportSize) / 2
+  const supportRadius = supportSize / 2
   const maxDist = supportSize + supportSpacing + SCAFFOLDING_GAP_TOLERANCE
+  const supportClearance = strutRadius + supportRadius + SCAFFOLDING_GAP_TOLERANCE
+  const strutClearance = 2 * strutRadius + SCAFFOLDING_GAP_TOLERANCE
 
   const geometries: THREE.BufferGeometry[] = []
   const acceptedPairs: Array<[number, number]> = []
@@ -801,12 +840,39 @@ export function buildScaffoldingMesh(
       const centerDist = Math.sqrt(dx * dx + dz * dz)
       if (centerDist < 1e-6 || centerDist > maxDist) continue
 
+      const segMinX = Math.min(pi.x, pj.x) - supportClearance
+      const segMaxX = Math.max(pi.x, pj.x) + supportClearance
+      const segMinZ = Math.min(pi.z, pj.z) - supportClearance
+      const segMaxZ = Math.max(pi.z, pj.z) + supportClearance
+
+      let blocked = false
+      for (let k = 0; k < positions.length; k++) {
+        if (k === i || k === j) continue
+        const pk = positions[k]
+        if (pk.x < segMinX || pk.x > segMaxX || pk.z < segMinZ || pk.z > segMaxZ) continue
+        if (pointToSegmentDistance2D(pk.x, pk.z, pi.x, pi.z, pj.x, pj.z) < supportClearance) {
+          blocked = true
+          break
+        }
+      }
+      if (blocked) continue
+
+      const candMinX = Math.min(pi.x, pj.x) - strutClearance
+      const candMaxX = Math.max(pi.x, pj.x) + strutClearance
+      const candMinZ = Math.min(pi.z, pj.z) - strutClearance
+      const candMaxZ = Math.max(pi.z, pj.z) + strutClearance
+
       let overlaps = false
       for (const [a, b] of acceptedPairs) {
         if (a === i || a === j || b === i || b === j) continue
         const pa = positions[a]
         const pb = positions[b]
-        if (segmentsIntersect2D(pi.x, pi.z, pj.x, pj.z, pa.x, pa.z, pb.x, pb.z)) {
+        const accMinX = Math.min(pa.x, pb.x) - strutClearance
+        const accMaxX = Math.max(pa.x, pb.x) + strutClearance
+        const accMinZ = Math.min(pa.z, pb.z) - strutClearance
+        const accMaxZ = Math.max(pa.z, pb.z) + strutClearance
+        if (!aabbOverlaps(candMinX, candMinZ, candMaxX, candMaxZ, accMinX, accMinZ, accMaxX, accMaxZ)) continue
+        if (segmentToSegmentMinDistance2D(pi.x, pi.z, pj.x, pj.z, pa.x, pa.z, pb.x, pb.z) < strutClearance) {
           overlaps = true
           break
         }
