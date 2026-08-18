@@ -453,30 +453,82 @@ function buildHollowCavity(p: PlinthParams, segMM: number): THREE.BufferGeometry
   const cd = Math.max(0.1, p.depth - 2 * wall)
   const ch = Math.max(0.1, p.hollowHeight)
   const extraBottom = 2
-  const totalHeight = ch + extraBottom
+  const bottomY = -extraBottom
 
-  let geo: THREE.BufferGeometry
+  const h = Math.max(0.1, p.height)
+  const d = Math.max(0.1, p.depth)
+  const topThickness = h - ch
+
+  const angleRad = p.angleTop
+    ? (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
+    : 0
+  const tanA = Math.tan(angleRad)
+
+  const topYAt = (z: number) => Math.max(0, Math.min(h, h - (z + d / 2) * tanA))
+  const ceilingYAt = (z: number) => Math.max(bottomY, topYAt(z) - topThickness)
+
+  let outline: THREE.Vector2[]
   if (p.shape === 'ellipse') {
     const n = segsForEllipse(cw / 2, cd / 2, segMM)
-    const shape = new THREE.Shape()
+    outline = []
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2
-      const x = (cw / 2) * Math.cos(a)
-      const z = (cd / 2) * Math.sin(a)
-      if (i === 0) shape.moveTo(x, z)
-      else shape.lineTo(x, z)
+      outline.push(new THREE.Vector2((cw / 2) * Math.cos(a), (cd / 2) * Math.sin(a)))
     }
-    shape.closePath()
-    const extrudeGeo = new THREE.ExtrudeGeometry(shape, { depth: totalHeight, bevelEnabled: false, steps: 1 })
-    extrudeGeo.rotateX(-Math.PI / 2)
-    extrudeGeo.translate(0, -extraBottom, 0)
-    geo = extrudeGeo
   } else {
-    geo = new THREE.BoxGeometry(cw, totalHeight, cd)
-    geo.translate(0, (ch - extraBottom) / 2, 0)
+    outline = [
+      new THREE.Vector2(-cw / 2, -cd / 2),
+      new THREE.Vector2(cw / 2, -cd / 2),
+      new THREE.Vector2(cw / 2, cd / 2),
+      new THREE.Vector2(-cw / 2, cd / 2),
+    ]
+  }
+  const np = outline.length
+
+  const positions: number[] = []
+  for (let k = 0; k < np; k++) {
+    positions.push(outline[k].x, bottomY, outline[k].y)
+  }
+  for (let k = 0; k < np; k++) {
+    positions.push(outline[k].x, ceilingYAt(outline[k].y), outline[k].y)
   }
 
-  return geo
+  const indices: number[] = []
+  for (let k = 0; k < np; k++) {
+    const a = k
+    const b = (k + 1) % np
+    const c = np + k
+    const dd = np + (k + 1) % np
+    indices.push(a, c, b, b, c, dd)
+  }
+
+  const bottomTri = triangulateOutline(outline)
+  const bottomBase = 2 * np
+  for (let i = 0; i < bottomTri.positions.length; i += 3) {
+    positions.push(bottomTri.positions[i], bottomY, bottomTri.positions[i + 1])
+  }
+  for (const idx of bottomTri.indices) {
+    indices.push(bottomBase + idx)
+  }
+
+  let cx = 0, cz = 0
+  for (let k = 0; k < np; k++) { cx += outline[k].x; cz += outline[k].y }
+  cx /= np; cz /= np
+  const centerY = ceilingYAt(cz)
+  const centerIdx = bottomBase + bottomTri.positions.length / 3
+  positions.push(cx, centerY, cz)
+  const topRingBase = np
+  for (let k = 0; k < np; k++) {
+    indices.push(centerIdx, topRingBase + ((k + 1) % np), topRingBase + k)
+  }
+
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3))
+  geo.setIndex(indices)
+  const flat = geo.toNonIndexed()
+  geo.dispose()
+  flat.computeVertexNormals()
+  return flat
 }
 
 export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM, useCDT = true): THREE.BufferGeometry {
@@ -541,13 +593,26 @@ export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT
 
   if (p.hollowEnabled && p.suctionHoleEnabled) {
     const ch = Math.max(0.1, p.hollowHeight)
+    const topThickness = h - ch
     const suctionRadius = Math.max(0.05, p.suctionHoleDiameter / 2)
     const suctionZ = suctionHoleZ(p)
     const extraBottom = 2
     const extraTop = 2
-    const suctionHeight = (h - ch) + extraBottom + extraTop
+    const angleRad = p.angleTop
+      ? (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
+      : 0
+    const tanA = Math.tan(angleRad)
+    const d = Math.max(0.1, p.depth)
+    const topYAt = (z: number) => Math.max(0, Math.min(h, h - (z + d / 2) * tanA))
+    const topHigh = topYAt(suctionZ - suctionRadius)
+    const topLow = topYAt(suctionZ + suctionRadius)
+    const ceilingHigh = topYAt(suctionZ - suctionRadius) - topThickness
+    const ceilingLow = topYAt(suctionZ + suctionRadius) - topThickness
+    const suctionBottom = Math.min(ceilingHigh, ceilingLow) - extraBottom
+    const suctionTop = Math.max(topHigh, topLow) + extraTop
+    const suctionHeight = suctionTop - suctionBottom
     const suctionGeo = new THREE.CylinderGeometry(suctionRadius, suctionRadius, suctionHeight, circleSegments(suctionRadius * 2, baseSegMM), 1)
-    suctionGeo.translate(0, ch - extraBottom + suctionHeight / 2, suctionZ)
+    suctionGeo.translate(0, suctionBottom + suctionHeight / 2, suctionZ)
 
     const suctionBrush = new Brush(suctionGeo)
     suctionBrush.updateMatrixWorld(true)
