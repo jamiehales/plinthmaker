@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Brush, Evaluator, ADDITION } from 'three-bvh-csg'
-import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM, suctionHoleZ } from './geometryBuilder.ts'
+import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM, suctionHoleZ, topDrop } from './geometryBuilder.ts'
 import { sampleTrimOffset, getTrimProfile } from './trimProfiles.ts'
 import {
   DEFAULT_CONE_START_GAP, DEFAULT_RAFT_HEIGHT, DEFAULT_RAFT_BOTTOM_INSET,
@@ -54,6 +54,8 @@ interface CavityParams {
   hw: number
   hd: number
   hollowHeight: number
+  plinthDepth: number
+  topTanA: number
   raise: number
   sinT: number
   cosT: number
@@ -61,30 +63,39 @@ interface CavityParams {
 }
 
 function cavityIntersectionHeight(xW: number, zW: number, c: CavityParams): number {
-  const yCeiling = c.raise + c.hollowHeight / Math.max(0.01, c.cosT) - zW * c.tanT
+  const denom = c.cosT - c.sinT * c.topTanA
+  const safeDenom = Math.max(0.01, Math.abs(denom)) * Math.sign(denom || 1)
+  const yCeiling = c.raise + (c.hollowHeight - (c.plinthDepth / 2) * c.topTanA - zW * (c.sinT + c.cosT * c.topTanA)) / safeDenom
 
   if (Math.abs(c.sinT) < 1e-6) return yCeiling
 
   let yWall = Infinity
 
+  const ceilingAtZL = (zL: number) => c.hollowHeight - (zL + c.plinthDepth / 2) * c.topTanA
+  const safeCosT = Math.max(0.01, c.cosT)
+
   if (c.shape === 'ellipse') {
     const xTerm = (xW * xW) / (c.hw * c.hw)
     if (xTerm >= 1) return yCeiling
     const dz = c.hd * Math.sqrt(1 - xTerm)
-    const yL1 = (zW + dz * c.cosT) / c.sinT
-    const yL2 = (zW - dz * c.cosT) / c.sinT
-    for (const yL of [yL1, yL2]) {
-      if (yL >= 0 && yL <= c.hollowHeight) {
-        const yW = c.raise + yL / Math.max(0.01, c.cosT) - zW * c.tanT
+    const hits: Array<{ yL: number; zL: number }> = [
+      { yL: (zW + dz * c.cosT) / c.sinT, zL: -dz },
+      { yL: (zW - dz * c.cosT) / c.sinT, zL: dz },
+    ]
+    for (const { yL, zL } of hits) {
+      if (yL >= 0 && yL <= ceilingAtZL(zL)) {
+        const yW = c.raise + yL / safeCosT - zW * c.tanT
         if (yW < yWall) yWall = yW
       }
     }
   } else {
-    const yL1 = (zW + c.hd * c.cosT) / c.sinT
-    const yL2 = (zW - c.hd * c.cosT) / c.sinT
-    for (const yL of [yL1, yL2]) {
-      if (yL >= 0 && yL <= c.hollowHeight) {
-        const yW = c.raise + yL / Math.max(0.01, c.cosT) - zW * c.tanT
+    const hits: Array<{ yL: number; zL: number }> = [
+      { yL: (zW + c.hd * c.cosT) / c.sinT, zL: -c.hd },
+      { yL: (zW - c.hd * c.cosT) / c.sinT, zL: c.hd },
+    ]
+    for (const { yL, zL } of hits) {
+      if (yL >= 0 && yL <= ceilingAtZL(zL)) {
+        const yW = c.raise + yL / safeCosT - zW * c.tanT
         if (yW < yWall) yWall = yW
       }
     }
@@ -641,7 +652,9 @@ function computeHoleEdgeRingPositions(plinthParams: PlinthParams, supportParams:
   if (ringW > plinthParams.width || ringD > plinthParams.depth) return []
 
   const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
-  const holeZWorld = hollowHeight * sinT
+  const drop = topDrop(plinthParams)
+  const ceilingLocalY = hollowHeight - drop / 2
+  const holeZWorld = ceilingLocalY * sinT
   return computeRingPositionsAroundOutline('ellipse', ringW, ringD, supportParams.supportSpacing, cosT, segMM, holeZWorld, true)
 }
 
@@ -656,7 +669,13 @@ function computeSuctionHoleEdgeRingPositions(plinthParams: PlinthParams, support
 
   const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
   const suctionZ = suctionHoleZ(plinthParams)
-  const holeZWorld = hollowHeight * sinT + suctionZ * cosT
+  const angleRad = plinthParams.angleTop
+    ? (Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180
+    : 0
+  const tanA = Math.tan(angleRad)
+  const d = Math.max(0.1, plinthParams.depth)
+  const ceilingLocalY = hollowHeight - (suctionZ + d / 2) * tanA
+  const holeZWorld = ceilingLocalY * sinT + suctionZ * cosT
   return computeRingPositionsAroundOutline('ellipse', ringW, ringD, supportParams.supportSpacing, cosT, segMM, holeZWorld, true)
 }
 
@@ -689,7 +708,9 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
     if (plinthParams.holeDepth >= topThickness) {
       const holeRadius = Math.max(0.05, plinthParams.holeDiameter / 2)
       const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
-      const holeZWorld = hollowHeight * sinT
+      const drop = topDrop(plinthParams)
+      const ceilingLocalY = hollowHeight - drop / 2
+      const holeZWorld = ceilingLocalY * sinT
       const rx = holeRadius + radius
       exclusions.push({ cx: 0, cz: holeZWorld, rx, rz: rx * cosT })
     }
@@ -698,7 +719,13 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
     const suctionRadius = Math.max(0.05, plinthParams.suctionHoleDiameter / 2)
     const suctionZ = suctionHoleZ(plinthParams)
     const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
-    const holeZWorld = hollowHeight * sinT + suctionZ * cosT
+    const angleRad = plinthParams.angleTop
+      ? (Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180
+      : 0
+    const tanA = Math.tan(angleRad)
+    const d = Math.max(0.1, plinthParams.depth)
+    const ceilingLocalY = hollowHeight - (suctionZ + d / 2) * tanA
+    const holeZWorld = ceilingLocalY * sinT + suctionZ * cosT
     const rx = suctionRadius + radius
     exclusions.push({ cx: 0, cz: holeZWorld, rx, rz: rx * cosT })
   }
@@ -937,6 +964,8 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
         hw: Math.max(0.01, (plinthParams.width - 2 * wall) / 2),
         hd: Math.max(0.01, (plinthParams.depth - 2 * wall) / 2),
         hollowHeight: Math.max(0.1, plinthParams.hollowHeight),
+        plinthDepth: Math.max(0.1, plinthParams.depth),
+        topTanA: plinthParams.angleTop ? Math.tan((Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180) : 0,
         raise,
         sinT,
         cosT,
@@ -1018,6 +1047,8 @@ export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: Plin
         hw: Math.max(0.01, (plinthParams.width - 2 * wall) / 2),
         hd: Math.max(0.01, (plinthParams.depth - 2 * wall) / 2),
         hollowHeight: Math.max(0.1, plinthParams.hollowHeight),
+        plinthDepth: Math.max(0.1, plinthParams.depth),
+        topTanA: plinthParams.angleTop ? Math.tan((Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180) : 0,
         raise,
         sinT,
         cosT,
