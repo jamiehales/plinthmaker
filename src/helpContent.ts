@@ -6,7 +6,7 @@ export interface HelpSection {
 export const HELP_TITLE = 'This week we\'re mostlymaking.plinths'
 
 export const HELP_INTRO =
-  'A simple free plinth generator. All STL generation is done locally in your browser.'
+  'A simple free plinth generator designed for resin printing. I made this tool primarily for resin printing plinths for my own use. I\'ve printed multiple configurations with the default settings with success, but YMMV - adjust the support settings as needed! All STL generation is done locally in your browser.'
 
 export const HELP_SECTIONS: HelpSection[] = [
   {
