@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import {
   Box,
   Drawer,
@@ -19,6 +19,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  IconButton,
 } from '@mui/material'
 import DownloadIcon from '@mui/icons-material/Download'
 import SquareIcon from '@mui/icons-material/Square'
@@ -26,7 +27,9 @@ import CircleIcon from '@mui/icons-material/Circle'
 import EditIcon from '@mui/icons-material/Edit'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import ContentPasteIcon from '@mui/icons-material/ContentPaste'
+import HelpOutlineOutlinedIcon from '@mui/icons-material/HelpOutlineOutlined'
 import Viewport from './components/Viewport.tsx'
+import HelpDialog, { type HelpDialogHandle } from './components/HelpDialog.tsx'
 import { type Shape, type PlinthParams, type RoundStyle, type RoundLocation, type SupportParams } from './components/geometryBuilder.ts'
 import { type DrillJigParams } from './components/geometryBuilder.ts'
 import { useGeometryWorker, deserializeGeometry, useBuilding, useGenerationFailed } from './components/useGeometryWorker.ts'
@@ -47,10 +50,12 @@ import {
   DEFAULT_CUSTOM_TRIM_POINTS, DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
   DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_TOP_THICKNESS, DEFAULT_HOLLOW_WALL_THICKNESS,
   DEFAULT_SUCTION_HOLE_ENABLED, DEFAULT_SUCTION_HOLE_DIAMETER,
+  TOP_ANGLE_PRESETS,
 } from './defaults.ts'
 import { TRIM_PROFILES, getTrimProfile, type TrimProfilePoint } from './components/trimProfiles.ts'
 import TrimProfileIcon from './components/TrimProfileIcon.tsx'
 import TrimProfileEditor from './components/TrimProfileEditor.tsx'
+import PlinthAngleIcon from './components/PlinthAngleIcon.tsx'
 
 function BuildingIndicator() {
   const building = useBuilding()
@@ -112,6 +117,7 @@ function App() {
   const [jigDiffHole, setJigDiffHole] = useState(false)
   const [jigHoleDiameter, setJigHoleDiameter] = useState(DEFAULT_HOLE_DIAMETER)
   const [topAngle, setTopAngle] = useState(DEFAULT_TOP_ANGLE)
+  const [topAnglePreset, setTopAnglePreset] = useState<number | 'custom'>(DEFAULT_TOP_ANGLE)
   const [roundStyle, setRoundStyle] = useState<RoundStyle>(DEFAULT_ROUND_STYLE)
   const [roundLocation, setRoundLocation] = useState<RoundLocation>(DEFAULT_ROUND_LOCATION)
   const [roundSize, setRoundSize] = useState(DEFAULT_ROUND_SIZE)
@@ -142,6 +148,7 @@ function App() {
   const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
   const [jsonText, setJsonText] = useState('')
   const { build } = useGeometryWorker()
+  const helpRef = useRef<HelpDialogHandle>(null)
 
   const handleEditPreset = useCallback(() => {
     const preset = getTrimProfile(trimProfileId)
@@ -272,6 +279,14 @@ function App() {
             </Link>
             plinths
           </Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          <IconButton
+            onClick={() => helpRef.current?.open()}
+            aria-label="help"
+            color="inherit"
+          >
+            <HelpOutlineOutlinedIcon />
+          </IconButton>
         </Toolbar>
       </AppBar>
 
@@ -338,15 +353,50 @@ function App() {
 
             <LabeledSlider label="Height" value={height} onChange={setHeight} min={20} max={60} />
 
-            <LabeledSlider
-              label="Top Angle"
-              value={topAngle}
-              onChange={setTopAngle}
-              min={0}
-              max={45}
-              step={1}
-              unit="°"
-            />
+            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600, mt: 1 }}>
+              Top Angle
+            </Typography>
+            <ToggleButtonGroup
+              value={topAnglePreset}
+              exclusive
+              onChange={(_e, v: number | 'custom' | null) => {
+                if (v === null) return
+                setTopAnglePreset(v)
+                if (v !== 'custom') setTopAngle(v)
+              }}
+              size="small"
+              fullWidth
+              sx={{ mb: 1 }}
+            >
+              {TOP_ANGLE_PRESETS.map((a) => (
+                <ToggleButton
+                  key={a}
+                  value={a}
+                  sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, py: 0.5, lineHeight: 1 }}
+                >
+                  <PlinthAngleIcon angle={a} selected={topAnglePreset === a} />
+                  <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>{a}°</Typography>
+                </ToggleButton>
+              ))}
+              <ToggleButton
+                value="custom"
+                sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, py: 0.5, lineHeight: 1 }}
+              >
+                <PlinthAngleIcon angle={topAnglePreset === 'custom' ? topAngle : 30} selected={topAnglePreset === 'custom'} />
+                <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>Custom</Typography>
+              </ToggleButton>
+            </ToggleButtonGroup>
+            {topAnglePreset === 'custom' ? (
+              <LabeledSlider
+                label="Top Angle"
+                value={topAngle}
+                onChange={setTopAngle}
+                min={0}
+                max={45}
+                step={1}
+                unit="°"
+              />
+            ) : null}
 
             <Divider sx={{ my: 1.5 }} />
 
@@ -919,6 +969,8 @@ function App() {
           <Button onClick={handleLoadJson} variant="contained">Load</Button>
         </DialogActions>
       </Dialog>
+
+      <HelpDialog ref={helpRef} />
     </Box>
   )
 }

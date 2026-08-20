@@ -2,9 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useGeometryWorker, deserializeGeometry, markBuilding, markDone, markFailed, markSuccess } from './useGeometryWorker.ts'
 
-export type { Shape, RoundStyle, RoundLocation, PlinthParams } from './geometryBuilder.ts'
-export { topDrop, buildPlinthBody, buildGeometry, DOWNLOAD_BASE_SEGMENT_MM, DOWNLOAD_FILLET_SEGMENT_MM, RENDER_BASE_SEGMENT_MM, RENDER_FILLET_SEGMENT_MM } from './geometryBuilder.ts'
-
 import type { Shape, PlinthParams } from './geometryBuilder.ts'
 import { topDrop, RENDER_BASE_SEGMENT_MM, RENDER_FILLET_SEGMENT_MM } from './geometryBuilder.ts'
 import { DEFAULT_RENDER_THROTTLE_MS } from '../defaults.ts'

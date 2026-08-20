@@ -1,9 +1,9 @@
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei'
-import Plinth, { type PlinthParams } from './Plinth.tsx'
+import Plinth from './Plinth.tsx'
 import DrillJig, { type DrillJigParams } from './DrillJig.tsx'
 import SupportOverlay from './SupportOverlay.tsx'
-import type { SupportParams } from './geometryBuilder.ts'
+import type { PlinthParams, SupportParams } from './geometryBuilder.ts'
 import { DEFAULT_RAFT_HEIGHT } from '../defaults.ts'
 
 interface ViewportProps {

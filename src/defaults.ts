@@ -17,6 +17,7 @@ export const DEFAULT_JIG_LIFT = true
 export const DEFAULT_JIG_FLATTEN_TOP = true
 export const DEFAULT_ANGLE_TOP = false
 export const DEFAULT_TOP_ANGLE = 0 // 30
+export const TOP_ANGLE_PRESETS = [0, 20, 25, 30, 35, 40] as const
 export const DEFAULT_ROUND_STYLE: RoundStyle = 'fillet'
 export const DEFAULT_ROUND_LOCATION: RoundLocation = 'top'
 export const DEFAULT_ROUND_SIZE = 0.5
@@ -30,7 +31,7 @@ export const DEFAULT_HOLLOW_TOP_THICKNESS = 10
 export const DEFAULT_HOLLOW_WALL_THICKNESS = 5
 export const DEFAULT_HOLLOW_SEGMENT_MM = 10
 export const DEFAULT_SUCTION_HOLE_ENABLED = true
-export const DEFAULT_SUCTION_HOLE_DIAMETER = 8
+export const DEFAULT_SUCTION_HOLE_DIAMETER = 3
 
 export const DEFAULT_ADD_SUPPORTS = false
 export const DEFAULT_PLINTH_ANGLE = 15
