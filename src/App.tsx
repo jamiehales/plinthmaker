@@ -219,13 +219,15 @@ function App() {
     suctionHoleDiameter,
   }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimProfileId, trimHeight, trimSize, customTrimPoints, hollowEnabled, topThickness, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter])
 
-  const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number) => {
+  const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number, supported: boolean) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
     const holePart = p.addHole ? `hole-${p.holeDiameter}mm` : 'hole-none'
     const anglePart = p.angleTop ? `angled-${p.topAngle}°` : 'flat'
     const trimPart = p.trimEnabled ? `_trim-${p.trimProfileId}-${p.trimHeight}x${p.trimSize}` : ''
+    const hollowPart = p.hollowEnabled ? `_hollow-${p.height - p.hollowHeight}x${p.hollowWallThickness}` : ''
+    const supportPart = supported ? '_supported' : '_unsupported'
     const um = Math.round(resMM * 1000)
-    return `plinth_${p.shape}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}${trimPart}_${um}um.stl`
+    return `plinth_${p.shape}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}${trimPart}${hollowPart}${supportPart}_${um}um.stl`
   }, [])
 
   const buildJigFilename = useCallback((p: PlinthParams, j: DrillJigParams) => {
@@ -920,14 +922,14 @@ function App() {
                       const transformedPlinth = applySupportTransform(geo, supportParams, plinthParams.depth)
                       const merged = mergePlinthWithSupports(transformedPlinth, supportGeo)
                       const zup = applyYUpToZUp(merged)
-                      exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution))
+                      exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution, true))
                       if (merged !== transformedPlinth) merged.dispose()
                       transformedPlinth.dispose()
                       supportGeo.dispose()
                       zup.dispose()
                     } else {
                       const zup = applyYUpToZUp(geo)
-                      exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution))
+                      exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution, false))
                       zup.dispose()
                     }
                     geo.dispose()
