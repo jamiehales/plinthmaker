@@ -833,7 +833,8 @@ function computeSuctionHoleEdgeRingPositions(plinthParams: PlinthParams, support
   const d = Math.max(0.1, plinthParams.depth)
   const ceilingLocalY = hollowHeight - (suctionZ + d / 2) * tanA
   const holeZWorld = ceilingLocalY * sinT + suctionZ * cosT
-  return computeRingPositionsAroundOutline('ellipse', ringW, ringD, supportParams.supportSpacing, cosT, segMM, holeZWorld, true)
+  const ring = computeRingPositionsAroundOutline('ellipse', ringW, ringD, supportParams.supportSpacing, cosT, segMM, holeZWorld, false)
+  return ring.filter((p) => p.z >= holeZWorld - 1e-4)
 }
 
 export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segMM: number): THREE.Vector3[] {

@@ -432,7 +432,12 @@ describe('computeSupportPositions', () => {
       const ratio = (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz)
       return Math.abs(ratio - 1) < 0.15
     })
-    expect(nearRing.length).toBeGreaterThanOrEqual(4)
+    expect(nearRing.length).toBeGreaterThanOrEqual(2)
+    const topHalf = nearRing.filter((pt) => pt.z >= holeZWorld - 1e-4)
+    expect(topHalf.length).toBeGreaterThanOrEqual(2)
+    const bottomAnchor = new THREE.Vector3(0, 0, -(p.suctionHoleDiameter / 2 + supportRadius + 0.1) * cosT + holeZWorld)
+    const hasBottomAnchor = positions.some((pt) => pt.distanceTo(bottomAnchor) < s.supportSpacing * 0.25)
+    expect(hasBottomAnchor).toBe(false)
   })
 
   it('rectangle: interior supports not closer than supportSpacing to ring supports', () => {
