@@ -27,350 +27,350 @@ export function trimFootprintOffset(p: PlinthParams): number {
 }
 
 function isSupportOverCavity(
-  p: THREE.Vector3,
+  point: THREE.Vector3,
   supportRadius: number,
   tipRadius: number,
   plinthParams: PlinthParams,
-  cosT: number,
+  cosTilt: number,
 ): boolean {
   if (!plinthParams.hollowEnabled) return false
-  const wall = Math.max(0.5, plinthParams.hollowWallThickness)
-  const hw = Math.max(0.01, (plinthParams.width - 2 * wall) / 2)
-  const hd = Math.max(0.01, (plinthParams.depth - 2 * wall) / 2)
-  const zLocal = p.z / Math.max(0.01, cosT)
+  const wallThickness = Math.max(0.5, plinthParams.hollowWallThickness)
+  const cavityHalfWidth = Math.max(0.01, (plinthParams.width - 2 * wallThickness) / 2)
+  const cavityHalfDepth = Math.max(0.01, (plinthParams.depth - 2 * wallThickness) / 2)
+  const zLocal = point.z / Math.max(0.01, cosTilt)
   const maxRadius = Math.max(supportRadius, tipRadius)
 
   if (plinthParams.shape === 'ellipse') {
-    const ex = hw - maxRadius
-    const ez = hd - maxRadius
-    if (ex <= 0 || ez <= 0) return false
-    return (p.x * p.x) / (ex * ex) + (zLocal * zLocal) / (ez * ez) <= 1
+    const ellipseHalfWidth = cavityHalfWidth - maxRadius
+    const ellipseHalfDepth = cavityHalfDepth - maxRadius
+    if (ellipseHalfWidth <= 0 || ellipseHalfDepth <= 0) return false
+    return (point.x * point.x) / (ellipseHalfWidth * ellipseHalfWidth) + (zLocal * zLocal) / (ellipseHalfDepth * ellipseHalfDepth) <= 1
   }
 
-  return Math.abs(p.x) + maxRadius <= hw && Math.abs(zLocal) + maxRadius <= hd
+  return Math.abs(point.x) + maxRadius <= cavityHalfWidth && Math.abs(zLocal) + maxRadius <= cavityHalfDepth
 }
 
 interface CavityParams {
   shape: Shape
-  hw: number
-  hd: number
+  cavityHalfWidth: number
+  cavityHalfDepth: number
   hollowHeight: number
   plinthDepth: number
-  topTanA: number
+  topTanAngle: number
   raise: number
-  sinT: number
-  cosT: number
-  tanT: number
+  sinTilt: number
+  cosTilt: number
+  tanTilt: number
 }
 
-function cavityCeilingHeight(xW: number, zW: number, c: CavityParams): number {
-  void xW
-  const denom = c.cosT - c.sinT * c.topTanA
+function cavityCeilingHeight(xWorld: number, zWorld: number, cavity: CavityParams): number {
+  void xWorld
+  const denom = cavity.cosTilt - cavity.sinTilt * cavity.topTanAngle
   const safeDenom = Math.max(0.01, Math.abs(denom)) * Math.sign(denom || 1)
-  return c.raise + (c.hollowHeight - (c.plinthDepth / 2) * c.topTanA - zW * (c.sinT + c.cosT * c.topTanA)) / safeDenom
+  return cavity.raise + (cavity.hollowHeight - (cavity.plinthDepth / 2) * cavity.topTanAngle - zWorld * (cavity.sinTilt + cavity.cosTilt * cavity.topTanAngle)) / safeDenom
 }
 
-function cavityWallHeight(xW: number, zW: number, c: CavityParams): number {
-  if (Math.abs(c.sinT) < 1e-6) return Infinity
-  const safeCosT = Math.max(0.01, c.cosT)
-  const ceilingAtZL = (zL: number) => c.hollowHeight - (zL + c.plinthDepth / 2) * c.topTanA
+function cavityWallHeight(xWorld: number, zWorld: number, cavity: CavityParams): number {
+  if (Math.abs(cavity.sinTilt) < 1e-6) return Infinity
+  const safeCosTilt = Math.max(0.01, cavity.cosTilt)
+  const ceilingAtZLocal = (zLocal: number) => cavity.hollowHeight - (zLocal + cavity.plinthDepth / 2) * cavity.topTanAngle
 
-  if (c.shape === 'ellipse') {
-    const xTerm = (xW * xW) / (c.hw * c.hw)
+  if (cavity.shape === 'ellipse') {
+    const xTerm = (xWorld * xWorld) / (cavity.cavityHalfWidth * cavity.cavityHalfWidth)
     if (xTerm >= 1) return Infinity
-    const dz = c.hd * Math.sqrt(1 - xTerm)
-    const hits: Array<{ yL: number; zL: number }> = [
-      { yL: (zW + dz * c.cosT) / c.sinT, zL: -dz },
-      { yL: (zW - dz * c.cosT) / c.sinT, zL: dz },
+    const halfDepthOffset = cavity.cavityHalfDepth * Math.sqrt(1 - xTerm)
+    const hits: Array<{ yLocal: number; zLocal: number }> = [
+      { yLocal: (zWorld + halfDepthOffset * cavity.cosTilt) / cavity.sinTilt, zLocal: -halfDepthOffset },
+      { yLocal: (zWorld - halfDepthOffset * cavity.cosTilt) / cavity.sinTilt, zLocal: halfDepthOffset },
     ]
-    let yWall = Infinity
-    for (const { yL, zL } of hits) {
-      if (yL >= 0 && yL <= ceilingAtZL(zL)) {
-        const yW = c.raise + yL / safeCosT - zW * c.tanT
-        if (yW < yWall) yWall = yW
+    let lowestWallHeight = Infinity
+    for (const { yLocal, zLocal } of hits) {
+      if (yLocal >= 0 && yLocal <= ceilingAtZLocal(zLocal)) {
+        const yWorld = cavity.raise + yLocal / safeCosTilt - zWorld * cavity.tanTilt
+        if (yWorld < lowestWallHeight) lowestWallHeight = yWorld
       }
     }
-    return yWall
+    return lowestWallHeight
   }
 
-  const hits: Array<{ yL: number; zL: number }> = [
-    { yL: (zW + c.hd * c.cosT) / c.sinT, zL: -c.hd },
-    { yL: (zW - c.hd * c.cosT) / c.sinT, zL: c.hd },
+  const hits: Array<{ yLocal: number; zLocal: number }> = [
+    { yLocal: (zWorld + cavity.cavityHalfDepth * cavity.cosTilt) / cavity.sinTilt, zLocal: -cavity.cavityHalfDepth },
+    { yLocal: (zWorld - cavity.cavityHalfDepth * cavity.cosTilt) / cavity.sinTilt, zLocal: cavity.cavityHalfDepth },
   ]
-  let yWall = Infinity
-  for (const { yL, zL } of hits) {
-    if (yL >= 0 && yL <= ceilingAtZL(zL)) {
-      const yW = c.raise + yL / safeCosT - zW * c.tanT
-      if (yW < yWall) yWall = yW
+  let lowestWallHeight = Infinity
+  for (const { yLocal, zLocal } of hits) {
+    if (yLocal >= 0 && yLocal <= ceilingAtZLocal(zLocal)) {
+      const yWorld = cavity.raise + yLocal / safeCosTilt - zWorld * cavity.tanTilt
+      if (yWorld < lowestWallHeight) lowestWallHeight = yWorld
     }
   }
-  return yWall
+  return lowestWallHeight
 }
 
-function cavityIntersectionHeight(xW: number, zW: number, c: CavityParams): number {
-  return Math.min(cavityCeilingHeight(xW, zW, c), cavityWallHeight(xW, zW, c))
+function cavityIntersectionHeight(xWorld: number, zWorld: number, cavity: CavityParams): number {
+  return Math.min(cavityCeilingHeight(xWorld, zWorld, cavity), cavityWallHeight(xWorld, zWorld, cavity))
 }
 
-function cavityCeilingNormal(c: CavityParams): THREE.Vector3 {
-  const ny = c.cosT - c.sinT * c.topTanA
-  const nz = c.sinT + c.cosT * c.topTanA
-  const len = Math.hypot(ny, nz)
-  if (len < 1e-6) return new THREE.Vector3(0, -1, 0)
-  return new THREE.Vector3(0, -ny / len, -nz / len)
+function cavityCeilingNormal(cavity: CavityParams): THREE.Vector3 {
+  const normalY = cavity.cosTilt - cavity.sinTilt * cavity.topTanAngle
+  const normalZ = cavity.sinTilt + cavity.cosTilt * cavity.topTanAngle
+  const length = Math.hypot(normalY, normalZ)
+  if (length < 1e-6) return new THREE.Vector3(0, -1, 0)
+  return new THREE.Vector3(0, -normalY / length, -normalZ / length)
 }
 
-function cavityWallNormal(xW: number, zW: number, c: CavityParams): THREE.Vector3 | null {
-  if (Math.abs(c.sinT) < 1e-6) return null
-  const safeCosT = Math.max(0.01, c.cosT)
-  const ceilingAtZL = (zL: number) => c.hollowHeight - (zL + c.plinthDepth / 2) * c.topTanA
+function cavityWallNormal(xWorld: number, zWorld: number, cavity: CavityParams): THREE.Vector3 | null {
+  if (Math.abs(cavity.sinTilt) < 1e-6) return null
+  const safeCosTilt = Math.max(0.01, cavity.cosTilt)
+  const ceilingAtZLocal = (zLocal: number) => cavity.hollowHeight - (zLocal + cavity.plinthDepth / 2) * cavity.topTanAngle
 
-  if (c.shape === 'ellipse') {
-    const xTerm = (xW * xW) / (c.hw * c.hw)
+  if (cavity.shape === 'ellipse') {
+    const xTerm = (xWorld * xWorld) / (cavity.cavityHalfWidth * cavity.cavityHalfWidth)
     if (xTerm >= 1) return null
-    const dz = c.hd * Math.sqrt(1 - xTerm)
-    const hits: Array<{ yL: number; zL: number; xL: number }> = [
-      { yL: (zW + dz * c.cosT) / c.sinT, zL: -dz, xL: xW },
-      { yL: (zW - dz * c.cosT) / c.sinT, zL: dz, xL: xW },
+    const halfDepthOffset = cavity.cavityHalfDepth * Math.sqrt(1 - xTerm)
+    const hits: Array<{ yLocal: number; zLocal: number; xLocal: number }> = [
+      { yLocal: (zWorld + halfDepthOffset * cavity.cosTilt) / cavity.sinTilt, zLocal: -halfDepthOffset, xLocal: xWorld },
+      { yLocal: (zWorld - halfDepthOffset * cavity.cosTilt) / cavity.sinTilt, zLocal: halfDepthOffset, xLocal: xWorld },
     ]
-    let best: { yW: number; zL: number; xL: number } | null = null
-    for (const { yL, zL, xL } of hits) {
-      if (yL >= 0 && yL <= ceilingAtZL(zL)) {
-        const yW = c.raise + yL / safeCosT - zW * c.tanT
-        if (!best || yW < best.yW) best = { yW, zL, xL }
+    let best: { yWorld: number; zLocal: number; xLocal: number } | null = null
+    for (const { yLocal, zLocal, xLocal } of hits) {
+      if (yLocal >= 0 && yLocal <= ceilingAtZLocal(zLocal)) {
+        const yWorld = cavity.raise + yLocal / safeCosTilt - zWorld * cavity.tanTilt
+        if (!best || yWorld < best.yWorld) best = { yWorld, zLocal, xLocal }
       }
     }
     if (!best) return null
-    const localN = new THREE.Vector3(best.xL / (c.hw * c.hw), 0, best.zL / (c.hd * c.hd)).normalize()
-    return new THREE.Vector3(localN.x, -localN.z * c.sinT, localN.z * c.cosT)
+    const localNormal = new THREE.Vector3(best.xLocal / (cavity.cavityHalfWidth * cavity.cavityHalfWidth), 0, best.zLocal / (cavity.cavityHalfDepth * cavity.cavityHalfDepth)).normalize()
+    return new THREE.Vector3(localNormal.x, -localNormal.z * cavity.sinTilt, localNormal.z * cavity.cosTilt)
   }
 
-  const hits: Array<{ yL: number; zL: number; side: number }> = [
-    { yL: (zW + c.hd * c.cosT) / c.sinT, zL: -c.hd, side: -1 },
-    { yL: (zW - c.hd * c.cosT) / c.sinT, zL: c.hd, side: 1 },
+  const hits: Array<{ yLocal: number; zLocal: number; side: number }> = [
+    { yLocal: (zWorld + cavity.cavityHalfDepth * cavity.cosTilt) / cavity.sinTilt, zLocal: -cavity.cavityHalfDepth, side: -1 },
+    { yLocal: (zWorld - cavity.cavityHalfDepth * cavity.cosTilt) / cavity.sinTilt, zLocal: cavity.cavityHalfDepth, side: 1 },
   ]
-  let best: { yW: number; side: number } | null = null
-  for (const { yL, zL, side } of hits) {
-    if (yL >= 0 && yL <= ceilingAtZL(zL)) {
-      const yW = c.raise + yL / safeCosT - zW * c.tanT
-      if (!best || yW < best.yW) best = { yW, side }
+  let best: { yWorld: number; side: number } | null = null
+  for (const { yLocal, zLocal, side } of hits) {
+    if (yLocal >= 0 && yLocal <= ceilingAtZLocal(zLocal)) {
+      const yWorld = cavity.raise + yLocal / safeCosTilt - zWorld * cavity.tanTilt
+      if (!best || yWorld < best.yWorld) best = { yWorld, side }
     }
   }
   if (!best) return null
-  return new THREE.Vector3(0, -best.side * c.sinT, best.side * c.cosT)
+  return new THREE.Vector3(0, -best.side * cavity.sinTilt, best.side * cavity.cosTilt)
 }
 
-function supportSurfaceNormal(pt: THREE.Vector3, overCavityFlag: boolean, c: CavityParams | null, sinT: number, cosT: number): THREE.Vector3 {
-  if (overCavityFlag && c) {
-    const wallN = cavityWallNormal(pt.x, pt.z, c)
-    if (wallN) {
-      const yCeil = cavityCeilingHeight(pt.x, pt.z, c)
-      const yWall = cavityWallHeight(pt.x, pt.z, c)
-      if (yWall <= yCeil + 1e-6) return wallN
+function supportSurfaceNormal(point: THREE.Vector3, overCavityFlag: boolean, cavity: CavityParams | null, sinTilt: number, cosTilt: number): THREE.Vector3 {
+  if (overCavityFlag && cavity) {
+    const wallNormal = cavityWallNormal(point.x, point.z, cavity)
+    if (wallNormal) {
+      const ceilingHeight = cavityCeilingHeight(point.x, point.z, cavity)
+      const wallHeight = cavityWallHeight(point.x, point.z, cavity)
+      if (wallHeight <= ceilingHeight + 1e-6) return wallNormal
     }
-    return cavityCeilingNormal(c)
+    return cavityCeilingNormal(cavity)
   }
-  if (c) return new THREE.Vector3(0, -c.cosT, -c.sinT)
-  return new THREE.Vector3(0, -cosT, -sinT)
+  if (cavity) return new THREE.Vector3(0, -cavity.cosTilt, -cavity.sinTilt)
+  return new THREE.Vector3(0, -cosTilt, -sinTilt)
 }
 
-function supportNormalXZ(p: THREE.Vector3, overCavityFlag: boolean, c: CavityParams | null, sinT: number): THREE.Vector3 {
-  if (overCavityFlag && c) {
-    const wallN = cavityWallNormal(p.x, p.z, c)
-    if (wallN) {
-      const yCeil = cavityCeilingHeight(p.x, p.z, c)
-      const yWall = cavityWallHeight(p.x, p.z, c)
-      if (yWall <= yCeil + 1e-6) return new THREE.Vector3(-wallN.x, 0, -wallN.z)
+function supportNormalXZ(point: THREE.Vector3, overCavityFlag: boolean, cavity: CavityParams | null, sinTilt: number): THREE.Vector3 {
+  if (overCavityFlag && cavity) {
+    const wallNormal = cavityWallNormal(point.x, point.z, cavity)
+    if (wallNormal) {
+      const ceilingHeight = cavityCeilingHeight(point.x, point.z, cavity)
+      const wallHeight = cavityWallHeight(point.x, point.z, cavity)
+      if (wallHeight <= ceilingHeight + 1e-6) return new THREE.Vector3(-wallNormal.x, 0, -wallNormal.z)
     }
-    const ceilN = cavityCeilingNormal(c)
-    return new THREE.Vector3(0, 0, ceilN.z)
+    const ceilingNormal = cavityCeilingNormal(cavity)
+    return new THREE.Vector3(0, 0, ceilingNormal.z)
   }
-  return new THREE.Vector3(0, 0, -sinT)
+  return new THREE.Vector3(0, 0, -sinTilt)
 }
 
 function applySupportOffset(
   positions: THREE.Vector3[],
   overCavity: boolean[] | null,
   cavityParams: CavityParams | null,
-  sinT: number,
-  tanT: number,
+  sinTilt: number,
+  tanTilt: number,
   raise: number,
   offsetCavity: number,
 ): { basePositions: THREE.Vector3[]; tipPositions: THREE.Vector3[]; contactHeights: number[] } {
-  const basePositions = positions.map((p, i) => {
+  const basePositions = positions.map((point, i) => {
     const overCavityFlag = overCavity ? overCavity[i] : false
-    const n = supportNormalXZ(p, overCavityFlag, cavityParams, sinT)
+    const normalXZ = supportNormalXZ(point, overCavityFlag, cavityParams, sinTilt)
     const amount = overCavityFlag ? offsetCavity : SUPPORT_OFFSET_EDGE
-    return new THREE.Vector3(p.x + amount * n.x, p.y, p.z + amount * n.z)
+    return new THREE.Vector3(point.x + amount * normalXZ.x, point.y, point.z + amount * normalXZ.z)
   })
   const tipPositions = positions
-  const contactHeights = tipPositions.map((p) => raise - p.z * tanT)
+  const contactHeights = tipPositions.map((point) => raise - point.z * tanTilt)
   return { basePositions, tipPositions, contactHeights }
 }
 
-export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
-  const ew = w + 2 * trimOffset
-  const ed = d + 2 * trimOffset
+export function makeBaseOutlinePoints(shape: Shape, width: number, depth: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
+  const expandedWidth = width + 2 * trimOffset
+  const expandedDepth = depth + 2 * trimOffset
   if (shape === 'ellipse') {
-    const hw = Math.max(0.01, ew / 2)
-    const hd = Math.max(0.01, ed / 2)
-    const perim = Math.PI * (3 * (hw + hd) - Math.sqrt((3 * hw + hd) * (hw + 3 * hd)))
-    const n = Math.max(16, Math.ceil(perim / segMM))
+    const halfWidth = Math.max(0.01, expandedWidth / 2)
+    const halfDepth = Math.max(0.01, expandedDepth / 2)
+    const perim = Math.PI * (3 * (halfWidth + halfDepth) - Math.sqrt((3 * halfWidth + halfDepth) * (halfWidth + 3 * halfDepth)))
+    const segmentCount = Math.max(16, Math.ceil(perim / segMM))
     const pts: THREE.Vector3[] = []
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2
-      pts.push(new THREE.Vector3(hw * Math.cos(a), 0, hd * Math.sin(a)))
+    for (let i = 0; i < segmentCount; i++) {
+      const angle = (i / segmentCount) * Math.PI * 2
+      pts.push(new THREE.Vector3(halfWidth * Math.cos(angle), 0, halfDepth * Math.sin(angle)))
     }
     return pts
   }
-  const hw = Math.max(0.01, ew / 2)
-  const hd = Math.max(0.01, ed / 2)
+  const halfWidth = Math.max(0.01, expandedWidth / 2)
+  const halfDepth = Math.max(0.01, expandedDepth / 2)
   return [
-    new THREE.Vector3(-hw, 0, -hd),
-    new THREE.Vector3(hw, 0, -hd),
-    new THREE.Vector3(hw, 0, hd),
-    new THREE.Vector3(-hw, 0, hd),
+    new THREE.Vector3(-halfWidth, 0, -halfDepth),
+    new THREE.Vector3(halfWidth, 0, -halfDepth),
+    new THREE.Vector3(halfWidth, 0, halfDepth),
+    new THREE.Vector3(-halfWidth, 0, halfDepth),
   ]
 }
 
-function makeEllipseOutline(w: number, d: number, n: number, cosT: number): THREE.Vector3[] {
-  const hw = Math.max(0.01, w / 2)
-  const hd = Math.max(0.01, d / 2) * cosT
+function makeEllipseOutline(width: number, depth: number, segmentCount: number, cosTilt: number): THREE.Vector3[] {
+  const halfWidth = Math.max(0.01, width / 2)
+  const halfDepth = Math.max(0.01, depth / 2) * cosTilt
   const pts: THREE.Vector3[] = []
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2
-    pts.push(new THREE.Vector3(hw * Math.cos(a), 0, hd * Math.sin(a)))
+  for (let i = 0; i < segmentCount; i++) {
+    const angle = (i / segmentCount) * Math.PI * 2
+    pts.push(new THREE.Vector3(halfWidth * Math.cos(angle), 0, halfDepth * Math.sin(angle)))
   }
   return pts
 }
 
-export function makeInsetOutlinePoints(shape: Shape, w: number, d: number, inset: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
-  const iw = Math.max(0.01, w + 2 * trimOffset - 2 * inset)
-  const id = Math.max(0.01, d + 2 * trimOffset - 2 * inset)
-  return makeBaseOutlinePoints(shape, iw, id, segMM)
+export function makeInsetOutlinePoints(shape: Shape, width: number, depth: number, inset: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
+  const insetWidth = Math.max(0.01, width + 2 * trimOffset - 2 * inset)
+  const insetDepth = Math.max(0.01, depth + 2 * trimOffset - 2 * inset)
+  return makeBaseOutlinePoints(shape, insetWidth, insetDepth, segMM)
 }
 
-export function projectToGround(points: THREE.Vector3[], cosT: number): THREE.Vector3[] {
-  return points.map((p) => new THREE.Vector3(p.x, 0, p.z * cosT))
+export function projectToGround(points: THREE.Vector3[], cosTilt: number): THREE.Vector3[] {
+  return points.map((point) => new THREE.Vector3(point.x, 0, point.z * cosTilt))
 }
 
 export function perimeterLength(points: THREE.Vector3[]): number {
-  let len = 0
+  let length = 0
   for (let i = 0; i < points.length; i++) {
-    len += points[i].distanceTo(points[(i + 1) % points.length])
+    length += points[i].distanceTo(points[(i + 1) % points.length])
   }
-  return len
+  return length
 }
 
-export function equidistantPoints(points: THREE.Vector3[], n: number): THREE.Vector3[] {
-  const m = points.length
-  const cum: number[] = [0]
-  for (let i = 0; i < m; i++) {
-    cum.push(cum[i] + points[i].distanceTo(points[(i + 1) % m]))
+export function equidistantPoints(points: THREE.Vector3[], count: number): THREE.Vector3[] {
+  const pointCount = points.length
+  const cumulative: number[] = [0]
+  for (let i = 0; i < pointCount; i++) {
+    cumulative.push(cumulative[i] + points[i].distanceTo(points[(i + 1) % pointCount]))
   }
-  const total = cum[m]
+  const total = cumulative[pointCount]
   if (total < 1e-6) return []
-  const step = total / n
+  const step = total / count
   const out: THREE.Vector3[] = []
-  let seg = 0
-  for (let i = 0; i < n; i++) {
+  let segmentIndex = 0
+  for (let i = 0; i < count; i++) {
     const target = i * step
-    while (seg < m && cum[seg + 1] < target) seg++
-    const segStart = cum[seg]
-    const segEnd = cum[seg + 1]
+    while (segmentIndex < pointCount && cumulative[segmentIndex + 1] < target) segmentIndex++
+    const segStart = cumulative[segmentIndex]
+    const segEnd = cumulative[segmentIndex + 1]
     const t = segEnd - segStart < 1e-6 ? 0 : (target - segStart) / (segEnd - segStart)
-    const a = points[seg]
-    const b = points[(seg + 1) % m]
-    out.push(new THREE.Vector3(a.x + (b.x - a.x) * t, 0, a.z + (b.z - a.z) * t))
+    const pointA = points[segmentIndex]
+    const pointB = points[(segmentIndex + 1) % pointCount]
+    out.push(new THREE.Vector3(pointA.x + (pointB.x - pointA.x) * t, 0, pointA.z + (pointB.z - pointA.z) * t))
   }
   return out
 }
 
 function cumulativeArcLength(points: THREE.Vector3[]): number[] {
-  const m = points.length
-  const cum: number[] = [0]
-  for (let i = 0; i < m; i++) {
-    cum.push(cum[i] + points[i].distanceTo(points[(i + 1) % m]))
+  const pointCount = points.length
+  const cumulative: number[] = [0]
+  for (let i = 0; i < pointCount; i++) {
+    cumulative.push(cumulative[i] + points[i].distanceTo(points[(i + 1) % pointCount]))
   }
-  return cum
+  return cumulative
 }
 
-function pointAtArcLength(points: THREE.Vector3[], cum: number[], arc: number): THREE.Vector3 {
-  const m = points.length
-  const total = cum[m]
-  let a = arc
-  while (a < 0) a += total
-  while (a >= total) a -= total
-  let seg = 0
-  while (seg < m && cum[seg + 1] < a) seg++
-  const segStart = cum[seg]
-  const segEnd = cum[seg + 1]
-  const t = segEnd - segStart < 1e-6 ? 0 : (a - segStart) / (segEnd - segStart)
-  const pa = points[seg]
-  const pb = points[(seg + 1) % m]
-  return new THREE.Vector3(pa.x + (pb.x - pa.x) * t, 0, pa.z + (pb.z - pa.z) * t)
+function pointAtArcLength(points: THREE.Vector3[], cumulative: number[], arc: number): THREE.Vector3 {
+  const pointCount = points.length
+  const total = cumulative[pointCount]
+  let wrappedArc = arc
+  while (wrappedArc < 0) wrappedArc += total
+  while (wrappedArc >= total) wrappedArc -= total
+  let segmentIndex = 0
+  while (segmentIndex < pointCount && cumulative[segmentIndex + 1] < wrappedArc) segmentIndex++
+  const segStart = cumulative[segmentIndex]
+  const segEnd = cumulative[segmentIndex + 1]
+  const t = segEnd - segStart < 1e-6 ? 0 : (wrappedArc - segStart) / (segEnd - segStart)
+  const pointA = points[segmentIndex]
+  const pointB = points[(segmentIndex + 1) % pointCount]
+  return new THREE.Vector3(pointA.x + (pointB.x - pointA.x) * t, 0, pointA.z + (pointB.z - pointA.z) * t)
 }
 
-function nearestArcLength(points: THREE.Vector3[], cum: number[], target: THREE.Vector3): number {
-  const m = points.length
+function nearestArcLength(points: THREE.Vector3[], cumulative: number[], target: THREE.Vector3): number {
+  const pointCount = points.length
   let bestDist = Infinity
   let bestArc = 0
-  for (let i = 0; i < m; i++) {
-    const a = points[i]
-    const b = points[(i + 1) % m]
-    const segLen = cum[i + 1] - cum[i]
+  for (let i = 0; i < pointCount; i++) {
+    const pointA = points[i]
+    const pointB = points[(i + 1) % pointCount]
+    const segLen = cumulative[i + 1] - cumulative[i]
     if (segLen < 1e-9) continue
-    const t = Math.max(0, Math.min(1, ((target.x - a.x) * (b.x - a.x) + (target.z - a.z) * (b.z - a.z)) / (segLen * segLen)))
-    const px = a.x + (b.x - a.x) * t
-    const pz = a.z + (b.z - a.z) * t
-    const dist = (px - target.x) * (px - target.x) + (pz - target.z) * (pz - target.z)
+    const t = Math.max(0, Math.min(1, ((target.x - pointA.x) * (pointB.x - pointA.x) + (target.z - pointA.z) * (pointB.z - pointA.z)) / (segLen * segLen)))
+    const projectedX = pointA.x + (pointB.x - pointA.x) * t
+    const projectedZ = pointA.z + (pointB.z - pointA.z) * t
+    const dist = (projectedX - target.x) * (projectedX - target.x) + (projectedZ - target.z) * (projectedZ - target.z)
     if (dist < bestDist) {
       bestDist = dist
-      bestArc = cum[i] + t * segLen
+      bestArc = cumulative[i] + t * segLen
     }
   }
   return bestArc
 }
 
-function computeOuterRingAnchors(shape: Shape, w: number, d: number, inset: number, cosT: number, trimOffset = 0): THREE.Vector3[] {
-  const iw = Math.max(0.01, w + 2 * trimOffset - 2 * inset)
-  const id = Math.max(0.01, d + 2 * trimOffset - 2 * inset)
-  const hw = iw / 2
-  const hd = (id / 2) * cosT
+function computeOuterRingAnchors(shape: Shape, width: number, depth: number, inset: number, cosTilt: number, trimOffset = 0): THREE.Vector3[] {
+  const insetWidth = Math.max(0.01, width + 2 * trimOffset - 2 * inset)
+  const insetDepth = Math.max(0.01, depth + 2 * trimOffset - 2 * inset)
+  const halfWidth = insetWidth / 2
+  const halfDepth = (insetDepth / 2) * cosTilt
   if (shape === 'ellipse') {
     return [
-      new THREE.Vector3(hw, 0, 0),
-      new THREE.Vector3(0, 0, hd),
-      new THREE.Vector3(-hw, 0, 0),
-      new THREE.Vector3(0, 0, -hd),
+      new THREE.Vector3(halfWidth, 0, 0),
+      new THREE.Vector3(0, 0, halfDepth),
+      new THREE.Vector3(-halfWidth, 0, 0),
+      new THREE.Vector3(0, 0, -halfDepth),
     ]
   }
   return [
-    new THREE.Vector3(-hw, 0, -hd),
-    new THREE.Vector3(hw, 0, -hd),
-    new THREE.Vector3(hw, 0, hd),
-    new THREE.Vector3(-hw, 0, hd),
+    new THREE.Vector3(-halfWidth, 0, -halfDepth),
+    new THREE.Vector3(halfWidth, 0, -halfDepth),
+    new THREE.Vector3(halfWidth, 0, halfDepth),
+    new THREE.Vector3(-halfWidth, 0, halfDepth),
   ]
 }
 
 export function equidistantPointsWithAnchors(points: THREE.Vector3[], anchors: THREE.Vector3[], spacing: number): THREE.Vector3[] {
-  const m = points.length
-  const cum = cumulativeArcLength(points)
-  const total = cum[m]
+  const pointCount = points.length
+  const cumulative = cumulativeArcLength(points)
+  const total = cumulative[pointCount]
   if (total < 1e-6) return []
   if (anchors.length === 0) return equidistantPoints(points, Math.max(4, Math.round(total / spacing)))
 
-  const anchorArcs = anchors.map((a) => nearestArcLength(points, cum, a)).sort((x, y) => x - y)
-  const k = anchorArcs.length
+  const anchorArcs = anchors.map((anchor) => nearestArcLength(points, cumulative, anchor)).sort((a, b) => a - b)
+  const anchorCount = anchorArcs.length
   const positions: THREE.Vector3[] = []
-  for (let i = 0; i < k; i++) {
+  for (let i = 0; i < anchorCount; i++) {
     const startArc = anchorArcs[i]
-    const endArc = i + 1 < k ? anchorArcs[i + 1] : anchorArcs[0] + total
+    const endArc = i + 1 < anchorCount ? anchorArcs[i + 1] : anchorArcs[0] + total
     const segLen = endArc - startArc
     if (segLen <= 1e-6) continue
     const count = Math.max(1, Math.ceil(segLen / spacing))
     const step = segLen / count
     for (let j = 0; j < count; j++) {
-      positions.push(pointAtArcLength(points, cum, startArc + j * step))
+      positions.push(pointAtArcLength(points, cumulative, startArc + j * step))
     }
   }
   return positions
@@ -379,17 +379,17 @@ export function equidistantPointsWithAnchors(points: THREE.Vector3[], anchors: T
 export function buildSupportCircles(positions: THREE.Vector3[], radius: number, segs: number): THREE.BufferGeometry {
   const vertCount = positions.length * segs * 2
   const arr = new Float32Array(vertCount * 3)
-  let o = 0
-  for (const p of positions) {
+  let offset = 0
+  for (const point of positions) {
     for (let j = 0; j < segs; j++) {
-      const a1 = (j / segs) * Math.PI * 2
-      const a2 = ((j + 1) / segs) * Math.PI * 2
-      arr[o++] = p.x + Math.cos(a1) * radius
-      arr[o++] = 0
-      arr[o++] = p.z + Math.sin(a1) * radius
-      arr[o++] = p.x + Math.cos(a2) * radius
-      arr[o++] = 0
-      arr[o++] = p.z + Math.sin(a2) * radius
+      const angle1 = (j / segs) * Math.PI * 2
+      const angle2 = ((j + 1) / segs) * Math.PI * 2
+      arr[offset++] = point.x + Math.cos(angle1) * radius
+      arr[offset++] = 0
+      arr[offset++] = point.z + Math.sin(angle1) * radius
+      arr[offset++] = point.x + Math.cos(angle2) * radius
+      arr[offset++] = 0
+      arr[offset++] = point.z + Math.sin(angle2) * radius
     }
   }
   const geo = new THREE.BufferGeometry()
@@ -397,56 +397,56 @@ export function buildSupportCircles(positions: THREE.Vector3[], radius: number, 
   return geo
 }
 
-function buildSupportMesh(basePositions: THREE.Vector3[], tipPositions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], overCavity: boolean[] | null, cavityParams: CavityParams | null, sinT: number, cosT: number, segs: number, caps: boolean, raftHeight: number): THREE.BufferGeometry {
+function buildSupportMesh(basePositions: THREE.Vector3[], tipPositions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], overCavity: boolean[] | null, cavityParams: CavityParams | null, sinTilt: number, cosTilt: number, segs: number, caps: boolean, raftHeight: number): THREE.BufferGeometry {
   if (basePositions.length === 0) return new THREE.BufferGeometry()
   const verts: number[] = []
   const indices: number[] = []
 
   for (let i = 0; i < basePositions.length; i++) {
-    const pb = basePositions[i]
-    const pt = tipPositions[i]
+    const basePoint = basePositions[i]
+    const tipPoint = tipPositions[i]
     const supportOverCavity = overCavity ? overCavity[i] : false
     const yContactCenter = supportOverCavity && cavityParams
-      ? cavityIntersectionHeight(pt.x, pt.z, cavityParams)
+      ? cavityIntersectionHeight(tipPoint.x, tipPoint.z, cavityParams)
       : contactHeights[i]
     const yConeStart = yContactCenter - CONE_START_GAP
     if (yConeStart <= raftHeight) continue
 
     const baseVtx = verts.length / 3
 
-    verts.push(pb.x, raftHeight, pb.z)
+    verts.push(basePoint.x, raftHeight, basePoint.z)
     const centerVtx = baseVtx
     for (let j = 0; j < segs; j++) {
-      const a = (j / segs) * Math.PI * 2
-      const cx = Math.cos(a)
-      const cz = Math.sin(a)
-      verts.push(pb.x + cx * supportRadius, raftHeight, pb.z + cz * supportRadius)
+      const angle = (j / segs) * Math.PI * 2
+      const cosAngle = Math.cos(angle)
+      const sinAngle = Math.sin(angle)
+      verts.push(basePoint.x + cosAngle * supportRadius, raftHeight, basePoint.z + sinAngle * supportRadius)
     }
     const ring0Vtx = baseVtx + 1
     if (caps) {
       for (let j = 0; j < segs; j++) {
-        const jn = (j + 1) % segs
-        indices.push(centerVtx, ring0Vtx + jn, ring0Vtx + j)
+        const jNext = (j + 1) % segs
+        indices.push(centerVtx, ring0Vtx + jNext, ring0Vtx + j)
       }
     }
     const ring1Vtx = ring0Vtx + segs
     for (let j = 0; j < segs; j++) {
-      const a = (j / segs) * Math.PI * 2
-      const cx = Math.cos(a)
-      const cz = Math.sin(a)
-      verts.push(pb.x + cx * supportRadius, yConeStart, pb.z + cz * supportRadius)
+      const angle = (j / segs) * Math.PI * 2
+      const cosAngle = Math.cos(angle)
+      const sinAngle = Math.sin(angle)
+      verts.push(basePoint.x + cosAngle * supportRadius, yConeStart, basePoint.z + sinAngle * supportRadius)
     }
     for (let j = 0; j < segs; j++) {
-      const jn = (j + 1) % segs
-      indices.push(ring0Vtx + j, ring1Vtx + j, ring1Vtx + jn)
-      indices.push(ring0Vtx + j, ring1Vtx + jn, ring0Vtx + jn)
+      const jNext = (j + 1) % segs
+      indices.push(ring0Vtx + j, ring1Vtx + j, ring1Vtx + jNext)
+      indices.push(ring0Vtx + j, ring1Vtx + jNext, ring0Vtx + jNext)
     }
     const ring2Vtx = ring1Vtx + segs
-    const surfaceNormal = supportSurfaceNormal(pt, supportOverCavity, cavityParams, sinT, cosT).normalize()
-    const contactPoint = new THREE.Vector3(pt.x, yContactCenter, pt.z)
+    const surfaceNormal = supportSurfaceNormal(tipPoint, supportOverCavity, cavityParams, sinTilt, cosTilt).normalize()
+    const contactPoint = new THREE.Vector3(tipPoint.x, yContactCenter, tipPoint.z)
     for (let j = 0; j < segs; j++) {
-      const a = (j / segs) * Math.PI * 2
-      const groundDir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a))
+      const angle = (j / segs) * Math.PI * 2
+      const groundDir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle))
       const planeDir = groundDir.clone().addScaledVector(surfaceNormal, -groundDir.dot(surfaceNormal))
       if (planeDir.lengthSq() < 1e-12) planeDir.set(1, 0, 0)
       planeDir.normalize()
@@ -456,16 +456,16 @@ function buildSupportMesh(basePositions: THREE.Vector3[], tipPositions: THREE.Ve
       verts.push(tipX, tipY, tipZ)
     }
     for (let j = 0; j < segs; j++) {
-      const jn = (j + 1) % segs
-      indices.push(ring1Vtx + j, ring2Vtx + j, ring2Vtx + jn)
-      indices.push(ring1Vtx + j, ring2Vtx + jn, ring1Vtx + jn)
+      const jNext = (j + 1) % segs
+      indices.push(ring1Vtx + j, ring2Vtx + j, ring2Vtx + jNext)
+      indices.push(ring1Vtx + j, ring2Vtx + jNext, ring1Vtx + jNext)
     }
     if (caps) {
       const tipCenterVtx = verts.length / 3
-      verts.push(pt.x, yContactCenter, pt.z)
+      verts.push(tipPoint.x, yContactCenter, tipPoint.z)
       for (let j = 0; j < segs; j++) {
-        const jn = (j + 1) % segs
-        indices.push(tipCenterVtx, ring2Vtx + jn, ring2Vtx + j)
+        const jNext = (j + 1) % segs
+        indices.push(tipCenterVtx, ring2Vtx + jNext, ring2Vtx + j)
       }
     }
   }
@@ -479,51 +479,51 @@ function buildSupportMesh(basePositions: THREE.Vector3[], tipPositions: THREE.Ve
 
 function buildRaftMesh(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segMM: number): THREE.BufferGeometry {
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
-  const cosT = Math.cos(tilt)
+  const cosTilt = Math.cos(tilt)
   const expand = supportParams.supportSize + 5
   const trimOff = trimFootprintOffset(plinthParams)
 
-  const topW = plinthParams.width + 2 * trimOff + expand
-  const topD = plinthParams.depth + 2 * trimOff + expand
-  const botW = topW - 2 * RAFT_BOTTOM_INSET
-  const botD = topD - 2 * RAFT_BOTTOM_INSET
+  const topWidth = plinthParams.width + 2 * trimOff + expand
+  const topDepth = plinthParams.depth + 2 * trimOff + expand
+  const bottomWidth = topWidth - 2 * RAFT_BOTTOM_INSET
+  const bottomDepth = topDepth - 2 * RAFT_BOTTOM_INSET
 
-  const topPts = projectToGround(makeBaseOutlinePoints(shape, topW, topD, segMM), cosT)
-  const n = topPts.length
+  const topPts = projectToGround(makeBaseOutlinePoints(shape, topWidth, topDepth, segMM), cosTilt)
+  const pointCount = topPts.length
   const botPtsRaw = shape === 'ellipse'
-    ? makeEllipseOutline(botW, botD, n, cosT)
-    : makeBaseOutlinePoints(shape, botW, botD, segMM)
-  const botPts = shape === 'ellipse' ? botPtsRaw : projectToGround(makeBaseOutlinePoints(shape, botW, botD, segMM), cosT)
-  if (n < 3 || botPts.length !== n) return new THREE.BufferGeometry()
+    ? makeEllipseOutline(bottomWidth, bottomDepth, pointCount, cosTilt)
+    : makeBaseOutlinePoints(shape, bottomWidth, bottomDepth, segMM)
+  const botPts = shape === 'ellipse' ? botPtsRaw : projectToGround(makeBaseOutlinePoints(shape, bottomWidth, bottomDepth, segMM), cosTilt)
+  if (pointCount < 3 || botPts.length !== pointCount) return new THREE.BufferGeometry()
 
   const raftHeight = supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT
 
   const verts: number[] = []
   const indices: number[] = []
 
-  for (const p of botPts) verts.push(p.x, 0, p.z)
-  for (const p of topPts) verts.push(p.x, raftHeight, p.z)
+  for (const point of botPts) verts.push(point.x, 0, point.z)
+  for (const point of topPts) verts.push(point.x, raftHeight, point.z)
   const botBase = 0
-  const topBase = n
+  const topBase = pointCount
 
-  for (let i = 0; i < n; i++) {
-    const ni = (i + 1) % n
-    indices.push(botBase + i, topBase + i, topBase + ni)
-    indices.push(botBase + i, topBase + ni, botBase + ni)
+  for (let i = 0; i < pointCount; i++) {
+    const nextI = (i + 1) % pointCount
+    indices.push(botBase + i, topBase + i, topBase + nextI)
+    indices.push(botBase + i, topBase + nextI, botBase + nextI)
   }
 
   const centerTopVtx = verts.length / 3
   verts.push(0, raftHeight, 0)
-  for (let i = 0; i < n; i++) {
-    const ni = (i + 1) % n
-    indices.push(centerTopVtx, topBase + ni, topBase + i)
+  for (let i = 0; i < pointCount; i++) {
+    const nextI = (i + 1) % pointCount
+    indices.push(centerTopVtx, topBase + nextI, topBase + i)
   }
 
   const centerBotVtx = verts.length / 3
   verts.push(0, 0, 0)
-  for (let i = 0; i < n; i++) {
-    const ni = (i + 1) % n
-    indices.push(centerBotVtx, botBase + i, botBase + ni)
+  for (let i = 0; i < pointCount; i++) {
+    const nextI = (i + 1) % pointCount
+    indices.push(centerBotVtx, botBase + i, botBase + nextI)
   }
 
   const geo = new THREE.BufferGeometry()
@@ -534,10 +534,10 @@ function buildRaftMesh(shape: Shape, plinthParams: PlinthParams, supportParams: 
 }
 
 function mulberry32(seed: number): () => number {
-  let a = seed >>> 0
+  let state = seed >>> 0
   return () => {
-    a = (a + 0x6d2b79f5) >>> 0
-    let t = a
+    state = (state + 0x6d2b79f5) >>> 0
+    let t = state
     t = Math.imul(t ^ (t >>> 15), t | 1)
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
@@ -545,125 +545,136 @@ function mulberry32(seed: number): () => number {
 }
 
 function hashSeed(parts: Array<number | string | boolean>): number {
-  let h = 2166136261
+  let hash = 2166136261
   for (const part of parts) {
-    const v = typeof part === 'number' ? Math.round(part * 1000) : part
-    const s = String(v)
-    for (let i = 0; i < s.length; i++) {
-      h ^= s.charCodeAt(i)
-      h = Math.imul(h, 16777619)
+    const value = typeof part === 'number' ? Math.round(part * 1000) : part
+    const str = String(value)
+    for (let i = 0; i < str.length; i++) {
+      hash ^= str.charCodeAt(i)
+      hash = Math.imul(hash, 16777619)
     }
   }
-  return h >>> 0
+  return hash >>> 0
 }
 
-function pointInFootprint(shape: Shape, x: number, z: number, hw: number, hd: number): boolean {
-  if (hw <= 0 || hd <= 0) return false
+function pointInFootprint(shape: Shape, x: number, z: number, halfWidth: number, halfDepth: number): boolean {
+  if (halfWidth <= 0 || halfDepth <= 0) return false
   if (shape === 'ellipse') {
-    const nx = x / hw
-    const nz = z / hd
-    return nx * nx + nz * nz <= 1
+    const normalizedX = x / halfWidth
+    const normalizedZ = z / halfDepth
+    return normalizedX * normalizedX + normalizedZ * normalizedZ <= 1
   }
-  return Math.abs(x) <= hw && Math.abs(z) <= hd
+  return Math.abs(x) <= halfWidth && Math.abs(z) <= halfDepth
 }
 
-function distanceToCavityTopEdge(x: number, z: number, shape: Shape, hw: number, hd: number, cosT: number, sinT: number, topTanA: number, hollowHeight: number, plinthDepth: number): number {
-  const ceilingYLocal = hollowHeight - (plinthDepth / 2) * topTanA
-  const zCenter = ceilingYLocal * sinT
-  const zHalf = hd * (cosT - topTanA * sinT)
+function distanceToCavityTopEdge(
+  x: number,
+  z: number,
+  shape: Shape,
+  cavityHalfWidth: number,
+  cavityHalfDepth: number,
+  cosTilt: number,
+  sinTilt: number,
+  topTanAngle: number,
+  hollowHeight: number,
+  plinthDepth: number,
+): number {
+  const ceilingYLocal = hollowHeight - (plinthDepth / 2) * topTanAngle
+  const zCenter = ceilingYLocal * sinTilt
+  const zHalf = cavityHalfDepth * (cosTilt - topTanAngle * sinTilt)
   if (shape === 'ellipse') {
-    const dx = x / hw
-    const dz = (z - zCenter) / zHalf
-    const r2 = dx * dx + dz * dz
-    if (r2 <= 1) {
-      const r = Math.sqrt(r2)
-      if (r < 1e-9) return Math.min(hw, zHalf)
-      const t = 1 / r - 1
-      return Math.hypot(x * t, (z - zCenter) * t)
+    const normalizedX = x / cavityHalfWidth
+    const normalizedZ = (z - zCenter) / zHalf
+    const radiusSquared = normalizedX * normalizedX + normalizedZ * normalizedZ
+    if (radiusSquared <= 1) {
+      const radius = Math.sqrt(radiusSquared)
+      if (radius < 1e-9) return Math.min(cavityHalfWidth, zHalf)
+      const edgeScale = 1 / radius - 1
+      return Math.hypot(x * edgeScale, (z - zCenter) * edgeScale)
     }
-    const r = Math.sqrt(r2)
-    const nx = dx / r
-    const nz = dz / r
-    const ex = nx * hw
-    const ez = zCenter + nz * zHalf
-    return Math.hypot(x - ex, z - ez)
+    const radius = Math.sqrt(radiusSquared)
+    const unitX = normalizedX / radius
+    const unitZ = normalizedZ / radius
+    const edgeX = unitX * cavityHalfWidth
+    const edgeZ = zCenter + unitZ * zHalf
+    return Math.hypot(x - edgeX, z - edgeZ)
   }
-  const ax = Math.abs(x)
-  const az = Math.abs(z - zCenter)
-  const insideX = hw - ax
-  const insideZ = zHalf - az
+  const absX = Math.abs(x)
+  const absZ = Math.abs(z - zCenter)
+  const insideX = cavityHalfWidth - absX
+  const insideZ = zHalf - absZ
   if (insideX >= 0 && insideZ >= 0) return Math.min(insideX, insideZ)
-  const dx = Math.max(0, ax - hw)
-  const dz = Math.max(0, az - zHalf)
-  return Math.hypot(dx, dz)
+  const outsideX = Math.max(0, absX - cavityHalfWidth)
+  const outsideZ = Math.max(0, absZ - zHalf)
+  return Math.hypot(outsideX, outsideZ)
 }
 
 function inAnyExclusion(x: number, z: number, exclusions: Array<{ cx: number, cz: number, rx: number, rz: number }>): boolean {
-  for (const e of exclusions) {
-    const dx = x - e.cx
-    const dz = z - e.cz
-    if ((dx * dx) / (e.rx * e.rx) + (dz * dz) / (e.rz * e.rz) <= 1) return true
+  for (const exclusion of exclusions) {
+    const dx = x - exclusion.cx
+    const dz = z - exclusion.cz
+    if ((dx * dx) / (exclusion.rx * exclusion.rx) + (dz * dz) / (exclusion.rz * exclusion.rz) <= 1) return true
   }
   return false
 }
 
 function sampleInteriorPoisson(
   shape: Shape,
-  hw: number,
-  hd: number,
+  halfWidth: number,
+  halfDepth: number,
   minDist: number,
   ringPoints: THREE.Vector3[],
   exclusions: Array<{ cx: number, cz: number, rx: number, rz: number }>,
   seed: number,
 ): THREE.Vector3[] {
-  if (hw <= 0 || hd <= 0 || minDist <= 0) return []
+  if (halfWidth <= 0 || halfDepth <= 0 || minDist <= 0) return []
   const rng = mulberry32(seed)
   const cell = minDist / Math.SQRT2
-  const cols = Math.max(1, Math.ceil((2 * hw) / cell))
-  const rows = Math.max(1, Math.ceil((2 * hd) / cell))
+  const cols = Math.max(1, Math.ceil((2 * halfWidth) / cell))
+  const rows = Math.max(1, Math.ceil((2 * halfDepth) / cell))
   const grid: (THREE.Vector3 | null)[] = new Array(cols * rows).fill(null)
-  const x0 = -hw
-  const z0 = -hd
-  const toIdx = (x: number, z: number): number => {
-    const cx = Math.min(cols - 1, Math.max(0, Math.floor((x - x0) / cell)))
-    const cz = Math.min(rows - 1, Math.max(0, Math.floor((z - z0) / cell)))
-    return cz * cols + cx
+  const gridOriginX = -halfWidth
+  const gridOriginZ = -halfDepth
+  const toGridIndex = (x: number, z: number): number => {
+    const gridX = Math.min(cols - 1, Math.max(0, Math.floor((x - gridOriginX) / cell)))
+    const gridZ = Math.min(rows - 1, Math.max(0, Math.floor((z - gridOriginZ) / cell)))
+    return gridZ * cols + gridX
   }
   const points: THREE.Vector3[] = []
   const active: THREE.Vector3[] = []
 
-  const maxDim = Math.max(hw, hd)
+  const maxDim = Math.max(halfWidth, halfDepth)
   const exclusionMargin = minDist
-  for (const e of exclusions) {
-    const n = Math.max(8, Math.ceil((2 * Math.PI * Math.max(e.rx, e.rz)) / minDist))
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2
-      const r = 1 + exclusionMargin / Math.max(e.rx, e.rz)
-      const x = e.cx + Math.cos(a) * e.rx * r
-      const z = e.cz + Math.sin(a) * e.rz * r
-      if (!pointInFootprint(shape, x, z, hw, hd)) continue
+  for (const exclusion of exclusions) {
+    const sampleCount = Math.max(8, Math.ceil((2 * Math.PI * Math.max(exclusion.rx, exclusion.rz)) / minDist))
+    for (let i = 0; i < sampleCount; i++) {
+      const angle = (i / sampleCount) * Math.PI * 2
+      const radiusScale = 1 + exclusionMargin / Math.max(exclusion.rx, exclusion.rz)
+      const x = exclusion.cx + Math.cos(angle) * exclusion.rx * radiusScale
+      const z = exclusion.cz + Math.sin(angle) * exclusion.rz * radiusScale
+      if (!pointInFootprint(shape, x, z, halfWidth, halfDepth)) continue
       if (inAnyExclusion(x, z, exclusions)) continue
-      const p = new THREE.Vector3(x, 0, z)
-      points.push(p)
-      active.push(p)
-      grid[toIdx(x, z)] = p
+      const point = new THREE.Vector3(x, 0, z)
+      points.push(point)
+      active.push(point)
+      grid[toGridIndex(x, z)] = point
     }
   }
 
-  const ringMinDist2 = minDist * minDist
+  const ringMinDistSquared = minDist * minDist
   for (let i = 0; i < ringPoints.length; i++) {
-    const rp = ringPoints[i]
-    const cx = Math.min(cols - 1, Math.max(0, Math.floor((rp.x - x0) / cell)))
-    const cz = Math.min(rows - 1, Math.max(0, Math.floor((rp.z - z0) / cell)))
-    for (let gz = Math.max(0, cz - 2); gz <= Math.min(rows - 1, cz + 2); gz++) {
-      for (let gx = Math.max(0, cx - 2); gx <= Math.min(cols - 1, cx + 2); gx++) {
-        const g = grid[gz * cols + gx]
-        if (g && g.distanceToSquared(rp) < ringMinDist2) {
+    const ringPoint = ringPoints[i]
+    const gridX = Math.min(cols - 1, Math.max(0, Math.floor((ringPoint.x - gridOriginX) / cell)))
+    const gridZ = Math.min(rows - 1, Math.max(0, Math.floor((ringPoint.z - gridOriginZ) / cell)))
+    for (let gz = Math.max(0, gridZ - 2); gz <= Math.min(rows - 1, gridZ + 2); gz++) {
+      for (let gx = Math.max(0, gridX - 2); gx <= Math.min(cols - 1, gridX + 2); gx++) {
+        const gridPoint = grid[gz * cols + gx]
+        if (gridPoint && gridPoint.distanceToSquared(ringPoint) < ringMinDistSquared) {
           grid[gz * cols + gx] = null
-          const idx = points.indexOf(g)
-          if (idx >= 0) points.splice(idx, 1)
-          const aidx = active.indexOf(g)
-          if (aidx >= 0) active.splice(aidx, 1)
+          const pointIdx = points.indexOf(gridPoint)
+          if (pointIdx >= 0) points.splice(pointIdx, 1)
+          const activeIdx = active.indexOf(gridPoint)
+          if (activeIdx >= 0) active.splice(activeIdx, 1)
         }
       }
     }
@@ -672,73 +683,73 @@ function sampleInteriorPoisson(
   if (active.length === 0 && points.length === 0) {
     let placed = false
     for (let tries = 0; tries < 30 && !placed; tries++) {
-      const x = (rng() * 2 - 1) * hw
-      const z = (rng() * 2 - 1) * hd
-      if (!pointInFootprint(shape, x, z, hw, hd)) continue
+      const x = (rng() * 2 - 1) * halfWidth
+      const z = (rng() * 2 - 1) * halfDepth
+      if (!pointInFootprint(shape, x, z, halfWidth, halfDepth)) continue
       if (inAnyExclusion(x, z, exclusions)) continue
       let tooClose = false
-      for (const rp of ringPoints) {
-        const dx = x - rp.x
-        const dz = z - rp.z
-        if (dx * dx + dz * dz < ringMinDist2) { tooClose = true; break }
+      for (const ringPoint of ringPoints) {
+        const dx = x - ringPoint.x
+        const dz = z - ringPoint.z
+        if (dx * dx + dz * dz < ringMinDistSquared) { tooClose = true; break }
       }
       if (tooClose) continue
-      const p = new THREE.Vector3(x, 0, z)
-      points.push(p)
-      active.push(p)
-      grid[toIdx(x, z)] = p
+      const point = new THREE.Vector3(x, 0, z)
+      points.push(point)
+      active.push(point)
+      grid[toGridIndex(x, z)] = point
       placed = true
     }
     if (!placed) return points
   }
 
-  const k = 30
-  const r2 = minDist * minDist
+  const maxCandidates = 30
+  const minDistSquared = minDist * minDist
   let iterations = 0
   const maxIterations = 20000
   while (active.length > 0 && iterations < maxIterations) {
     iterations++
-    const idx = Math.floor(rng() * active.length)
-    const base = active[idx]
+    const activeIdx = Math.floor(rng() * active.length)
+    const basePoint = active[activeIdx]
     let found = false
-    for (let j = 0; j < k; j++) {
-      const a = rng() * Math.PI * 2
-      const rad = minDist + rng() * minDist
-      const x = base.x + Math.cos(a) * rad
-      const z = base.z + Math.sin(a) * rad
-      if (!pointInFootprint(shape, x, z, hw, hd)) continue
+    for (let j = 0; j < maxCandidates; j++) {
+      const angle = rng() * Math.PI * 2
+      const radius = minDist + rng() * minDist
+      const x = basePoint.x + Math.cos(angle) * radius
+      const z = basePoint.z + Math.sin(angle) * radius
+      if (!pointInFootprint(shape, x, z, halfWidth, halfDepth)) continue
       if (inAnyExclusion(x, z, exclusions)) continue
       let tooClose = false
-      for (const rp of ringPoints) {
-        const dx = x - rp.x
-        const dz = z - rp.z
-        if (dx * dx + dz * dz < ringMinDist2) { tooClose = true; break }
+      for (const ringPoint of ringPoints) {
+        const dx = x - ringPoint.x
+        const dz = z - ringPoint.z
+        if (dx * dx + dz * dz < ringMinDistSquared) { tooClose = true; break }
       }
       if (tooClose) continue
-      const cx = Math.min(cols - 1, Math.max(0, Math.floor((x - x0) / cell)))
-      const cz = Math.min(rows - 1, Math.max(0, Math.floor((z - z0) / cell)))
+      const gridX = Math.min(cols - 1, Math.max(0, Math.floor((x - gridOriginX) / cell)))
+      const gridZ = Math.min(rows - 1, Math.max(0, Math.floor((z - gridOriginZ) / cell)))
       let neighborTooClose = false
-      for (let gz = Math.max(0, cz - 2); gz <= Math.min(rows - 1, cz + 2); gz++) {
-        for (let gx = Math.max(0, cx - 2); gx <= Math.min(cols - 1, cx + 2); gx++) {
-          const g = grid[gz * cols + gx]
-          if (g && g !== base) {
-            const dx = x - g.x
-            const dz = z - g.z
-            if (dx * dx + dz * dz < r2) { neighborTooClose = true; break }
+      for (let gz = Math.max(0, gridZ - 2); gz <= Math.min(rows - 1, gridZ + 2); gz++) {
+        for (let gx = Math.max(0, gridX - 2); gx <= Math.min(cols - 1, gridX + 2); gx++) {
+          const gridPoint = grid[gz * cols + gx]
+          if (gridPoint && gridPoint !== basePoint) {
+            const dx = x - gridPoint.x
+            const dz = z - gridPoint.z
+            if (dx * dx + dz * dz < minDistSquared) { neighborTooClose = true; break }
           }
         }
         if (neighborTooClose) break
       }
       if (neighborTooClose) continue
-      const p = new THREE.Vector3(x, 0, z)
-      points.push(p)
-      active.push(p)
-      grid[cz * cols + cx] = p
+      const point = new THREE.Vector3(x, 0, z)
+      points.push(point)
+      active.push(point)
+      grid[gridZ * cols + gridX] = point
       found = true
       break
     }
     if (!found) {
-      active.splice(idx, 1)
+      active.splice(activeIdx, 1)
     }
   }
 
@@ -746,77 +757,77 @@ function sampleInteriorPoisson(
   return points
 }
 
-function computeRingPositionsAroundOutline(shape: Shape, ringW: number, ringD: number, spacing: number, cosT: number, segMM: number, centerZ: number, ensurePlusZ: boolean): THREE.Vector3[] {
-  const ringLocal = makeBaseOutlinePoints(shape, ringW, ringD, segMM)
-  const ringProjected = projectToGround(ringLocal, cosT)
+function computeRingPositionsAroundOutline(shape: Shape, ringWidth: number, ringDepth: number, spacing: number, cosTilt: number, segMM: number, centerZ: number, ensurePlusZ: boolean): THREE.Vector3[] {
+  const ringLocal = makeBaseOutlinePoints(shape, ringWidth, ringDepth, segMM)
+  const ringProjected = projectToGround(ringLocal, cosTilt)
   const perim = perimeterLength(ringProjected)
   if (perim < 1e-6) return []
 
-  const anchors = computeOuterRingAnchors(shape, ringW, ringD, 0, cosT)
+  const anchors = computeOuterRingAnchors(shape, ringWidth, ringDepth, 0, cosTilt)
   const ringPositions = equidistantPointsWithAnchors(ringProjected, anchors, spacing)
 
   if (ensurePlusZ) {
-    const plusZMin = new THREE.Vector3(0, 0, (ringD / 2) * cosT)
-    if (!ringPositions.some((p) => p.distanceTo(plusZMin) < spacing * 0.25)) {
+    const plusZMin = new THREE.Vector3(0, 0, (ringDepth / 2) * cosTilt)
+    if (!ringPositions.some((point) => point.distanceTo(plusZMin) < spacing * 0.25)) {
       ringPositions.push(plusZMin)
     }
   }
 
-  return ringPositions.map((p) => new THREE.Vector3(p.x, 0, p.z + centerZ))
+  return ringPositions.map((point) => new THREE.Vector3(point.x, 0, point.z + centerZ))
 }
 
-function computeCavityEdgeRingPositions(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, cosT: number, segMM: number): THREE.Vector3[] {
+function computeCavityEdgeRingPositions(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, cosTilt: number, segMM: number): THREE.Vector3[] {
   if (!plinthParams.hollowEnabled) return []
   const tipRadius = supportParams.supportTipSize / 2
-  const wall = Math.max(0.5, plinthParams.hollowWallThickness)
-  const cavityW = Math.max(0.1, plinthParams.width - 2 * wall)
-  const cavityD = Math.max(0.1, plinthParams.depth - 2 * wall)
+  const wallThickness = Math.max(0.5, plinthParams.hollowWallThickness)
+  const cavityWidth = Math.max(0.1, plinthParams.width - 2 * wallThickness)
+  const cavityDepth = Math.max(0.1, plinthParams.depth - 2 * wallThickness)
   const expand = tipRadius + CONE_TIP_PENETRATION
-  const ringW = cavityW + 2 * expand
-  const ringD = cavityD + 2 * expand
-  if (ringW > plinthParams.width || ringD > plinthParams.depth) return []
+  const ringWidth = cavityWidth + 2 * expand
+  const ringDepth = cavityDepth + 2 * expand
+  if (ringWidth > plinthParams.width || ringDepth > plinthParams.depth) return []
 
-  return computeRingPositionsAroundOutline(shape, ringW, ringD, supportParams.supportSpacing, cosT, segMM, 0, false)
+  return computeRingPositionsAroundOutline(shape, ringWidth, ringDepth, supportParams.supportSpacing, cosTilt, segMM, 0, false)
 }
 
-function computeHoleEdgeRingPositions(plinthParams: PlinthParams, supportParams: SupportParams, cosT: number, sinT: number, segMM: number): THREE.Vector3[] {
+function computeHoleEdgeRingPositions(plinthParams: PlinthParams, supportParams: SupportParams, cosTilt: number, sinTilt: number, segMM: number): THREE.Vector3[] {
   if (!plinthParams.addHole || !plinthParams.hollowEnabled) return []
   const topThickness = plinthParams.height - plinthParams.hollowHeight
   if (plinthParams.holeDepth < topThickness) return []
   const supportRadius = supportParams.supportSize / 2
   const holeRadius = Math.max(0.05, plinthParams.holeDiameter / 2)
   const ringRadius = holeRadius + supportRadius + CONE_TIP_PENETRATION
-  const ringW = ringRadius * 2
-  const ringD = ringRadius * 2
-  if (ringW > plinthParams.width || ringD > plinthParams.depth) return []
+  const ringWidth = ringRadius * 2
+  const ringDepth = ringRadius * 2
+  if (ringWidth > plinthParams.width || ringDepth > plinthParams.depth) return []
 
   const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
   const drop = topDrop(plinthParams)
   const ceilingLocalY = hollowHeight - drop / 2
-  const holeZWorld = ceilingLocalY * sinT
-  return computeRingPositionsAroundOutline('ellipse', ringW, ringD, supportParams.supportSpacing, cosT, segMM, holeZWorld, true)
+  const holeZWorld = ceilingLocalY * sinTilt
+  return computeRingPositionsAroundOutline('ellipse', ringWidth, ringDepth, supportParams.supportSpacing, cosTilt, segMM, holeZWorld, true)
 }
 
-function computeSuctionHoleEdgeRingPositions(plinthParams: PlinthParams, supportParams: SupportParams, cosT: number, sinT: number, segMM: number): THREE.Vector3[] {
+function computeSuctionHoleEdgeRingPositions(plinthParams: PlinthParams, supportParams: SupportParams, cosTilt: number, sinTilt: number, segMM: number): THREE.Vector3[] {
   if (!plinthParams.hollowEnabled || !plinthParams.suctionHoleEnabled) return []
   const supportRadius = supportParams.supportSize / 2
   const suctionRadius = Math.max(0.05, plinthParams.suctionHoleDiameter / 2)
   const ringRadius = suctionRadius + supportRadius + CONE_TIP_PENETRATION
-  const ringW = ringRadius * 2
-  const ringD = ringRadius * 2
-  if (ringW > plinthParams.width || ringD > plinthParams.depth) return []
+  const ringWidth = ringRadius * 2
+  const ringDepth = ringRadius * 2
+  if (ringWidth > plinthParams.width || ringDepth > plinthParams.depth) return []
 
   const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
   const suctionZ = suctionHoleZ(plinthParams)
   const angleRad = plinthParams.angleTop
     ? (Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180
     : 0
-  const tanA = Math.tan(angleRad)
-  const d = Math.max(0.1, plinthParams.depth)
-  const ceilingLocalY = hollowHeight - (suctionZ + d / 2) * tanA
-  const holeZWorld = ceilingLocalY * sinT + suctionZ * cosT
-  const ring = computeRingPositionsAroundOutline('ellipse', ringW, ringD, supportParams.supportSpacing, cosT, segMM, holeZWorld, false)
-  return ring.filter((p) => p.z >= holeZWorld - 1e-4)
+  const tanAngle = Math.tan(angleRad)
+  const plinthDepth = Math.max(0.1, plinthParams.depth)
+  const ceilingLocalY = hollowHeight - (suctionZ + plinthDepth / 2) * tanAngle
+  const holeZWorld = ceilingLocalY * sinTilt + suctionZ * cosTilt
+  const ring = computeRingPositionsAroundOutline('ellipse', ringWidth, ringDepth, supportParams.supportSpacing, cosTilt, segMM, holeZWorld, false)
+  return ring.filter((point) => point.z >= holeZWorld - 1e-4)
 }
 
 export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segMM: number): THREE.Vector3[] {
@@ -824,21 +835,21 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
   const tipRadius = supportParams.supportTipSize / 2
   if (radius <= 0) return []
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
-  const cosT = Math.cos(tilt)
+  const cosTilt = Math.cos(tilt)
 
   const trimOff = trimFootprintOffset(plinthParams)
   const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, segMM, trimOff)
-  const insetProjected = projectToGround(insetLocal, cosT)
+  const insetProjected = projectToGround(insetLocal, cosTilt)
   const perim = perimeterLength(insetProjected)
   if (perim < 1e-6) return []
 
-  const anchors = computeOuterRingAnchors(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, cosT, trimOff)
+  const anchors = computeOuterRingAnchors(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, cosTilt, trimOff)
   const ringPositions = equidistantPointsWithAnchors(insetProjected, anchors, supportParams.supportSpacing)
 
-  const cavityRingPositions = computeCavityEdgeRingPositions(shape, plinthParams, supportParams, cosT, segMM)
-  const sinT = Math.sin(tilt)
-  const holeRingPositions = computeHoleEdgeRingPositions(plinthParams, supportParams, cosT, sinT, segMM)
-  const suctionRingPositions = computeSuctionHoleEdgeRingPositions(plinthParams, supportParams, cosT, sinT, segMM)
+  const cavityRingPositions = computeCavityEdgeRingPositions(shape, plinthParams, supportParams, cosTilt, segMM)
+  const sinTilt = Math.sin(tilt)
+  const holeRingPositions = computeHoleEdgeRingPositions(plinthParams, supportParams, cosTilt, sinTilt, segMM)
+  const suctionRingPositions = computeSuctionHoleEdgeRingPositions(plinthParams, supportParams, cosTilt, sinTilt, segMM)
 
   const ringPositionsAll = ringPositions.concat(cavityRingPositions, holeRingPositions, suctionRingPositions)
 
@@ -850,9 +861,9 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
       const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
       const drop = topDrop(plinthParams)
       const ceilingLocalY = hollowHeight - drop / 2
-      const holeZWorld = ceilingLocalY * sinT
-      const rx = holeRadius + radius
-      exclusions.push({ cx: 0, cz: holeZWorld, rx, rz: rx * cosT })
+      const holeZWorld = ceilingLocalY * sinTilt
+      const exclusionRx = holeRadius + radius
+      exclusions.push({ cx: 0, cz: holeZWorld, rx: exclusionRx, rz: exclusionRx * cosTilt })
     }
   }
   if (plinthParams.hollowEnabled && plinthParams.suctionHoleEnabled) {
@@ -862,17 +873,17 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
     const angleRad = plinthParams.angleTop
       ? (Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180
       : 0
-    const tanA = Math.tan(angleRad)
-    const d = Math.max(0.1, plinthParams.depth)
-    const ceilingLocalY = hollowHeight - (suctionZ + d / 2) * tanA
-    const holeZWorld = ceilingLocalY * sinT + suctionZ * cosT
-    const rx = suctionRadius + radius
-    exclusions.push({ cx: 0, cz: holeZWorld, rx, rz: rx * cosT })
+    const tanAngle = Math.tan(angleRad)
+    const plinthDepth = Math.max(0.1, plinthParams.depth)
+    const ceilingLocalY = hollowHeight - (suctionZ + plinthDepth / 2) * tanAngle
+    const holeZWorld = ceilingLocalY * sinTilt + suctionZ * cosTilt
+    const exclusionRx = suctionRadius + radius
+    exclusions.push({ cx: 0, cz: holeZWorld, rx: exclusionRx, rz: exclusionRx * cosTilt })
   }
 
   const inset = tipRadius + CONE_TIP_PENETRATION
-  const interiorHW = Math.max(0, (plinthParams.width + 2 * trimOff) / 2 - inset)
-  const interiorHD = Math.max(0, (plinthParams.depth + 2 * trimOff) / 2 * cosT - inset * cosT)
+  const interiorHalfWidth = Math.max(0, (plinthParams.width + 2 * trimOff) / 2 - inset)
+  const interiorHalfDepth = Math.max(0, (plinthParams.depth + 2 * trimOff) / 2 * cosTilt - inset * cosTilt)
 
   const seedParts: Array<number | string | boolean> = [
     shape,
@@ -889,8 +900,8 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
 
   const interiorPositionsRaw = sampleInteriorPoisson(
     shape,
-    interiorHW,
-    interiorHD,
+    interiorHalfWidth,
+    interiorHalfDepth,
     supportParams.interiorSpacing,
     ringPositionsAll,
     exclusions,
@@ -899,18 +910,18 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
 
   let interiorPositions = interiorPositionsRaw
   if (plinthParams.hollowEnabled) {
-    const wall = Math.max(0.5, plinthParams.hollowWallThickness)
-    const cavHW = Math.max(0.01, (plinthParams.width - 2 * wall) / 2)
-    const cavHD = Math.max(0.01, (plinthParams.depth - 2 * wall) / 2)
-    const topTanA = plinthParams.angleTop
+    const wallThickness = Math.max(0.5, plinthParams.hollowWallThickness)
+    const cavityHalfWidth = Math.max(0.01, (plinthParams.width - 2 * wallThickness) / 2)
+    const cavityHalfDepth = Math.max(0.01, (plinthParams.depth - 2 * wallThickness) / 2)
+    const topTanAngle = plinthParams.angleTop
       ? Math.tan((Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180)
       : 0
     const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
     const plinthDepth = Math.max(0.1, plinthParams.depth)
-    const keepDist = supportParams.supportSize
-    interiorPositions = interiorPositionsRaw.filter((p) => {
-      const d = distanceToCavityTopEdge(p.x, p.z, shape, cavHW, cavHD, cosT, sinT, topTanA, hollowHeight, plinthDepth)
-      return d >= keepDist
+    const keepDistance = supportParams.supportSize
+    interiorPositions = interiorPositionsRaw.filter((point) => {
+      const distance = distanceToCavityTopEdge(point.x, point.z, shape, cavityHalfWidth, cavityHalfDepth, cosTilt, sinTilt, topTanAngle, hollowHeight, plinthDepth)
+      return distance >= keepDistance
     })
   }
 
@@ -925,8 +936,8 @@ function createStrutCylinder(start: THREE.Vector3, end: THREE.Vector3, radius: n
   geo.deleteAttribute('uv')
   const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5)
   const up = new THREE.Vector3(0, 1, 0)
-  const normDir = dir.clone().normalize()
-  const quat = new THREE.Quaternion().setFromUnitVectors(up, normDir)
+  const normalizedDir = dir.clone().normalize()
+  const quat = new THREE.Quaternion().setFromUnitVectors(up, normalizedDir)
   const matrix = new THREE.Matrix4().compose(mid, quat, new THREE.Vector3(1, 1, 1))
   geo.applyMatrix4(matrix)
   return geo
@@ -936,11 +947,11 @@ function segmentsIntersect2D(
   a1x: number, a1z: number, a2x: number, a2z: number,
   b1x: number, b1z: number, b2x: number, b2z: number,
 ): boolean {
-  const d1 = (b2x - b1x) * (a1z - b1z) - (b2z - b1z) * (a1x - b1x)
-  const d2 = (b2x - b1x) * (a2z - b1z) - (b2z - b1z) * (a2x - b1x)
-  const d3 = (a2x - a1x) * (b1z - a1z) - (a2z - a1z) * (b1x - a1x)
-  const d4 = (a2x - a1x) * (b2z - a1z) - (a2z - a1z) * (b2x - a1x)
-  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true
+  const cross1 = (b2x - b1x) * (a1z - b1z) - (b2z - b1z) * (a1x - b1x)
+  const cross2 = (b2x - b1x) * (a2z - b1z) - (b2z - b1z) * (a2x - b1x)
+  const cross3 = (a2x - a1x) * (b1z - a1z) - (a2z - a1z) * (b1x - a1x)
+  const cross4 = (a2x - a1x) * (b2z - a1z) - (a2z - a1z) * (b2x - a1x)
+  if (((cross1 > 0 && cross2 < 0) || (cross1 < 0 && cross2 > 0)) && ((cross3 > 0 && cross4 < 0) || (cross3 < 0 && cross4 > 0))) return true
   return false
 }
 
@@ -954,11 +965,11 @@ function pointToSegmentDistance2D(
   const lenSq = dx * dx + dz * dz
   let t = lenSq < 1e-12 ? 0 : ((px - ax) * dx + (pz - az) * dz) / lenSq
   t = t < 0 ? 0 : t > 1 ? 1 : t
-  const cx = ax + t * dx
-  const cz = az + t * dz
-  const ex = px - cx
-  const ez = pz - cz
-  return Math.sqrt(ex * ex + ez * ez)
+  const closestX = ax + t * dx
+  const closestZ = az + t * dz
+  const errorX = px - closestX
+  const errorZ = pz - closestZ
+  return Math.sqrt(errorX * errorX + errorZ * errorZ)
 }
 
 function segmentToSegmentMinDistance2D(
@@ -966,11 +977,11 @@ function segmentToSegmentMinDistance2D(
   b1x: number, b1z: number, b2x: number, b2z: number,
 ): number {
   if (segmentsIntersect2D(a1x, a1z, a2x, a2z, b1x, b1z, b2x, b2z)) return 0
-  const d1 = pointToSegmentDistance2D(a1x, a1z, b1x, b1z, b2x, b2z)
-  const d2 = pointToSegmentDistance2D(a2x, a2z, b1x, b1z, b2x, b2z)
-  const d3 = pointToSegmentDistance2D(b1x, b1z, a1x, a1z, a2x, a2z)
-  const d4 = pointToSegmentDistance2D(b2x, b2z, a1x, a1z, a2x, a2z)
-  return Math.min(d1, d2, d3, d4)
+  const dist1 = pointToSegmentDistance2D(a1x, a1z, b1x, b1z, b2x, b2z)
+  const dist2 = pointToSegmentDistance2D(a2x, a2z, b1x, b1z, b2x, b2z)
+  const dist3 = pointToSegmentDistance2D(b1x, b1z, a1x, a1z, a2x, a2z)
+  const dist4 = pointToSegmentDistance2D(b2x, b2z, a1x, a1z, a2x, a2z)
+  return Math.min(dist1, dist2, dist3, dist4)
 }
 
 function aabbOverlaps(
@@ -996,10 +1007,10 @@ export function buildScaffoldingMesh(
 
   const yConeStarts: number[] = []
   for (let i = 0; i < basePositions.length; i++) {
-    const pt = tipPositions[i]
+    const tipPoint = tipPositions[i]
     const supportOverCavity = overCavity ? overCavity[i] : false
     const yContactCenter = supportOverCavity && cavityParams
-      ? cavityIntersectionHeight(pt.x, pt.z, cavityParams)
+      ? cavityIntersectionHeight(tipPoint.x, tipPoint.z, cavityParams)
       : contactHeights[i]
     yConeStarts.push(yContactCenter - CONE_START_GAP)
   }
@@ -1019,46 +1030,46 @@ export function buildScaffoldingMesh(
     for (let j = i + 1; j < basePositions.length; j++) {
       if (overCavity && overCavity[i] !== overCavity[j]) continue
 
-      const pi = basePositions[i]
-      const pj = basePositions[j]
-      const dx = pj.x - pi.x
-      const dz = pj.z - pi.z
+      const pointI = basePositions[i]
+      const pointJ = basePositions[j]
+      const dx = pointJ.x - pointI.x
+      const dz = pointJ.z - pointI.z
       const centerDist = Math.sqrt(dx * dx + dz * dz)
       if (centerDist < 1e-6 || centerDist > maxDist) continue
 
-      const segMinX = Math.min(pi.x, pj.x) - supportClearance
-      const segMaxX = Math.max(pi.x, pj.x) + supportClearance
-      const segMinZ = Math.min(pi.z, pj.z) - supportClearance
-      const segMaxZ = Math.max(pi.z, pj.z) + supportClearance
+      const segMinX = Math.min(pointI.x, pointJ.x) - supportClearance
+      const segMaxX = Math.max(pointI.x, pointJ.x) + supportClearance
+      const segMinZ = Math.min(pointI.z, pointJ.z) - supportClearance
+      const segMaxZ = Math.max(pointI.z, pointJ.z) + supportClearance
 
       let blocked = false
       for (let k = 0; k < basePositions.length; k++) {
         if (k === i || k === j) continue
-        const pk = basePositions[k]
-        if (pk.x < segMinX || pk.x > segMaxX || pk.z < segMinZ || pk.z > segMaxZ) continue
-        if (pointToSegmentDistance2D(pk.x, pk.z, pi.x, pi.z, pj.x, pj.z) < supportClearance) {
+        const pointK = basePositions[k]
+        if (pointK.x < segMinX || pointK.x > segMaxX || pointK.z < segMinZ || pointK.z > segMaxZ) continue
+        if (pointToSegmentDistance2D(pointK.x, pointK.z, pointI.x, pointI.z, pointJ.x, pointJ.z) < supportClearance) {
           blocked = true
           break
         }
       }
       if (blocked) continue
 
-      const candMinX = Math.min(pi.x, pj.x) - strutClearance
-      const candMaxX = Math.max(pi.x, pj.x) + strutClearance
-      const candMinZ = Math.min(pi.z, pj.z) - strutClearance
-      const candMaxZ = Math.max(pi.z, pj.z) + strutClearance
+      const candMinX = Math.min(pointI.x, pointJ.x) - strutClearance
+      const candMaxX = Math.max(pointI.x, pointJ.x) + strutClearance
+      const candMinZ = Math.min(pointI.z, pointJ.z) - strutClearance
+      const candMaxZ = Math.max(pointI.z, pointJ.z) + strutClearance
 
       let overlaps = false
       for (const [a, b] of acceptedPairs) {
         if (a === i || a === j || b === i || b === j) continue
-        const pa = basePositions[a]
-        const pb = basePositions[b]
-        const accMinX = Math.min(pa.x, pb.x) - strutClearance
-        const accMaxX = Math.max(pa.x, pb.x) + strutClearance
-        const accMinZ = Math.min(pa.z, pb.z) - strutClearance
-        const accMaxZ = Math.max(pa.z, pb.z) + strutClearance
+        const pointA = basePositions[a]
+        const pointB = basePositions[b]
+        const accMinX = Math.min(pointA.x, pointB.x) - strutClearance
+        const accMaxX = Math.max(pointA.x, pointB.x) + strutClearance
+        const accMinZ = Math.min(pointA.z, pointB.z) - strutClearance
+        const accMaxZ = Math.max(pointA.z, pointB.z) + strutClearance
         if (!aabbOverlaps(candMinX, candMinZ, candMaxX, candMaxZ, accMinX, accMinZ, accMaxX, accMaxZ)) continue
-        if (segmentToSegmentMinDistance2D(pi.x, pi.z, pj.x, pj.z, pa.x, pa.z, pb.x, pb.z) < strutClearance) {
+        if (segmentToSegmentMinDistance2D(pointI.x, pointI.z, pointJ.x, pointJ.z, pointA.x, pointA.z, pointB.x, pointB.z) < strutClearance) {
           overlaps = true
           break
         }
@@ -1068,26 +1079,26 @@ export function buildScaffoldingMesh(
       acceptedPairs.push([i, j])
 
       const yTop = Math.min(yConeStarts[i], yConeStarts[j])
-      const H = yTop - raftHeight
-      if (H <= 0) continue
+      const totalHeight = yTop - raftHeight
+      if (totalHeight <= 0) continue
 
       const rise = centerDist * tanAngle
       if (rise < 1e-6) continue
-      const N = Math.ceil(H / rise)
-      const actualRise = H / N
+      const strutCount = Math.ceil(totalHeight / rise)
+      const actualRise = totalHeight / strutCount
 
-      for (let k = 0; k < N; k++) {
+      for (let k = 0; k < strutCount; k++) {
         const yStart = raftHeight + k * actualRise
         const yEnd = raftHeight + (k + 1) * actualRise
 
         let start: THREE.Vector3
         let end: THREE.Vector3
         if (k % 2 === 0) {
-          start = new THREE.Vector3(pi.x, yStart, pi.z)
-          end = new THREE.Vector3(pj.x, yEnd, pj.z)
+          start = new THREE.Vector3(pointI.x, yStart, pointI.z)
+          end = new THREE.Vector3(pointJ.x, yEnd, pointJ.z)
         } else {
-          start = new THREE.Vector3(pj.x, yStart, pj.z)
-          end = new THREE.Vector3(pi.x, yEnd, pi.z)
+          start = new THREE.Vector3(pointJ.x, yStart, pointJ.z)
+          end = new THREE.Vector3(pointI.x, yEnd, pointI.z)
         }
 
         const strutGeo = createStrutCylinder(start, end, strutRadius, segs)
@@ -1100,7 +1111,7 @@ export function buildScaffoldingMesh(
 
   if (geometries.length === 0) return new THREE.BufferGeometry()
   const merged = mergeGeometries(geometries, false)
-  for (const g of geometries) g.dispose()
+  for (const geo of geometries) geo.dispose()
   return merged ?? new THREE.BufferGeometry()
 }
 
@@ -1108,34 +1119,34 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
   const radius = supportParams.supportSize / 2
   const tipRadius = supportParams.supportTipSize / 2
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
-  const tanT = Math.tan(tilt)
-  const cosT = Math.cos(tilt)
+  const tanTilt = Math.tan(tilt)
+  const cosTilt = Math.cos(tilt)
   const raftHeight = supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT
   const raise = raftHeight + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
   if (radius <= 0) return new THREE.BufferGeometry()
 
   const positionsRaw = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
-  const sinT = Math.sin(tilt)
-  const wall = Math.max(0.5, plinthParams.hollowWallThickness)
+  const sinTilt = Math.sin(tilt)
+  const wallThickness = Math.max(0.5, plinthParams.hollowWallThickness)
   const cavityParams: CavityParams | null = plinthParams.hollowEnabled
     ? {
         shape,
-        hw: Math.max(0.01, (plinthParams.width - 2 * wall) / 2),
-        hd: Math.max(0.01, (plinthParams.depth - 2 * wall) / 2),
+        cavityHalfWidth: Math.max(0.01, (plinthParams.width - 2 * wallThickness) / 2),
+        cavityHalfDepth: Math.max(0.01, (plinthParams.depth - 2 * wallThickness) / 2),
         hollowHeight: Math.max(0.1, plinthParams.hollowHeight),
         plinthDepth: Math.max(0.1, plinthParams.depth),
-        topTanA: plinthParams.angleTop ? Math.tan((Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180) : 0,
+        topTanAngle: plinthParams.angleTop ? Math.tan((Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180) : 0,
         raise,
-        sinT,
-        cosT,
-        tanT,
+        sinTilt,
+        cosTilt,
+        tanTilt,
       }
     : null
   const overCavity = plinthParams.hollowEnabled
-    ? positionsRaw.map((p) => isSupportOverCavity(p, radius, tipRadius, plinthParams, cosT))
+    ? positionsRaw.map((point) => isSupportOverCavity(point, radius, tipRadius, plinthParams, cosTilt))
     : null
-  const { basePositions, tipPositions, contactHeights } = applySupportOffset(positionsRaw, overCavity, cavityParams, sinT, tanT, raise, supportParams.supportOffsetCavity ?? SUPPORT_OFFSET_CAVITY)
-  const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinT, cosT, segs, supportParams.supportCaps ?? SUPPORT_CAPS, raftHeight)
+  const { basePositions, tipPositions, contactHeights } = applySupportOffset(positionsRaw, overCavity, cavityParams, sinTilt, tanTilt, raise, supportParams.supportOffsetCavity ?? SUPPORT_OFFSET_CAVITY)
+  const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinTilt, cosTilt, segs, supportParams.supportCaps ?? SUPPORT_CAPS, raftHeight)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
 
   const normSupport = supportGeo.index ? supportGeo.toNonIndexed() : supportGeo.clone()
@@ -1192,34 +1203,34 @@ export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: Plin
   const radius = supportParams.supportSize / 2
   const tipRadius = supportParams.supportTipSize / 2
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
-  const tanT = Math.tan(tilt)
-  const cosT = Math.cos(tilt)
+  const tanTilt = Math.tan(tilt)
+  const cosTilt = Math.cos(tilt)
   const raftHeight = supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT
   const raise = raftHeight + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
   if (radius <= 0) return new THREE.BufferGeometry()
 
   const positionsRaw = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
-  const sinT = Math.sin(tilt)
-  const wall = Math.max(0.5, plinthParams.hollowWallThickness)
+  const sinTilt = Math.sin(tilt)
+  const wallThickness = Math.max(0.5, plinthParams.hollowWallThickness)
   const cavityParams: CavityParams | null = plinthParams.hollowEnabled
     ? {
         shape,
-        hw: Math.max(0.01, (plinthParams.width - 2 * wall) / 2),
-        hd: Math.max(0.01, (plinthParams.depth - 2 * wall) / 2),
+        cavityHalfWidth: Math.max(0.01, (plinthParams.width - 2 * wallThickness) / 2),
+        cavityHalfDepth: Math.max(0.01, (plinthParams.depth - 2 * wallThickness) / 2),
         hollowHeight: Math.max(0.1, plinthParams.hollowHeight),
         plinthDepth: Math.max(0.1, plinthParams.depth),
-        topTanA: plinthParams.angleTop ? Math.tan((Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180) : 0,
+        topTanAngle: plinthParams.angleTop ? Math.tan((Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180) : 0,
         raise,
-        sinT,
-        cosT,
-        tanT,
+        sinTilt,
+        cosTilt,
+        tanTilt,
       }
     : null
   const overCavity = plinthParams.hollowEnabled
-    ? positionsRaw.map((p) => isSupportOverCavity(p, radius, tipRadius, plinthParams, cosT))
+    ? positionsRaw.map((point) => isSupportOverCavity(point, radius, tipRadius, plinthParams, cosTilt))
     : null
-  const { basePositions, tipPositions, contactHeights } = applySupportOffset(positionsRaw, overCavity, cavityParams, sinT, tanT, raise, supportParams.supportOffsetCavity ?? SUPPORT_OFFSET_CAVITY)
-  const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinT, cosT, segs, supportParams.supportCaps ?? SUPPORT_CAPS, raftHeight)
+  const { basePositions, tipPositions, contactHeights } = applySupportOffset(positionsRaw, overCavity, cavityParams, sinTilt, tanTilt, raise, supportParams.supportOffsetCavity ?? SUPPORT_OFFSET_CAVITY)
+  const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinTilt, cosTilt, segs, supportParams.supportCaps ?? SUPPORT_CAPS, raftHeight)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const unioned = csgUnion(supportGeo, raftGeo)
   supportGeo.dispose()
