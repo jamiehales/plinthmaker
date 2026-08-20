@@ -679,19 +679,19 @@ describe('buildScaffoldingMesh', () => {
   const Y_CONE_START = 21.5 - 1
 
   it('angle 0 produces empty geometry', () => {
-    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 0, 8)
+    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 0, 8, 1)
     expect((geo.attributes.position?.count) ?? 0).toBe(0)
     geo.dispose()
   })
 
   it('two adjacent supports produce struts at 45°', () => {
-    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8, 1)
     expect(geo.attributes.position.count).toBeGreaterThan(0)
     geo.dispose()
   })
 
   it('expected strut count at 45° for known geometry', () => {
-    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8, 1)
     const idx = geo.index
     const triCount = idx ? idx.count / 3 : geo.attributes.position.count / 3
     const strutCount = Math.round(triCount / 32)
@@ -700,8 +700,8 @@ describe('buildScaffoldingMesh', () => {
   })
 
   it('steeper angle produces fewer struts', () => {
-    const geo45 = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
-    const geo60 = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 60, 8)
+    const geo45 = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8, 1)
+    const geo60 = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 60, 8, 1)
     const tri45 = geo45.index ? geo45.index.count / 3 : geo45.attributes.position.count / 3
     const tri60 = geo60.index ? geo60.index.count / 3 : geo60.attributes.position.count / 3
     expect(tri60).toBeLessThan(tri45)
@@ -711,7 +711,7 @@ describe('buildScaffoldingMesh', () => {
 
   it('supports beyond proximity threshold produce no struts', () => {
     const positions = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(20, 0, 0)]
-    const geo = buildScaffoldingMesh(positions, positions, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    const geo = buildScaffoldingMesh(positions, positions, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8, 1)
     expect((geo.attributes.position?.count) ?? 0).toBe(0)
     geo.dispose()
   })
@@ -719,7 +719,7 @@ describe('buildScaffoldingMesh', () => {
   it('like-for-like exclusion: mixed cavity/rim supports produce no struts', () => {
     const positions = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(3, 0, 0)]
     const overCavity = [true, false]
-    const geo = buildScaffoldingMesh(positions, positions, overCavity, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    const geo = buildScaffoldingMesh(positions, positions, overCavity, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8, 1)
     expect((geo.attributes.position?.count) ?? 0).toBe(0)
     geo.dispose()
   })
@@ -728,8 +728,8 @@ describe('buildScaffoldingMesh', () => {
     const positions = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(3, 0, 0)]
     const overCavityTrue = [true, true]
     const overCavityFalse = [false, false]
-    const geoTrue = buildScaffoldingMesh(positions, positions, overCavityTrue, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
-    const geoFalse = buildScaffoldingMesh(positions, positions, overCavityFalse, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    const geoTrue = buildScaffoldingMesh(positions, positions, overCavityTrue, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8, 1)
+    const geoFalse = buildScaffoldingMesh(positions, positions, overCavityFalse, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8, 1)
     expect(geoTrue.attributes.position.count).toBeGreaterThan(0)
     expect(geoFalse.attributes.position.count).toBeGreaterThan(0)
     geoTrue.dispose()
@@ -737,7 +737,7 @@ describe('buildScaffoldingMesh', () => {
   })
 
   it('struts do not extend above yConeStart', () => {
-    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8)
+    const geo = buildScaffoldingMesh(TWO_SUPPORT_POSITIONS, TWO_SUPPORT_POSITIONS, null, TWO_SUPPORT_HEIGHTS, null, 2, 5, 45, 8, 1)
     const pos = geo.attributes.position as THREE.BufferAttribute
     const arr = pos.array as Float32Array
     const strutRadius = 0.5 * 2 / 2
@@ -756,7 +756,7 @@ describe('buildScaffoldingMesh', () => {
       new THREE.Vector3(d / 2, 0, d / 2),
     ]
     const heights = [21.5, 21.5, 21.5, 21.5]
-    const geo = buildScaffoldingMesh(square, square, null, heights, null, 2, 5, 45, 8)
+    const geo = buildScaffoldingMesh(square, square, null, heights, null, 2, 5, 45, 8, 1)
     const idx = geo.index
     const triCount = idx ? idx.count / 3 : geo.attributes.position.count / 3
     const strutCount = Math.round(triCount / 32)
@@ -783,7 +783,7 @@ describe('buildScaffoldingMesh', () => {
       new THREE.Vector3(6, 0, 0),
     ]
     const heights = [21.5, 21.5, 21.5]
-    const geo = buildScaffoldingMesh(positions, positions, null, heights, null, 2, 5, 45, 8)
+    const geo = buildScaffoldingMesh(positions, positions, null, heights, null, 2, 5, 45, 8, 1)
     const idx = geo.index
     const triCount = idx ? idx.count / 3 : geo.attributes.position.count / 3
     const strutCount = Math.round(triCount / 32)

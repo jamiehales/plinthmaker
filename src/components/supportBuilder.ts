@@ -10,7 +10,6 @@ import {
 } from '../defaults.ts'
 
 const CONE_START_GAP = DEFAULT_CONE_START_GAP
-const RAFT_HEIGHT = DEFAULT_RAFT_HEIGHT
 const RAFT_BOTTOM_INSET = DEFAULT_RAFT_BOTTOM_INSET
 const CONE_TIP_PENETRATION = DEFAULT_CONE_TIP_PENETRATION
 const SUPPORT_OFFSET_EDGE = DEFAULT_SUPPORT_OFFSET_EDGE
@@ -448,7 +447,7 @@ export function buildSupportCircles(positions: THREE.Vector3[], radius: number, 
   return geo
 }
 
-function buildSupportMesh(basePositions: THREE.Vector3[], tipPositions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], overCavity: boolean[] | null, cavityParams: CavityParams | null, sinT: number, cosT: number, segs: number, caps: boolean): THREE.BufferGeometry {
+function buildSupportMesh(basePositions: THREE.Vector3[], tipPositions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], overCavity: boolean[] | null, cavityParams: CavityParams | null, sinT: number, cosT: number, segs: number, caps: boolean, raftHeight: number): THREE.BufferGeometry {
   if (basePositions.length === 0) return new THREE.BufferGeometry()
   const verts: number[] = []
   const indices: number[] = []
@@ -461,17 +460,17 @@ function buildSupportMesh(basePositions: THREE.Vector3[], tipPositions: THREE.Ve
       ? cavityIntersectionHeight(pt.x, pt.z, cavityParams)
       : contactHeights[i]
     const yConeStart = yContactCenter - CONE_START_GAP
-    if (yConeStart <= RAFT_HEIGHT) continue
+    if (yConeStart <= raftHeight) continue
 
     const baseVtx = verts.length / 3
 
-    verts.push(pb.x, RAFT_HEIGHT, pb.z)
+    verts.push(pb.x, raftHeight, pb.z)
     const centerVtx = baseVtx
     for (let j = 0; j < segs; j++) {
       const a = (j / segs) * Math.PI * 2
       const cx = Math.cos(a)
       const cz = Math.sin(a)
-      verts.push(pb.x + cx * supportRadius, RAFT_HEIGHT, pb.z + cz * supportRadius)
+      verts.push(pb.x + cx * supportRadius, raftHeight, pb.z + cz * supportRadius)
     }
     const ring0Vtx = baseVtx + 1
     if (caps) {
@@ -547,11 +546,13 @@ function buildRaftMesh(shape: Shape, plinthParams: PlinthParams, supportParams: 
   const botPts = shape === 'ellipse' ? botPtsRaw : projectToGround(makeBaseOutlinePoints(shape, botW, botD, segMM), cosT)
   if (n < 3 || botPts.length !== n) return new THREE.BufferGeometry()
 
+  const raftHeight = supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT
+
   const verts: number[] = []
   const indices: number[] = []
 
   for (const p of botPts) verts.push(p.x, 0, p.z)
-  for (const p of topPts) verts.push(p.x, RAFT_HEIGHT, p.z)
+  for (const p of topPts) verts.push(p.x, raftHeight, p.z)
   const botBase = 0
   const topBase = n
 
@@ -562,7 +563,7 @@ function buildRaftMesh(shape: Shape, plinthParams: PlinthParams, supportParams: 
   }
 
   const centerTopVtx = verts.length / 3
-  verts.push(0, RAFT_HEIGHT, 0)
+  verts.push(0, raftHeight, 0)
   for (let i = 0; i < n; i++) {
     const ni = (i + 1) % n
     indices.push(centerTopVtx, topBase + ni, topBase + i)
@@ -991,6 +992,7 @@ export function buildScaffoldingMesh(
   supportSpacing: number,
   scaffoldingAngle: number,
   segs: number,
+  raftHeight: number,
 ): THREE.BufferGeometry {
   if (basePositions.length < 2 || scaffoldingAngle <= 0 || scaffoldingAngle >= 90) return new THREE.BufferGeometry()
 
@@ -1068,7 +1070,7 @@ export function buildScaffoldingMesh(
       acceptedPairs.push([i, j])
 
       const yTop = Math.min(yConeStarts[i], yConeStarts[j])
-      const H = yTop - RAFT_HEIGHT
+      const H = yTop - raftHeight
       if (H <= 0) continue
 
       const rise = centerDist * tanAngle
@@ -1077,8 +1079,8 @@ export function buildScaffoldingMesh(
       const actualRise = H / N
 
       for (let k = 0; k < N; k++) {
-        const yStart = RAFT_HEIGHT + k * actualRise
-        const yEnd = RAFT_HEIGHT + (k + 1) * actualRise
+        const yStart = raftHeight + k * actualRise
+        const yEnd = raftHeight + (k + 1) * actualRise
 
         let start: THREE.Vector3
         let end: THREE.Vector3
@@ -1110,7 +1112,8 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const tanT = Math.tan(tilt)
   const cosT = Math.cos(tilt)
-  const raise = RAFT_HEIGHT + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
+  const raftHeight = supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT
+  const raise = raftHeight + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
   if (radius <= 0) return new THREE.BufferGeometry()
 
   const positionsRaw = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
@@ -1134,7 +1137,7 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
     ? positionsRaw.map((p) => isSupportOverCavity(p, radius, tipRadius, plinthParams, cosT))
     : null
   const { basePositions, tipPositions, contactHeights } = applySupportOffset(positionsRaw, overCavity, cavityParams, sinT, tanT, raise, supportParams.supportOffsetCavity ?? SUPPORT_OFFSET_CAVITY)
-  const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinT, cosT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
+  const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinT, cosT, segs, supportParams.supportCaps ?? SUPPORT_CAPS, raftHeight)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
 
   const normSupport = supportGeo.index ? supportGeo.toNonIndexed() : supportGeo.clone()
@@ -1143,7 +1146,7 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
 
   let scaffoldGeo: THREE.BufferGeometry | null = null
   if (includeScaffolding && supportParams.scaffoldingEnabled) {
-    scaffoldGeo = buildScaffoldingMesh(basePositions, tipPositions, overCavity, contactHeights, cavityParams, supportParams.supportSize, supportParams.supportSpacing, supportParams.scaffoldingAngle, segs)
+    scaffoldGeo = buildScaffoldingMesh(basePositions, tipPositions, overCavity, contactHeights, cavityParams, supportParams.supportSize, supportParams.supportSpacing, supportParams.scaffoldingAngle, segs, raftHeight)
     if (scaffoldGeo.attributes.position.count > 0) {
       mergeGeos.push(scaffoldGeo.index ? scaffoldGeo.toNonIndexed() : scaffoldGeo.clone())
     }
@@ -1193,7 +1196,8 @@ export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: Plin
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const tanT = Math.tan(tilt)
   const cosT = Math.cos(tilt)
-  const raise = RAFT_HEIGHT + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
+  const raftHeight = supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT
+  const raise = raftHeight + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
   if (radius <= 0) return new THREE.BufferGeometry()
 
   const positionsRaw = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
@@ -1217,7 +1221,7 @@ export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: Plin
     ? positionsRaw.map((p) => isSupportOverCavity(p, radius, tipRadius, plinthParams, cosT))
     : null
   const { basePositions, tipPositions, contactHeights } = applySupportOffset(positionsRaw, overCavity, cavityParams, sinT, tanT, raise, supportParams.supportOffsetCavity ?? SUPPORT_OFFSET_CAVITY)
-  const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinT, cosT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
+  const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinT, cosT, segs, supportParams.supportCaps ?? SUPPORT_CAPS, raftHeight)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const unioned = csgUnion(supportGeo, raftGeo)
   supportGeo.dispose()
@@ -1236,7 +1240,8 @@ export function applyYUpToZUp(geometry: THREE.BufferGeometry): THREE.BufferGeome
 
 export function applySupportTransform(geometry: THREE.BufferGeometry, supportParams: SupportParams, plinthDepth: number): THREE.BufferGeometry {
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
-  const raise = RAFT_HEIGHT + supportParams.raiseBy + (plinthDepth / 2) * Math.sin(tilt)
+  const raftHeight = supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT
+  const raise = raftHeight + supportParams.raiseBy + (plinthDepth / 2) * Math.sin(tilt)
   const matrix = new THREE.Matrix4()
   matrix.makeRotationX(tilt)
   matrix.setPosition(0, raise, 0)

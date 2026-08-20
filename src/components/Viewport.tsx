@@ -16,7 +16,7 @@ interface ViewportProps {
 
 export default function Viewport({ plinthParams, drillJigParams, supportParams, baseSegMM, filletSegMM }: ViewportProps) {
   const tilt = supportParams.enabled ? (supportParams.plinthAngle * Math.PI) / 180 : 0
-  const raise = supportParams.enabled ? DEFAULT_RAFT_HEIGHT + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt) : 0
+  const raise = supportParams.enabled ? (supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT) + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt) : 0
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>

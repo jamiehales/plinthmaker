@@ -46,6 +46,7 @@ import {
   DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_INTERIOR_SPACING, DEFAULT_SUPPORT_CAPS,
   DEFAULT_LOCK_EDGE_SPACING_FILL, DRAWER_WIDTH,
   DEFAULT_SCAFFOLDING_ENABLED, DEFAULT_SCAFFOLDING_ANGLE,
+  DEFAULT_RAFT_HEIGHT, MIN_RAFT_HEIGHT, MAX_RAFT_HEIGHT,
   DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE,
   DEFAULT_CUSTOM_TRIM_POINTS, DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
   DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_TOP_THICKNESS, DEFAULT_HOLLOW_WALL_THICKNESS,
@@ -135,6 +136,7 @@ function App() {
   const [supportCaps] = useState(DEFAULT_SUPPORT_CAPS)
   const [scaffoldingEnabled, setScaffoldingEnabled] = useState(DEFAULT_SCAFFOLDING_ENABLED)
   const [scaffoldingAngle, setScaffoldingAngle] = useState(DEFAULT_SCAFFOLDING_ANGLE)
+  const [raftHeight, setRaftHeight] = useState(DEFAULT_RAFT_HEIGHT)
   const [hollowEnabled, setHollowEnabled] = useState(DEFAULT_HOLLOW_ENABLED)
   const [topThickness, setTopThickness] = useState(DEFAULT_HOLLOW_TOP_THICKNESS)
   const [hollowWallThickness, setHollowWallThickness] = useState(DEFAULT_HOLLOW_WALL_THICKNESS)
@@ -258,7 +260,8 @@ function App() {
     supportCaps,
     scaffoldingEnabled,
     scaffoldingAngle,
-  }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, effectiveInteriorSpacing, supportCaps, scaffoldingEnabled, scaffoldingAngle])
+    raftHeight,
+  }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, effectiveInteriorSpacing, supportCaps, scaffoldingEnabled, scaffoldingAngle, raftHeight])
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
@@ -845,6 +848,15 @@ function App() {
                     unit="°"
                   />
                 ) : null}
+                <LabeledSlider
+                  label="Raft Thickness"
+                  value={raftHeight}
+                  onChange={setRaftHeight}
+                  min={MIN_RAFT_HEIGHT}
+                  max={MAX_RAFT_HEIGHT}
+                  step={0.05}
+                  unit="mm"
+                />
               </>
             ) : null}
           </Box>

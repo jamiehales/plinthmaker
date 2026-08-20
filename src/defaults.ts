@@ -43,7 +43,9 @@ export const DEFAULT_INTERIOR_SPACING = 2
 export const DEFAULT_LOCK_EDGE_SPACING_FILL = false
 
 export const DEFAULT_CONE_START_GAP = 1
-export const DEFAULT_RAFT_HEIGHT = 1.5
+export const DEFAULT_RAFT_HEIGHT = 1
+export const MIN_RAFT_HEIGHT = 0.25
+export const MAX_RAFT_HEIGHT = 2
 export const DEFAULT_RAFT_BOTTOM_INSET = 1
 export const DEFAULT_SUPPORT_BASE_Y = 1
 export const DEFAULT_CONE_TIP_PENETRATION = 0.1
