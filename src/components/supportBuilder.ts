@@ -229,7 +229,7 @@ function supportNormalZ(p: THREE.Vector3, overCavityFlag: boolean, c: CavityPara
     if (wallNz !== null) {
       const yCeil = cavityCeilingHeight(p.x, p.z, c)
       const yWall = cavityWallHeight(p.x, p.z, c)
-      if (yWall <= yCeil + 1e-6) return wallNz
+      if (yWall <= yCeil + 1e-6) return -wallNz
     }
     return cavityCeilingNormalZ(c)
   }
