@@ -567,6 +567,37 @@ function pointInFootprint(shape: Shape, x: number, z: number, hw: number, hd: nu
   return Math.abs(x) <= hw && Math.abs(z) <= hd
 }
 
+function distanceToCavityTopEdge(x: number, z: number, shape: Shape, hw: number, hd: number, cosT: number, sinT: number, topTanA: number, hollowHeight: number, plinthDepth: number): number {
+  const ceilingYLocal = hollowHeight - (plinthDepth / 2) * topTanA
+  const zCenter = ceilingYLocal * sinT
+  const zHalf = hd * (cosT - topTanA * sinT)
+  if (shape === 'ellipse') {
+    const dx = x / hw
+    const dz = (z - zCenter) / zHalf
+    const r2 = dx * dx + dz * dz
+    if (r2 <= 1) {
+      const r = Math.sqrt(r2)
+      if (r < 1e-9) return Math.min(hw, zHalf)
+      const t = 1 / r - 1
+      return Math.hypot(x * t, (z - zCenter) * t)
+    }
+    const r = Math.sqrt(r2)
+    const nx = dx / r
+    const nz = dz / r
+    const ex = nx * hw
+    const ez = zCenter + nz * zHalf
+    return Math.hypot(x - ex, z - ez)
+  }
+  const ax = Math.abs(x)
+  const az = Math.abs(z - zCenter)
+  const insideX = hw - ax
+  const insideZ = zHalf - az
+  if (insideX >= 0 && insideZ >= 0) return Math.min(insideX, insideZ)
+  const dx = Math.max(0, ax - hw)
+  const dz = Math.max(0, az - zHalf)
+  return Math.hypot(dx, dz)
+}
+
 function inAnyExclusion(x: number, z: number, exclusions: Array<{ cx: number, cz: number, rx: number, rz: number }>): boolean {
   for (const e of exclusions) {
     const dx = x - e.cx
@@ -856,7 +887,7 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
   ]
   const seed = hashSeed(seedParts)
 
-  const interiorPositions = sampleInteriorPoisson(
+  const interiorPositionsRaw = sampleInteriorPoisson(
     shape,
     interiorHW,
     interiorHD,
@@ -865,6 +896,23 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
     exclusions,
     seed,
   )
+
+  let interiorPositions = interiorPositionsRaw
+  if (plinthParams.hollowEnabled) {
+    const wall = Math.max(0.5, plinthParams.hollowWallThickness)
+    const cavHW = Math.max(0.01, (plinthParams.width - 2 * wall) / 2)
+    const cavHD = Math.max(0.01, (plinthParams.depth - 2 * wall) / 2)
+    const topTanA = plinthParams.angleTop
+      ? Math.tan((Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180)
+      : 0
+    const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
+    const plinthDepth = Math.max(0.1, plinthParams.depth)
+    const keepDist = supportParams.supportSize
+    interiorPositions = interiorPositionsRaw.filter((p) => {
+      const d = distanceToCavityTopEdge(p.x, p.z, shape, cavHW, cavHD, cosT, sinT, topTanA, hollowHeight, plinthDepth)
+      return d >= keepDist
+    })
+  }
 
   return ringPositionsAll.concat(interiorPositions)
 }
