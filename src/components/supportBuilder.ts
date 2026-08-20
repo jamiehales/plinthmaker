@@ -111,62 +111,12 @@ function cavityIntersectionHeight(xW: number, zW: number, c: CavityParams): numb
   return Math.min(cavityCeilingHeight(xW, zW, c), cavityWallHeight(xW, zW, c))
 }
 
-function cavityCeilingNormalZ(c: CavityParams): number {
-  const ny = c.cosT - c.sinT * c.topTanA
-  const nz = c.sinT + c.cosT * c.topTanA
-  const len = Math.hypot(ny, nz)
-  if (len < 1e-6) return 0
-  return -nz / len
-}
-
 function cavityCeilingNormal(c: CavityParams): THREE.Vector3 {
   const ny = c.cosT - c.sinT * c.topTanA
   const nz = c.sinT + c.cosT * c.topTanA
   const len = Math.hypot(ny, nz)
   if (len < 1e-6) return new THREE.Vector3(0, -1, 0)
   return new THREE.Vector3(0, -ny / len, -nz / len)
-}
-
-function cavityWallNormalZ(xW: number, zW: number, c: CavityParams): number | null {
-  if (Math.abs(c.sinT) < 1e-6) return null
-  const safeCosT = Math.max(0.01, c.cosT)
-  const ceilingAtZL = (zL: number) => c.hollowHeight - (zL + c.plinthDepth / 2) * c.topTanA
-
-  if (c.shape === 'ellipse') {
-    const xTerm = (xW * xW) / (c.hw * c.hw)
-    if (xTerm >= 1) return null
-    const dz = c.hd * Math.sqrt(1 - xTerm)
-    const hits: Array<{ yL: number; zL: number; xL: number }> = [
-      { yL: (zW + dz * c.cosT) / c.sinT, zL: -dz, xL: xW },
-      { yL: (zW - dz * c.cosT) / c.sinT, zL: dz, xL: xW },
-    ]
-    let best: { yW: number; zL: number; xL: number } | null = null
-    for (const { yL, zL, xL } of hits) {
-      if (yL >= 0 && yL <= ceilingAtZL(zL)) {
-        const yW = c.raise + yL / safeCosT - zW * c.tanT
-        if (!best || yW < best.yW) best = { yW, zL, xL }
-      }
-    }
-    if (!best) return null
-    const localN = new THREE.Vector3(best.xL / (c.hw * c.hw), 0, best.zL / (c.hd * c.hd))
-    const len = localN.length()
-    if (len < 1e-9) return null
-    return (localN.z / len) * c.cosT
-  }
-
-  const hits: Array<{ yL: number; zL: number; side: number }> = [
-    { yL: (zW + c.hd * c.cosT) / c.sinT, zL: -c.hd, side: -1 },
-    { yL: (zW - c.hd * c.cosT) / c.sinT, zL: c.hd, side: 1 },
-  ]
-  let best: { yW: number; side: number } | null = null
-  for (const { yL, zL, side } of hits) {
-    if (yL >= 0 && yL <= ceilingAtZL(zL)) {
-      const yW = c.raise + yL / safeCosT - zW * c.tanT
-      if (!best || yW < best.yW) best = { yW, side }
-    }
-  }
-  if (!best) return null
-  return best.side * c.cosT
 }
 
 function cavityWallNormal(xW: number, zW: number, c: CavityParams): THREE.Vector3 | null {
@@ -223,17 +173,18 @@ function supportSurfaceNormal(pt: THREE.Vector3, overCavityFlag: boolean, c: Cav
   return new THREE.Vector3(0, -cosT, -sinT)
 }
 
-function supportNormalZ(p: THREE.Vector3, overCavityFlag: boolean, c: CavityParams | null, sinT: number): number {
+function supportNormalXZ(p: THREE.Vector3, overCavityFlag: boolean, c: CavityParams | null, sinT: number): THREE.Vector3 {
   if (overCavityFlag && c) {
-    const wallNz = cavityWallNormalZ(p.x, p.z, c)
-    if (wallNz !== null) {
+    const wallN = cavityWallNormal(p.x, p.z, c)
+    if (wallN) {
       const yCeil = cavityCeilingHeight(p.x, p.z, c)
       const yWall = cavityWallHeight(p.x, p.z, c)
-      if (yWall <= yCeil + 1e-6) return -wallNz
+      if (yWall <= yCeil + 1e-6) return new THREE.Vector3(-wallN.x, 0, -wallN.z)
     }
-    return cavityCeilingNormalZ(c)
+    const ceilN = cavityCeilingNormal(c)
+    return new THREE.Vector3(0, 0, ceilN.z)
   }
-  return -sinT
+  return new THREE.Vector3(0, 0, -sinT)
 }
 
 function applySupportOffset(
@@ -247,10 +198,9 @@ function applySupportOffset(
 ): { basePositions: THREE.Vector3[]; tipPositions: THREE.Vector3[]; contactHeights: number[] } {
   const basePositions = positions.map((p, i) => {
     const overCavityFlag = overCavity ? overCavity[i] : false
-    const nz = supportNormalZ(p, overCavityFlag, cavityParams, sinT)
+    const n = supportNormalXZ(p, overCavityFlag, cavityParams, sinT)
     const amount = overCavityFlag ? offsetCavity : SUPPORT_OFFSET_EDGE
-    const dz = amount * nz
-    return new THREE.Vector3(p.x, p.y, p.z + dz)
+    return new THREE.Vector3(p.x + amount * n.x, p.y, p.z + amount * n.z)
   })
   const tipPositions = positions
   const contactHeights = tipPositions.map((p) => raise - p.z * tanT)
