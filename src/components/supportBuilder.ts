@@ -5,7 +5,7 @@ import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_
 import { sampleTrimOffset, getTrimProfile } from './trimProfiles.ts'
 import {
   DEFAULT_CONE_START_GAP, DEFAULT_RAFT_HEIGHT, DEFAULT_RAFT_BOTTOM_INSET,
-  DEFAULT_CONE_TIP_PENETRATION, DEFAULT_SUPPORT_CAPS,
+  DEFAULT_CONE_TIP_PENETRATION, DEFAULT_SUPPORT_OFFSET_EDGE, DEFAULT_SUPPORT_OFFSET_CAVITY, DEFAULT_SUPPORT_CAPS,
   DEFAULT_SCAFFOLDING_SCALE, DEFAULT_SCAFFOLDING_GAP_TOLERANCE,
 } from '../defaults.ts'
 
@@ -13,6 +13,8 @@ const CONE_START_GAP = DEFAULT_CONE_START_GAP
 const RAFT_HEIGHT = DEFAULT_RAFT_HEIGHT
 const RAFT_BOTTOM_INSET = DEFAULT_RAFT_BOTTOM_INSET
 const CONE_TIP_PENETRATION = DEFAULT_CONE_TIP_PENETRATION
+const SUPPORT_OFFSET_EDGE = DEFAULT_SUPPORT_OFFSET_EDGE
+const SUPPORT_OFFSET_CAVITY = DEFAULT_SUPPORT_OFFSET_CAVITY
 const SUPPORT_CAPS = DEFAULT_SUPPORT_CAPS
 const SCAFFOLDING_SCALE = DEFAULT_SCAFFOLDING_SCALE
 const SCAFFOLDING_GAP_TOLERANCE = DEFAULT_SCAFFOLDING_GAP_TOLERANCE
@@ -62,46 +64,198 @@ interface CavityParams {
   tanT: number
 }
 
-function cavityIntersectionHeight(xW: number, zW: number, c: CavityParams): number {
+function cavityCeilingHeight(xW: number, zW: number, c: CavityParams): number {
+  void xW
   const denom = c.cosT - c.sinT * c.topTanA
   const safeDenom = Math.max(0.01, Math.abs(denom)) * Math.sign(denom || 1)
-  const yCeiling = c.raise + (c.hollowHeight - (c.plinthDepth / 2) * c.topTanA - zW * (c.sinT + c.cosT * c.topTanA)) / safeDenom
+  return c.raise + (c.hollowHeight - (c.plinthDepth / 2) * c.topTanA - zW * (c.sinT + c.cosT * c.topTanA)) / safeDenom
+}
 
-  if (Math.abs(c.sinT) < 1e-6) return yCeiling
-
-  let yWall = Infinity
-
-  const ceilingAtZL = (zL: number) => c.hollowHeight - (zL + c.plinthDepth / 2) * c.topTanA
+function cavityWallHeight(xW: number, zW: number, c: CavityParams): number {
+  if (Math.abs(c.sinT) < 1e-6) return Infinity
   const safeCosT = Math.max(0.01, c.cosT)
+  const ceilingAtZL = (zL: number) => c.hollowHeight - (zL + c.plinthDepth / 2) * c.topTanA
 
   if (c.shape === 'ellipse') {
     const xTerm = (xW * xW) / (c.hw * c.hw)
-    if (xTerm >= 1) return yCeiling
+    if (xTerm >= 1) return Infinity
     const dz = c.hd * Math.sqrt(1 - xTerm)
     const hits: Array<{ yL: number; zL: number }> = [
       { yL: (zW + dz * c.cosT) / c.sinT, zL: -dz },
       { yL: (zW - dz * c.cosT) / c.sinT, zL: dz },
     ]
+    let yWall = Infinity
     for (const { yL, zL } of hits) {
       if (yL >= 0 && yL <= ceilingAtZL(zL)) {
         const yW = c.raise + yL / safeCosT - zW * c.tanT
         if (yW < yWall) yWall = yW
       }
     }
-  } else {
-    const hits: Array<{ yL: number; zL: number }> = [
-      { yL: (zW + c.hd * c.cosT) / c.sinT, zL: -c.hd },
-      { yL: (zW - c.hd * c.cosT) / c.sinT, zL: c.hd },
-    ]
-    for (const { yL, zL } of hits) {
-      if (yL >= 0 && yL <= ceilingAtZL(zL)) {
-        const yW = c.raise + yL / safeCosT - zW * c.tanT
-        if (yW < yWall) yWall = yW
-      }
-    }
+    return yWall
   }
 
-  return Math.min(yCeiling, yWall)
+  const hits: Array<{ yL: number; zL: number }> = [
+    { yL: (zW + c.hd * c.cosT) / c.sinT, zL: -c.hd },
+    { yL: (zW - c.hd * c.cosT) / c.sinT, zL: c.hd },
+  ]
+  let yWall = Infinity
+  for (const { yL, zL } of hits) {
+    if (yL >= 0 && yL <= ceilingAtZL(zL)) {
+      const yW = c.raise + yL / safeCosT - zW * c.tanT
+      if (yW < yWall) yWall = yW
+    }
+  }
+  return yWall
+}
+
+function cavityIntersectionHeight(xW: number, zW: number, c: CavityParams): number {
+  return Math.min(cavityCeilingHeight(xW, zW, c), cavityWallHeight(xW, zW, c))
+}
+
+function cavityCeilingNormalZ(c: CavityParams): number {
+  const ny = c.cosT - c.sinT * c.topTanA
+  const nz = c.sinT + c.cosT * c.topTanA
+  const len = Math.hypot(ny, nz)
+  if (len < 1e-6) return 0
+  return -nz / len
+}
+
+function cavityCeilingNormal(c: CavityParams): THREE.Vector3 {
+  const ny = c.cosT - c.sinT * c.topTanA
+  const nz = c.sinT + c.cosT * c.topTanA
+  const len = Math.hypot(ny, nz)
+  if (len < 1e-6) return new THREE.Vector3(0, -1, 0)
+  return new THREE.Vector3(0, -ny / len, -nz / len)
+}
+
+function cavityWallNormalZ(xW: number, zW: number, c: CavityParams): number | null {
+  if (Math.abs(c.sinT) < 1e-6) return null
+  const safeCosT = Math.max(0.01, c.cosT)
+  const ceilingAtZL = (zL: number) => c.hollowHeight - (zL + c.plinthDepth / 2) * c.topTanA
+
+  if (c.shape === 'ellipse') {
+    const xTerm = (xW * xW) / (c.hw * c.hw)
+    if (xTerm >= 1) return null
+    const dz = c.hd * Math.sqrt(1 - xTerm)
+    const hits: Array<{ yL: number; zL: number; xL: number }> = [
+      { yL: (zW + dz * c.cosT) / c.sinT, zL: -dz, xL: xW },
+      { yL: (zW - dz * c.cosT) / c.sinT, zL: dz, xL: xW },
+    ]
+    let best: { yW: number; zL: number; xL: number } | null = null
+    for (const { yL, zL, xL } of hits) {
+      if (yL >= 0 && yL <= ceilingAtZL(zL)) {
+        const yW = c.raise + yL / safeCosT - zW * c.tanT
+        if (!best || yW < best.yW) best = { yW, zL, xL }
+      }
+    }
+    if (!best) return null
+    const localN = new THREE.Vector3(best.xL / (c.hw * c.hw), 0, best.zL / (c.hd * c.hd))
+    const len = localN.length()
+    if (len < 1e-9) return null
+    return (localN.z / len) * c.cosT
+  }
+
+  const hits: Array<{ yL: number; zL: number; side: number }> = [
+    { yL: (zW + c.hd * c.cosT) / c.sinT, zL: -c.hd, side: -1 },
+    { yL: (zW - c.hd * c.cosT) / c.sinT, zL: c.hd, side: 1 },
+  ]
+  let best: { yW: number; side: number } | null = null
+  for (const { yL, zL, side } of hits) {
+    if (yL >= 0 && yL <= ceilingAtZL(zL)) {
+      const yW = c.raise + yL / safeCosT - zW * c.tanT
+      if (!best || yW < best.yW) best = { yW, side }
+    }
+  }
+  if (!best) return null
+  return best.side * c.cosT
+}
+
+function cavityWallNormal(xW: number, zW: number, c: CavityParams): THREE.Vector3 | null {
+  if (Math.abs(c.sinT) < 1e-6) return null
+  const safeCosT = Math.max(0.01, c.cosT)
+  const ceilingAtZL = (zL: number) => c.hollowHeight - (zL + c.plinthDepth / 2) * c.topTanA
+
+  if (c.shape === 'ellipse') {
+    const xTerm = (xW * xW) / (c.hw * c.hw)
+    if (xTerm >= 1) return null
+    const dz = c.hd * Math.sqrt(1 - xTerm)
+    const hits: Array<{ yL: number; zL: number; xL: number }> = [
+      { yL: (zW + dz * c.cosT) / c.sinT, zL: -dz, xL: xW },
+      { yL: (zW - dz * c.cosT) / c.sinT, zL: dz, xL: xW },
+    ]
+    let best: { yW: number; zL: number; xL: number } | null = null
+    for (const { yL, zL, xL } of hits) {
+      if (yL >= 0 && yL <= ceilingAtZL(zL)) {
+        const yW = c.raise + yL / safeCosT - zW * c.tanT
+        if (!best || yW < best.yW) best = { yW, zL, xL }
+      }
+    }
+    if (!best) return null
+    const localN = new THREE.Vector3(best.xL / (c.hw * c.hw), 0, best.zL / (c.hd * c.hd)).normalize()
+    return new THREE.Vector3(localN.x, -localN.z * c.sinT, localN.z * c.cosT)
+  }
+
+  const hits: Array<{ yL: number; zL: number; side: number }> = [
+    { yL: (zW + c.hd * c.cosT) / c.sinT, zL: -c.hd, side: -1 },
+    { yL: (zW - c.hd * c.cosT) / c.sinT, zL: c.hd, side: 1 },
+  ]
+  let best: { yW: number; side: number } | null = null
+  for (const { yL, zL, side } of hits) {
+    if (yL >= 0 && yL <= ceilingAtZL(zL)) {
+      const yW = c.raise + yL / safeCosT - zW * c.tanT
+      if (!best || yW < best.yW) best = { yW, side }
+    }
+  }
+  if (!best) return null
+  return new THREE.Vector3(0, -best.side * c.sinT, best.side * c.cosT)
+}
+
+function supportSurfaceNormal(pt: THREE.Vector3, overCavityFlag: boolean, c: CavityParams | null, sinT: number, cosT: number): THREE.Vector3 {
+  if (overCavityFlag && c) {
+    const wallN = cavityWallNormal(pt.x, pt.z, c)
+    if (wallN) {
+      const yCeil = cavityCeilingHeight(pt.x, pt.z, c)
+      const yWall = cavityWallHeight(pt.x, pt.z, c)
+      if (yWall <= yCeil + 1e-6) return wallN
+    }
+    return cavityCeilingNormal(c)
+  }
+  if (c) return new THREE.Vector3(0, -c.cosT, -c.sinT)
+  return new THREE.Vector3(0, -cosT, -sinT)
+}
+
+function supportNormalZ(p: THREE.Vector3, overCavityFlag: boolean, c: CavityParams | null, sinT: number): number {
+  if (overCavityFlag && c) {
+    const wallNz = cavityWallNormalZ(p.x, p.z, c)
+    if (wallNz !== null) {
+      const yCeil = cavityCeilingHeight(p.x, p.z, c)
+      const yWall = cavityWallHeight(p.x, p.z, c)
+      if (yWall <= yCeil + 1e-6) return wallNz
+    }
+    return cavityCeilingNormalZ(c)
+  }
+  return -sinT
+}
+
+function applySupportOffset(
+  positions: THREE.Vector3[],
+  overCavity: boolean[] | null,
+  cavityParams: CavityParams | null,
+  sinT: number,
+  tanT: number,
+  raise: number,
+  offsetCavity: number,
+): { basePositions: THREE.Vector3[]; tipPositions: THREE.Vector3[]; contactHeights: number[] } {
+  const basePositions = positions.map((p, i) => {
+    const overCavityFlag = overCavity ? overCavity[i] : false
+    const nz = supportNormalZ(p, overCavityFlag, cavityParams, sinT)
+    const amount = overCavityFlag ? offsetCavity : SUPPORT_OFFSET_EDGE
+    const dz = amount * nz
+    return new THREE.Vector3(p.x, p.y, p.z + dz)
+  })
+  const tipPositions = positions
+  const contactHeights = tipPositions.map((p) => raise - p.z * tanT)
+  return { basePositions, tipPositions, contactHeights }
 }
 
 export function makeBaseOutlinePoints(shape: Shape, w: number, d: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
@@ -294,29 +448,30 @@ export function buildSupportCircles(positions: THREE.Vector3[], radius: number, 
   return geo
 }
 
-function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], overCavity: boolean[] | null, cavityParams: CavityParams | null, tanT: number, segs: number, caps: boolean): THREE.BufferGeometry {
-  if (positions.length === 0) return new THREE.BufferGeometry()
+function buildSupportMesh(basePositions: THREE.Vector3[], tipPositions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], overCavity: boolean[] | null, cavityParams: CavityParams | null, sinT: number, cosT: number, segs: number, caps: boolean): THREE.BufferGeometry {
+  if (basePositions.length === 0) return new THREE.BufferGeometry()
   const verts: number[] = []
   const indices: number[] = []
 
-  for (let i = 0; i < positions.length; i++) {
-    const p = positions[i]
+  for (let i = 0; i < basePositions.length; i++) {
+    const pb = basePositions[i]
+    const pt = tipPositions[i]
     const supportOverCavity = overCavity ? overCavity[i] : false
     const yContactCenter = supportOverCavity && cavityParams
-      ? cavityIntersectionHeight(p.x, p.z, cavityParams)
+      ? cavityIntersectionHeight(pt.x, pt.z, cavityParams)
       : contactHeights[i]
     const yConeStart = yContactCenter - CONE_START_GAP
     if (yConeStart <= RAFT_HEIGHT) continue
 
     const baseVtx = verts.length / 3
 
-    verts.push(p.x, RAFT_HEIGHT, p.z)
+    verts.push(pb.x, RAFT_HEIGHT, pb.z)
     const centerVtx = baseVtx
     for (let j = 0; j < segs; j++) {
       const a = (j / segs) * Math.PI * 2
       const cx = Math.cos(a)
       const cz = Math.sin(a)
-      verts.push(p.x + cx * supportRadius, RAFT_HEIGHT, p.z + cz * supportRadius)
+      verts.push(pb.x + cx * supportRadius, RAFT_HEIGHT, pb.z + cz * supportRadius)
     }
     const ring0Vtx = baseVtx + 1
     if (caps) {
@@ -330,7 +485,7 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
       const a = (j / segs) * Math.PI * 2
       const cx = Math.cos(a)
       const cz = Math.sin(a)
-      verts.push(p.x + cx * supportRadius, yConeStart, p.z + cz * supportRadius)
+      verts.push(pb.x + cx * supportRadius, yConeStart, pb.z + cz * supportRadius)
     }
     for (let j = 0; j < segs; j++) {
       const jn = (j + 1) % segs
@@ -338,16 +493,18 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
       indices.push(ring0Vtx + j, ring1Vtx + jn, ring0Vtx + jn)
     }
     const ring2Vtx = ring1Vtx + segs
+    const surfaceNormal = supportSurfaceNormal(pt, supportOverCavity, cavityParams, sinT, cosT).normalize()
+    const contactPoint = new THREE.Vector3(pt.x, yContactCenter, pt.z)
     for (let j = 0; j < segs; j++) {
       const a = (j / segs) * Math.PI * 2
-      const cx = Math.cos(a)
-      const cz = Math.sin(a)
-      const zTip = p.z + cz * tipRadius
-      const xTip = p.x + cx * tipRadius
-      const yTip = supportOverCavity && cavityParams
-        ? cavityIntersectionHeight(xTip, zTip, cavityParams)
-        : contactHeights[i] - (zTip - p.z) * tanT
-      verts.push(xTip, yTip, zTip)
+      const groundDir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a))
+      const planeDir = groundDir.clone().addScaledVector(surfaceNormal, -groundDir.dot(surfaceNormal))
+      if (planeDir.lengthSq() < 1e-12) planeDir.set(1, 0, 0)
+      planeDir.normalize()
+      const tipX = contactPoint.x + planeDir.x * tipRadius
+      const tipY = contactPoint.y + planeDir.y * tipRadius
+      const tipZ = contactPoint.z + planeDir.z * tipRadius
+      verts.push(tipX, tipY, tipZ)
     }
     for (let j = 0; j < segs; j++) {
       const jn = (j + 1) % segs
@@ -356,7 +513,7 @@ function buildSupportMesh(positions: THREE.Vector3[], supportRadius: number, tip
     }
     if (caps) {
       const tipCenterVtx = verts.length / 3
-      verts.push(p.x, yContactCenter, p.z)
+      verts.push(pt.x, yContactCenter, pt.z)
       for (let j = 0; j < segs; j++) {
         const jn = (j + 1) % segs
         indices.push(tipCenterVtx, ring2Vtx + jn, ring2Vtx + j)
@@ -824,7 +981,8 @@ function aabbOverlaps(
 }
 
 export function buildScaffoldingMesh(
-  positions: THREE.Vector3[],
+  basePositions: THREE.Vector3[],
+  tipPositions: THREE.Vector3[],
   overCavity: boolean[] | null,
   contactHeights: number[],
   cavityParams: CavityParams | null,
@@ -833,14 +991,14 @@ export function buildScaffoldingMesh(
   scaffoldingAngle: number,
   segs: number,
 ): THREE.BufferGeometry {
-  if (positions.length < 2 || scaffoldingAngle <= 0 || scaffoldingAngle >= 90) return new THREE.BufferGeometry()
+  if (basePositions.length < 2 || scaffoldingAngle <= 0 || scaffoldingAngle >= 90) return new THREE.BufferGeometry()
 
   const yConeStarts: number[] = []
-  for (let i = 0; i < positions.length; i++) {
-    const p = positions[i]
+  for (let i = 0; i < basePositions.length; i++) {
+    const pt = tipPositions[i]
     const supportOverCavity = overCavity ? overCavity[i] : false
     const yContactCenter = supportOverCavity && cavityParams
-      ? cavityIntersectionHeight(p.x, p.z, cavityParams)
+      ? cavityIntersectionHeight(pt.x, pt.z, cavityParams)
       : contactHeights[i]
     yConeStarts.push(yContactCenter - CONE_START_GAP)
   }
@@ -856,12 +1014,12 @@ export function buildScaffoldingMesh(
   const geometries: THREE.BufferGeometry[] = []
   const acceptedPairs: Array<[number, number]> = []
 
-  for (let i = 0; i < positions.length; i++) {
-    for (let j = i + 1; j < positions.length; j++) {
+  for (let i = 0; i < basePositions.length; i++) {
+    for (let j = i + 1; j < basePositions.length; j++) {
       if (overCavity && overCavity[i] !== overCavity[j]) continue
 
-      const pi = positions[i]
-      const pj = positions[j]
+      const pi = basePositions[i]
+      const pj = basePositions[j]
       const dx = pj.x - pi.x
       const dz = pj.z - pi.z
       const centerDist = Math.sqrt(dx * dx + dz * dz)
@@ -873,9 +1031,9 @@ export function buildScaffoldingMesh(
       const segMaxZ = Math.max(pi.z, pj.z) + supportClearance
 
       let blocked = false
-      for (let k = 0; k < positions.length; k++) {
+      for (let k = 0; k < basePositions.length; k++) {
         if (k === i || k === j) continue
-        const pk = positions[k]
+        const pk = basePositions[k]
         if (pk.x < segMinX || pk.x > segMaxX || pk.z < segMinZ || pk.z > segMaxZ) continue
         if (pointToSegmentDistance2D(pk.x, pk.z, pi.x, pi.z, pj.x, pj.z) < supportClearance) {
           blocked = true
@@ -892,8 +1050,8 @@ export function buildScaffoldingMesh(
       let overlaps = false
       for (const [a, b] of acceptedPairs) {
         if (a === i || a === j || b === i || b === j) continue
-        const pa = positions[a]
-        const pb = positions[b]
+        const pa = basePositions[a]
+        const pb = basePositions[b]
         const accMinX = Math.min(pa.x, pb.x) - strutClearance
         const accMaxX = Math.max(pa.x, pb.x) + strutClearance
         const accMinZ = Math.min(pa.z, pb.z) - strutClearance
@@ -954,8 +1112,7 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
   const raise = RAFT_HEIGHT + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
   if (radius <= 0) return new THREE.BufferGeometry()
 
-  const positions = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
-  const contactHeights = positions.map((p) => raise - p.z * tanT)
+  const positionsRaw = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const sinT = Math.sin(tilt)
   const wall = Math.max(0.5, plinthParams.hollowWallThickness)
   const cavityParams: CavityParams | null = plinthParams.hollowEnabled
@@ -973,9 +1130,10 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
       }
     : null
   const overCavity = plinthParams.hollowEnabled
-    ? positions.map((p) => isSupportOverCavity(p, radius, tipRadius, plinthParams, cosT))
+    ? positionsRaw.map((p) => isSupportOverCavity(p, radius, tipRadius, plinthParams, cosT))
     : null
-  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, overCavity, cavityParams, tanT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
+  const { basePositions, tipPositions, contactHeights } = applySupportOffset(positionsRaw, overCavity, cavityParams, sinT, tanT, raise, supportParams.supportOffsetCavity ?? SUPPORT_OFFSET_CAVITY)
+  const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinT, cosT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
 
   const normSupport = supportGeo.index ? supportGeo.toNonIndexed() : supportGeo.clone()
@@ -984,7 +1142,7 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
 
   let scaffoldGeo: THREE.BufferGeometry | null = null
   if (includeScaffolding && supportParams.scaffoldingEnabled) {
-    scaffoldGeo = buildScaffoldingMesh(positions, overCavity, contactHeights, cavityParams, supportParams.supportSize, supportParams.supportSpacing, supportParams.scaffoldingAngle, segs)
+    scaffoldGeo = buildScaffoldingMesh(basePositions, tipPositions, overCavity, contactHeights, cavityParams, supportParams.supportSize, supportParams.supportSpacing, supportParams.scaffoldingAngle, segs)
     if (scaffoldGeo.attributes.position.count > 0) {
       mergeGeos.push(scaffoldGeo.index ? scaffoldGeo.toNonIndexed() : scaffoldGeo.clone())
     }
@@ -1037,8 +1195,7 @@ export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: Plin
   const raise = RAFT_HEIGHT + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
   if (radius <= 0) return new THREE.BufferGeometry()
 
-  const positions = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
-  const contactHeights = positions.map((p) => raise - p.z * tanT)
+  const positionsRaw = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const sinT = Math.sin(tilt)
   const wall = Math.max(0.5, plinthParams.hollowWallThickness)
   const cavityParams: CavityParams | null = plinthParams.hollowEnabled
@@ -1056,9 +1213,10 @@ export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: Plin
       }
     : null
   const overCavity = plinthParams.hollowEnabled
-    ? positions.map((p) => isSupportOverCavity(p, radius, tipRadius, plinthParams, cosT))
+    ? positionsRaw.map((p) => isSupportOverCavity(p, radius, tipRadius, plinthParams, cosT))
     : null
-  const supportGeo = buildSupportMesh(positions, radius, tipRadius, contactHeights, overCavity, cavityParams, tanT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
+  const { basePositions, tipPositions, contactHeights } = applySupportOffset(positionsRaw, overCavity, cavityParams, sinT, tanT, raise, supportParams.supportOffsetCavity ?? SUPPORT_OFFSET_CAVITY)
+  const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinT, cosT, segs, supportParams.supportCaps ?? SUPPORT_CAPS)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const unioned = csgUnion(supportGeo, raftGeo)
   supportGeo.dispose()

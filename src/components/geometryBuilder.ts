@@ -57,6 +57,7 @@ export interface SupportParams {
   supportCaps: boolean
   scaffoldingEnabled: boolean
   scaffoldingAngle: number
+  supportOffsetCavity?: number
 }
 
 export const DOWNLOAD_BASE_SEGMENT_MM = 0.1
