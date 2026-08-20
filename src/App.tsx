@@ -333,13 +333,13 @@ function App() {
             <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
               Dimensions
             </Typography>
-            <LabeledSlider label="Width" value={width} onChange={handleWidth} min={20} max={60} />
+            <LabeledSlider label="Width" value={width} onChange={handleWidth} min={20} max={150} />
             <LabeledSlider
               label="Depth"
               value={depth}
               onChange={setDepth}
               min={20}
-              max={60}
+              max={150}
               disabled={lockedAspect}
             />
             <FormControlLabel
@@ -354,7 +354,7 @@ function App() {
               sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
             />
 
-            <LabeledSlider label="Height" value={height} onChange={setHeight} min={20} max={60} />
+            <LabeledSlider label="Height" value={height} onChange={setHeight} min={20} max={150} />
 
             <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600, mt: 1 }}>
               Top Angle
