@@ -97,3 +97,4 @@ plinthgenerator/
 - **No comments** in source files unless explicitly requested.
 - Follow existing patterns: functional components, named exports, TypeScript strict mode, `import X from './Y.tsx'` (with extension, matching the Vite scaffold style).
 - Keep dependencies minimal and check `package.json` before adding a new library — prefer what's already installed (MUI, three, drei) over pulling in alternatives.
+- **Variable naming:** use human-readable, descriptive names. Avoid terse abbreviations like `hw`, `hd`, `r2`, `nx`, `nz`, `p`, `c`, `a`, `b`. Prefer `halfWidth`, `halfDepth`, `radiusSquared`, `unitX`, `unitZ`, `point`, `cavity`, `pointA`, `pointB`. Short loop indices (`i`, `j`, `k`) and well-understood math symbols (`t` for interpolation parameter, `dx`/`dz` for delta components) are acceptable. The goal is that a reader can understand a variable's role without scrolling to its definition.
