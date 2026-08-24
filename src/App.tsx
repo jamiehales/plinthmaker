@@ -122,7 +122,7 @@ function App() {
   const [roundStyle, setRoundStyle] = useState<RoundStyle>(DEFAULT_ROUND_STYLE)
   const [roundLocation, setRoundLocation] = useState<RoundLocation>(DEFAULT_ROUND_LOCATION)
   const [roundSize, setRoundSize] = useState(DEFAULT_ROUND_SIZE)
-  const [downloadResolution, setDownloadResolution] = useState(DEFAULT_DOWNLOAD_RESOLUTION)
+  const downloadResolution = DEFAULT_DOWNLOAD_RESOLUTION
   const [downloadingPlinth, setDownloadingPlinth] = useState(false)
   const [downloadingJig, setDownloadingJig] = useState(false)
   const [addSupports, setAddSupports] = useState(DEFAULT_ADD_SUPPORTS)
@@ -864,22 +864,6 @@ function App() {
           </Box>
 
           <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.75 }}>
-              Download Resolution
-            </Typography>
-            <ToggleButtonGroup
-              value={downloadResolution}
-              exclusive
-              onChange={(_e, v: number | null) => { if (v !== null) setDownloadResolution(v) }}
-              size="small"
-              fullWidth
-              sx={{ mb: 1.5 }}
-            >
-              <ToggleButton value={0.03}>30um</ToggleButton>
-              <ToggleButton value={0.05}>50um</ToggleButton>
-              <ToggleButton value={0.1}>100um</ToggleButton>
-              <ToggleButton value={0.2}>200um</ToggleButton>
-            </ToggleButtonGroup>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {addDrillJig ? (
                 <Button

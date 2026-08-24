@@ -28,9 +28,5 @@ export const HELP_SECTIONS: HelpSection[] = [
   {
     title: 'Supports',
     body: 'Auto generated supports for resin printers. The defaults are the values I use, but all parameters are adjustable for your own printing needs!',
-  },
-  {
-    title: 'High Resolution STLs',
-    body: 'The STL will be generated at the resolution you select - this is primarily useful to keep the trim or ellipsoid plinths without any stepping.',
   }
 ]

@@ -21,7 +21,7 @@ export const TOP_ANGLE_PRESETS = [0, 20, 25, 30, 35, 40] as const
 export const DEFAULT_ROUND_STYLE: RoundStyle = 'fillet'
 export const DEFAULT_ROUND_LOCATION: RoundLocation = 'top'
 export const DEFAULT_ROUND_SIZE = 0.5
-export const DEFAULT_DOWNLOAD_RESOLUTION = 0.05
+export const DEFAULT_DOWNLOAD_RESOLUTION = 0.2
 
 export const DEFAULT_MIN_HOLE_DIAMETER = 2
 export const DEFAULT_MAX_HOLE_DIAMETER = 10
