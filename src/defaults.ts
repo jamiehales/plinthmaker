@@ -35,11 +35,12 @@ export const DEFAULT_SUCTION_HOLE_DIAMETER = 3
 
 export const DEFAULT_ADD_SUPPORTS = false
 export const DEFAULT_PLINTH_ANGLE = 15
-export const DEFAULT_RAISE_BY = 3
+export const DEFAULT_RAISE_BY = 5
 export const DEFAULT_SUPPORT_SIZE = 1
 export const DEFAULT_SUPPORT_TIP_SIZE = 0.5
 export const DEFAULT_SUPPORT_SPACING = 3
-export const DEFAULT_INTERIOR_SPACING = 2
+
+export const DEFAULT_INTERIOR_SPACING = 3
 export const DEFAULT_LOCK_EDGE_SPACING_FILL = false
 
 export const DEFAULT_CONE_START_GAP = 1
