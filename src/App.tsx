@@ -11,7 +11,6 @@ import {
   Separator,
   Spinner,
   Textarea,
-  TextLink,
   Tooltip,
 } from '@jamiehales/next-kit/ui/mostlymaking'
 import { CircleIcon, CopyIcon, DownloadIcon, EditIcon, HelpIcon, PasteIcon, SquareIcon } from './components/icons.tsx'
@@ -289,10 +288,10 @@ function App() {
     <div className="app" data-compact={compact ? '' : undefined} style={layoutStyle}>
       <header className="topbar">
         <h1 className="topbar-title mm-type-logo">
-          <TextLink href="https://mostlymaking.net" target="_blank" rel="noopener noreferrer">
-            mostlymaking.
-          </TextLink>
-          plinths
+          <a className="wordmark-home" href="https://mostlymaking.net" target="_blank" rel="noopener noreferrer">
+            mostlymaking<span className="wordmark-dot">.</span>
+          </a>
+          <span className="wordmark-product">plinths</span>
         </h1>
         <IconButton variant="ghost" aria-label="Help" onClick={() => helpRef.current?.open()}>
           <HelpIcon />

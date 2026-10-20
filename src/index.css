@@ -26,6 +26,7 @@ body {
   grid-template: var(--topbar-height) 1fr / var(--sidebar-width) 1fr;
   grid-template-areas: "topbar topbar" "sidebar viewport";
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
 }
 
@@ -44,8 +45,23 @@ body {
   white-space: nowrap;
 }
 
-.topbar-title .mm-link {
-  color: inherit;
+.wordmark-home {
+  color: var(--foreground);
+  text-decoration: none;
+  border-radius: 2px;
+}
+
+.wordmark-home:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.wordmark-dot {
+  color: var(--primary);
+}
+
+.wordmark-product {
+  color: var(--muted-foreground);
 }
 
 .sidebar {
@@ -270,7 +286,6 @@ body {
 .app[data-compact] {
   display: block;
   position: relative;
-  height: 100dvh;
 }
 
 .app[data-compact] .topbar {
