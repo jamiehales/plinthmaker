@@ -72,3 +72,10 @@ export const TRIM_HANDLE_SCALE = 1
 export const TRIM_MIN_HANDLE_LEN = 0.03
 
 export const DRAWER_WIDTH = 500
+export const COMPACT_LAYOUT_QUERY = '(max-width: 720px)'
+export const TOPBAR_HEIGHT = 48
+export const SHEET_PEEK_HEIGHT = 88
+export const SHEET_FULL_TOP_GAP = 40
+export const SHEET_HALF_FRACTION = 0.5
+export const MIN_PREVIEW_HEIGHT = 160
+export const DEFAULT_SHEET_SNAP = 'half'

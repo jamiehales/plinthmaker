@@ -39,8 +39,12 @@ import {
   DEFAULT_CUSTOM_TRIM_POINTS, DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
   DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_TOP_THICKNESS, DEFAULT_HOLLOW_WALL_THICKNESS,
   DEFAULT_SUCTION_HOLE_ENABLED, DEFAULT_SUCTION_HOLE_DIAMETER,
-  TOP_ANGLE_PRESETS,
+  TOP_ANGLE_PRESETS, COMPACT_LAYOUT_QUERY, DEFAULT_SHEET_SNAP,
 } from './defaults.ts'
+import { ParameterSheetHeader } from './components/ParameterSheet.tsx'
+import { getPreviewHeight, getSheetHeights, type SheetSnap } from './components/sheetLayout.ts'
+import { useMediaQuery, useWindowHeight } from './components/useLayout.ts'
+import { describePlinthFeatures, describePlinthSize } from './components/plinthSummary.ts'
 import { TRIM_PROFILES, getTrimProfile, type TrimProfilePoint } from './components/trimProfiles.ts'
 import TrimProfileIcon from './components/TrimProfileIcon.tsx'
 import TrimProfileEditor from './components/TrimProfileEditor.tsx'
@@ -114,8 +118,13 @@ function App() {
   const [customTrimPoints, setCustomTrimPoints] = useState<TrimProfilePoint[]>(DEFAULT_CUSTOM_TRIM_POINTS)
   const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
   const [jsonText, setJsonText] = useState('')
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>(DEFAULT_SHEET_SNAP)
   const { build } = useGeometryWorker()
   const helpRef = useRef<HelpDialogHandle>(null)
+  const sheetRef = useRef<HTMLElement>(null)
+  const compact = useMediaQuery(COMPACT_LAYOUT_QUERY)
+  const windowHeight = useWindowHeight()
+  const sheetHeights = getSheetHeights(windowHeight)
 
   const handleEditPreset = useCallback(() => {
     const preset = getTrimProfile(trimProfileId)
@@ -228,8 +237,56 @@ function App() {
     raftHeight,
   }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, effectiveInteriorSpacing, supportCaps, scaffoldingEnabled, scaffoldingAngle, raftHeight])
 
+  const downloadJig = async () => {
+    setDownloadingJig(true)
+    try {
+      const { promise } = build({ type: 'jig', shape, plinthParams, jigParams: drillJigParams, baseSegMM: downloadResolution, filletSegMM: downloadResolution, useCDT: true, computeCavity: true })
+      const msg = await promise
+      if (msg.type !== 'jig') return
+      const geo = deserializeGeometry(msg.jig)
+      exportSTL(geo, buildJigFilename(plinthParams, drillJigParams))
+      geo.dispose()
+    } finally {
+      setDownloadingJig(false)
+    }
+  }
+
+  const downloadPlinth = async () => {
+    setDownloadingPlinth(true)
+    try {
+      const { promise } = build({ type: 'plinth', params: plinthParams, baseSegMM: downloadResolution, filletSegMM: downloadResolution, useCDT: true })
+      const msg = await promise
+      if (msg.type !== 'plinth') return
+      const geo = deserializeGeometry(msg.geometry)
+      if (addSupports) {
+        const supportGeo = buildSupportMeshGeometry(shape, plinthParams, supportParams, 16, scaffoldingEnabled)
+        const transformedPlinth = applySupportTransform(geo, supportParams, plinthParams.depth)
+        const merged = mergePlinthWithSupports(transformedPlinth, supportGeo)
+        const zup = applyYUpToZUp(merged)
+        exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution, true))
+        if (merged !== transformedPlinth) merged.dispose()
+        transformedPlinth.dispose()
+        supportGeo.dispose()
+        zup.dispose()
+      } else {
+        const zup = applyYUpToZUp(geo)
+        exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution, false))
+        zup.dispose()
+      }
+      geo.dispose()
+    } finally {
+      setDownloadingPlinth(false)
+    }
+  }
+
+  const layoutStyle = {
+    '--sidebar-width': `${DRAWER_WIDTH}px`,
+    '--sheet-height': `${sheetHeights[sheetSnap]}px`,
+    '--preview-height': `${getPreviewHeight(windowHeight, sheetHeights[sheetSnap])}px`,
+  } as CSSProperties
+
   return (
-    <div className="app" style={{ '--sidebar-width': `${DRAWER_WIDTH}px` } as CSSProperties}>
+    <div className="app" data-compact={compact ? '' : undefined} style={layoutStyle}>
       <header className="topbar">
         <h1 className="topbar-title mm-type-logo">
           <TextLink href="https://mostlymaking.net" target="_blank" rel="noopener noreferrer">
@@ -242,7 +299,27 @@ function App() {
         </IconButton>
       </header>
 
-      <aside className="sidebar">
+      <aside className="sidebar" ref={sheetRef} aria-label="Parameters">
+        {compact ? (
+          <ParameterSheetHeader
+            sheetRef={sheetRef}
+            snap={sheetSnap}
+            heights={sheetHeights}
+            onSnapChange={setSheetSnap}
+            title={describePlinthSize(plinthParams)}
+            subtitle={describePlinthFeatures(plinthParams, drillJigParams, supportParams)}
+          >
+            {addDrillJig ? (
+              <Button disabled={downloadingJig} onClick={downloadJig}>
+                {downloadingJig ? <Spinner label="Generating" /> : <DownloadIcon />}
+                Jig
+              </Button>
+            ) : null}
+            <IconButton variant="primary" aria-label="Download plinth (.stl)" disabled={downloadingPlinth} onClick={downloadPlinth}>
+              {downloadingPlinth ? <Spinner label="Generating" /> : <DownloadIcon />}
+            </IconButton>
+          </ParameterSheetHeader>
+        ) : null}
         <div className="sidebar-scroll">
           <SectionTitle>Shape</SectionTitle>
           <SegmentedControl className="fill-row" value={shape} onValueChange={(v) => handleShape(v as Shape)} aria-label="Shape">
@@ -606,65 +683,20 @@ function App() {
           ) : null}
         </div>
 
-        <div className="sidebar-footer">
-          {addDrillJig ? (
-            <Button
-              className="fill-button"
-              disabled={downloadingJig}
-              onClick={async () => {
-                setDownloadingJig(true)
-                try {
-                  const { promise } = build({ type: 'jig', shape, plinthParams, jigParams: drillJigParams, baseSegMM: downloadResolution, filletSegMM: downloadResolution, useCDT: true, computeCavity: true })
-                  const msg = await promise
-                  if (msg.type !== 'jig') return
-                  const geo = deserializeGeometry(msg.jig)
-                  exportSTL(geo, buildJigFilename(plinthParams, drillJigParams))
-                  geo.dispose()
-                } finally {
-                  setDownloadingJig(false)
-                }
-              }}
-            >
-              {downloadingJig ? <Spinner label="Generating" /> : <DownloadIcon />}
-              {downloadingJig ? 'Generating...' : 'Download Drill Jig (.stl)'}
+        {compact ? null : (
+          <div className="sidebar-footer">
+            {addDrillJig ? (
+              <Button className="fill-button" disabled={downloadingJig} onClick={downloadJig}>
+                {downloadingJig ? <Spinner label="Generating" /> : <DownloadIcon />}
+                {downloadingJig ? 'Generating...' : 'Download Drill Jig (.stl)'}
+              </Button>
+            ) : null}
+            <Button variant="primary" className="fill-button" disabled={downloadingPlinth} onClick={downloadPlinth}>
+              {downloadingPlinth ? <Spinner label="Generating" /> : <DownloadIcon />}
+              {downloadingPlinth ? 'Generating...' : 'Download Plinth (.stl)'}
             </Button>
-          ) : null}
-          <Button
-            variant="primary"
-            className="fill-button"
-            disabled={downloadingPlinth}
-            onClick={async () => {
-              setDownloadingPlinth(true)
-              try {
-                const { promise } = build({ type: 'plinth', params: plinthParams, baseSegMM: downloadResolution, filletSegMM: downloadResolution, useCDT: true })
-                const msg = await promise
-                if (msg.type !== 'plinth') return
-                const geo = deserializeGeometry(msg.geometry)
-                if (addSupports) {
-                  const supportGeo = buildSupportMeshGeometry(shape, plinthParams, supportParams, 16, scaffoldingEnabled)
-                  const transformedPlinth = applySupportTransform(geo, supportParams, plinthParams.depth)
-                  const merged = mergePlinthWithSupports(transformedPlinth, supportGeo)
-                  const zup = applyYUpToZUp(merged)
-                  exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution, true))
-                  if (merged !== transformedPlinth) merged.dispose()
-                  transformedPlinth.dispose()
-                  supportGeo.dispose()
-                  zup.dispose()
-                } else {
-                  const zup = applyYUpToZUp(geo)
-                  exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution, false))
-                  zup.dispose()
-                }
-                geo.dispose()
-              } finally {
-                setDownloadingPlinth(false)
-              }
-            }}
-          >
-            {downloadingPlinth ? <Spinner label="Generating" /> : <DownloadIcon />}
-            {downloadingPlinth ? 'Generating...' : 'Download Plinth (.stl)'}
-          </Button>
-        </div>
+          </div>
+        )}
       </aside>
 
       <main className="viewport">
