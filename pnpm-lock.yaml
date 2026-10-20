@@ -5,8 +5,12 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  three-bvh-csg@0.0.18: 84ff4905b0b39fdcc5e319313c34ac59d0f1435977944f5a7c5846847a171ff0
-  three@0.185.1: 00da8e3228f0966106aa85bc9a407fe24854772e46efbf8e82f8f8d3bffc202d
+  three-bvh-csg@0.0.18:
+    hash: 84ff4905b0b39fdcc5e319313c34ac59d0f1435977944f5a7c5846847a171ff0
+    path: patches/three-bvh-csg@0.0.18.patch
+  three@0.185.1:
+    hash: 00da8e3228f0966106aa85bc9a407fe24854772e46efbf8e82f8f8d3bffc202d
+    path: patches/three@0.185.1.patch
 
 importers:
 
