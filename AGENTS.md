@@ -8,7 +8,7 @@
 
 **plinthgenerator** is a browser-based, fully client-side SPA that generates parametric STL plinth models from user-controlled parameters. No backend, no API calls — everything runs in the browser and works offline once loaded. Deployed to Vercel as a static site.
 
-- **Stack:** Vite + React 19 + TypeScript, MUI v9 (Material UI), three.js via `@react-three/fiber` + `@react-three/drei`
+- **Stack:** Vite + React 19 + TypeScript, the mostlymaking controls from the `vendor/next-kit` submodule (`@jamiehales/next-kit/ui/mostlymaking`, Radix-based; read its `DESIGN.md` and `CHANGELOG.md`; run `git submodule update --init` after cloning), three.js via `@react-three/fiber` + `@react-three/drei`
 - **Package manager:** pnpm (lockfile committed; always use `pnpm install --frozen-lockfile`)
 - **Repository:** https://github.com/jamiehale/plinthmaker.git
 - **Branch:** `main` (default)
@@ -46,10 +46,9 @@ plinthgenerator/
 ├── public/
 │   └── favicon.svg        # plinth icon
 └── src/
-    ├── main.tsx           # entry — wraps <App/> in ThemeProvider + CssBaseline (MUI dark theme)
-    ├── App.tsx            # top-level layout: AppBar, left Drawer (params panel), 3D viewport
-    ├── theme.ts           # MUI dark theme (createTheme)
-    ├── index.css          # global reset: html/body/#root fill viewport, no margin, no overflow
+    ├── main.tsx           # entry — loads fonts + mostlymaking.css, renders <App/>
+    ├── App.tsx            # top-level layout: top bar, left sidebar (params panel), 3D viewport
+    ├── index.css          # global reset plus the app layout and small component styles
     └── components/
         └── Viewport.tsx   # the 3D canvas (r3f <Canvas>): camera, lights, shadows, Grid floor,
                            #   OrbitControls, GizmoHelper. Placeholder plinth mesh lives here.
@@ -59,9 +58,9 @@ plinthgenerator/
 
 ### Layout (`src/App.tsx`)
 
-- A fixed MUI `AppBar` (dense, 48px tall) at the top with the app title.
-- A permanent MUI `Drawer` on the left, 340px wide, below the app bar — **this is where all parameter sliders/text fields go**. The body is currently an empty `Box` placeholder; add controls here. Keep controls inside this drawer only — do not scatter them elsewhere.
-- The remaining area (right of the drawer, below the app bar) is filled by the 3D `Viewport`.
+- A 48px top bar with the app title.
+- A sidebar on the left (`DRAWER_WIDTH` wide), below the top bar — **this is where all parameter sliders/text fields go**. Keep controls inside the sidebar only — do not scatter them elsewhere.
+- The remaining area (right of the sidebar, below the top bar) is filled by the 3D `Viewport`.
 
 ### 3D viewport (`src/components/Viewport.tsx`)
 
@@ -74,12 +73,12 @@ plinthgenerator/
 
 ### Parameters (not yet implemented)
 
-- Parameters have not been added yet. When adding them: put the MUI controls (`Slider`, `TextField`, etc.) inside the left `Drawer` in `App.tsx`, hold the state in `App` (or a small store/context), and pass values down to the `Viewport`/geometry as props. The eventual output is an STL file generated client-side (e.g. via three's `STLExporter`).
+- Parameters have not been added yet. When adding them: put the controls (`LabeledSlider`, `CheckField`, `SegmentedControl`, etc.) inside the left sidebar in `App.tsx`, hold the state in `App` (or a small store/context), and pass values down to the `Viewport`/geometry as props. The eventual output is an STL file generated client-side (e.g. via three's `STLExporter`).
 
 ### Styling
 
-- MUI is the UI library — prefer MUI components and the `sx` prop / theme over hand-written CSS. The theme is dark mode (`src/theme.ts`).
-- `src/index.css` only contains the global reset that makes the app fill the viewport with no scrollbars. Don't add component styles there; use `sx` or MUI's styling APIs instead.
+- The UI library is the mostlymaking controls in the `vendor/next-kit` submodule (dark theme, tokens in `mostlymaking.css`). Prefer its components and CSS variables (`var(--primary)`, `.mm-type-*`) over new hand-written styles. Update the pinned kit commit and read its `CHANGELOG.md` to pick up changes.
+- `src/index.css` holds the page layout and the few app-specific styles; use the kit's components for anything it already provides.
 
 ## Deployment
 
@@ -96,5 +95,5 @@ plinthgenerator/
 
 - **No comments** in source files unless explicitly requested.
 - Follow existing patterns: functional components, named exports, TypeScript strict mode, `import X from './Y.tsx'` (with extension, matching the Vite scaffold style).
-- Keep dependencies minimal and check `package.json` before adding a new library — prefer what's already installed (MUI, three, drei) over pulling in alternatives.
+- Keep dependencies minimal and check `package.json` before adding a new library — prefer what's already installed (the mostlymaking controls, three, drei) over pulling in alternatives.
 - **Variable naming:** use human-readable, descriptive names. Avoid terse abbreviations like `hw`, `hd`, `r2`, `nx`, `nz`, `p`, `c`, `a`, `b`. Prefer `halfWidth`, `halfDepth`, `radiusSquared`, `unitX`, `unitZ`, `point`, `cavity`, `pointA`, `pointB`. Short loop indices (`i`, `j`, `k`) and well-understood math symbols (`t` for interpolation parameter, `dx`/`dz` for delta components) are acceptable. The goal is that a reader can understand a variable's role without scrolling to its definition.

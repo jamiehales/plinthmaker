@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 // VS Code's port-forwarding proxy strips its own path prefix (e.g.
@@ -31,6 +32,12 @@ export default defineConfig(({ command }) => ({
   server: {
     host: '0.0.0.0',
     allowedHosts: ['code.jamiehales.com'],
+  },
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
+  test: {
+    exclude: [...configDefaults.exclude, 'vendor/**'],
   },
   build: {
     target: 'es2023',

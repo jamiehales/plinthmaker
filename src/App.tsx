@@ -1,33 +1,21 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef, type CSSProperties } from 'react'
 import {
-  Box,
-  Drawer,
-  Toolbar,
-  Typography,
-  AppBar,
-  ToggleButtonGroup,
-  ToggleButton,
-  FormControlLabel,
-  Checkbox,
-  Divider,
   Button,
-  CircularProgress,
-  Tooltip,
-  Link,
-  TextField,
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
+  DialogFooter,
+  DialogTitle,
   IconButton,
-} from '@mui/material'
-import DownloadIcon from '@mui/icons-material/Download'
-import SquareIcon from '@mui/icons-material/Square'
-import CircleIcon from '@mui/icons-material/Circle'
-import EditIcon from '@mui/icons-material/Edit'
-import ContentCopyIcon from '@mui/icons-material/ContentCopy'
-import ContentPasteIcon from '@mui/icons-material/ContentPaste'
-import HelpOutlineOutlinedIcon from '@mui/icons-material/HelpOutlineOutlined'
+  SegmentedControl,
+  SegmentedControlItem,
+  Separator,
+  Spinner,
+  Textarea,
+  TextLink,
+  Tooltip,
+} from '@jamiehales/next-kit/ui/mostlymaking'
+import { CircleIcon, CopyIcon, DownloadIcon, EditIcon, HelpIcon, PasteIcon, SquareIcon } from './components/icons.tsx'
+import { CheckField, SectionTitle } from './components/FormParts.tsx'
 import Viewport from './components/Viewport.tsx'
 import HelpDialog, { type HelpDialogHandle } from './components/HelpDialog.tsx'
 import { type Shape, type PlinthParams, type RoundStyle, type RoundLocation, type SupportParams } from './components/geometryBuilder.ts'
@@ -61,38 +49,15 @@ import PlinthAngleIcon from './components/PlinthAngleIcon.tsx'
 function BuildingIndicator() {
   const building = useBuilding()
   const failed = useGenerationFailed()
+  if (!building && !failed) return null
   return (
-    <div style={{
-      position: 'absolute',
-      bottom: '16px',
-      left: '16px',
-      display: building || failed ? 'flex' : 'none',
-      alignItems: 'center',
-      gap: '8px',
-      color: failed ? '#ff6b6b' : '#fff',
-      fontSize: '14px',
-      whiteSpace: 'nowrap',
-      pointerEvents: 'none',
-      zIndex: 9999,
-      background: failed ? 'rgba(60,0,0,0.75)' : 'rgba(0,0,0,0.7)',
-      padding: '6px 10px',
-    }}>
+    <div className="building-indicator" data-failed={failed ? '' : undefined}>
       {failed ? (
-        <>
-          Generation failed
-        </>
+        'Generation failed'
       ) : (
         <>
-          <div style={{
-            width: '20px',
-            height: '20px',
-            border: '2px solid rgba(255,255,255,0.3)',
-            borderTopColor: '#fff',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-          }} />
+          <Spinner label="Generating" width={20} height={20} />
           Generating…
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </>
       )}
     </div>
@@ -177,11 +142,9 @@ function App() {
     }
   }, [jsonText])
 
-  const handleShape = (_e: unknown, v: Shape | null) => {
-    if (v !== null) {
-      setShape(v)
-      if (v === 'ellipse' && roundLocation !== 'top') setRoundLocation('top')
-    }
+  const handleShape = (v: Shape) => {
+    setShape(v)
+    if (v === 'ellipse' && roundLocation !== 'top') setRoundLocation('top')
   }
 
   const handleWidth = (w: number) => {
@@ -266,678 +229,445 @@ function App() {
   }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, effectiveInteriorSpacing, supportCaps, scaffoldingEnabled, scaffoldingAngle, raftHeight])
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
-      <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
-        <Toolbar variant="dense">
-          <Typography
-            component="h1"
-            noWrap
-            sx={{
-              fontFamily: '"Elms Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-              fontSize: '1.25rem',
-              fontWeight: 400,
-              letterSpacing: '0.02em',
+    <div className="app" style={{ '--sidebar-width': `${DRAWER_WIDTH}px` } as CSSProperties}>
+      <header className="topbar">
+        <h1 className="topbar-title mm-type-logo">
+          <TextLink href="https://mostlymaking.net" target="_blank" rel="noopener noreferrer">
+            mostlymaking.
+          </TextLink>
+          plinths
+        </h1>
+        <IconButton variant="ghost" aria-label="Help" onClick={() => helpRef.current?.open()}>
+          <HelpIcon />
+        </IconButton>
+      </header>
+
+      <aside className="sidebar">
+        <div className="sidebar-scroll">
+          <SectionTitle>Shape</SectionTitle>
+          <SegmentedControl className="fill-row" value={shape} onValueChange={(v) => handleShape(v as Shape)} aria-label="Shape">
+            <SegmentedControlItem value="rectangle">
+              <SquareIcon /> Rectangle
+            </SegmentedControlItem>
+            <SegmentedControlItem value="ellipse">
+              <CircleIcon /> Ellipse
+            </SegmentedControlItem>
+          </SegmentedControl>
+
+          <SectionTitle>Dimensions</SectionTitle>
+          <LabeledSlider label="Width" value={width} onChange={handleWidth} min={20} max={150} />
+          <LabeledSlider
+            label="Depth"
+            value={depth}
+            onChange={setDepth}
+            min={20}
+            max={150}
+            disabled={lockedAspect}
+          />
+          <CheckField checked={lockedAspect} onChange={handleLocked}>Lock Depth to Width</CheckField>
+
+          <LabeledSlider label="Height" value={height} onChange={setHeight} min={20} max={150} />
+
+          <SectionTitle>Top Angle</SectionTitle>
+          <SegmentedControl
+            className="fill-row tall"
+            value={String(topAnglePreset)}
+            onValueChange={(v) => {
+              const preset = v === 'custom' ? 'custom' : Number(v)
+              setTopAnglePreset(preset)
+              if (preset !== 'custom') setTopAngle(preset)
             }}
+            aria-label="Top angle"
           >
-            <Link href="https://mostlymaking.net" target="_blank" rel="noopener noreferrer" color="inherit" underline="hover">
-              mostlymaking.
-            </Link>
-            plinths
-          </Typography>
-          <Box sx={{ flexGrow: 1 }} />
-          <IconButton
-            onClick={() => helpRef.current?.open()}
-            aria-label="help"
-            color="inherit"
-          >
-            <HelpOutlineOutlinedIcon />
-          </IconButton>
-        </Toolbar>
-      </AppBar>
-
-      <Drawer
-        variant="permanent"
-        sx={{
-          width: DRAWER_WIDTH,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: DRAWER_WIDTH,
-            boxSizing: 'border-box',
-            top: 48,
-            height: 'calc(100% - 48px)',
-          },
-        }}
-        open
-      >
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <Box sx={{ p: 2, overflowY: 'auto', flexGrow: 1 }}>
-            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
-              Shape
-            </Typography>
-            <ToggleButtonGroup
-              value={shape}
-              exclusive
-              onChange={handleShape}
-              size="small"
-              fullWidth
-              sx={{ mb: 1 }}
-            >
-              <ToggleButton value="rectangle">
-                <SquareIcon sx={{ mr: 0.75 }} fontSize="small" />
-                Rectangle
-              </ToggleButton>
-              <ToggleButton value="ellipse">
-                <CircleIcon sx={{ mr: 0.75 }} fontSize="small" />
-                Ellipse
-              </ToggleButton>
-            </ToggleButtonGroup>
-
-            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
-              Dimensions
-            </Typography>
-            <LabeledSlider label="Width" value={width} onChange={handleWidth} min={20} max={150} />
+            {TOP_ANGLE_PRESETS.map((a) => (
+              <SegmentedControlItem key={a} value={String(a)}>
+                <PlinthAngleIcon angle={a} selected={topAnglePreset === a} />
+                <span className="seg-caption">{a}°</span>
+              </SegmentedControlItem>
+            ))}
+            <SegmentedControlItem value="custom">
+              <PlinthAngleIcon angle={topAnglePreset === 'custom' ? topAngle : 30} selected={topAnglePreset === 'custom'} />
+              <span className="seg-caption">Custom</span>
+            </SegmentedControlItem>
+          </SegmentedControl>
+          {topAnglePreset === 'custom' ? (
             <LabeledSlider
-              label="Depth"
-              value={depth}
-              onChange={setDepth}
-              min={20}
-              max={150}
-              disabled={lockedAspect}
+              label="Top Angle"
+              value={topAngle}
+              onChange={setTopAngle}
+              min={0}
+              max={45}
+              step={1}
+              unit="°"
             />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={lockedAspect}
-                  onChange={(e) => handleLocked(e.target.checked)}
-                  size="small"
-                />
-              }
-              label="Lock Depth to Width"
-              sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-            />
+          ) : null}
 
-            <LabeledSlider label="Height" value={height} onChange={setHeight} min={20} max={150} />
+          <Separator />
 
-            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600, mt: 1 }}>
-              Top Angle
-            </Typography>
-            <ToggleButtonGroup
-              value={topAnglePreset}
-              exclusive
-              onChange={(_e, v: number | 'custom' | null) => {
-                if (v === null) return
-                setTopAnglePreset(v)
-                if (v !== 'custom') setTopAngle(v)
-              }}
-              size="small"
-              fullWidth
-              sx={{ mb: 1 }}
-            >
-              {TOP_ANGLE_PRESETS.map((a) => (
-                <ToggleButton
-                  key={a}
-                  value={a}
-                  sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, py: 0.5, lineHeight: 1 }}
-                >
-                  <PlinthAngleIcon angle={a} selected={topAnglePreset === a} />
-                  <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>{a}°</Typography>
-                </ToggleButton>
-              ))}
-              <ToggleButton
-                value="custom"
-                sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, py: 0.5, lineHeight: 1 }}
-              >
-                <PlinthAngleIcon angle={topAnglePreset === 'custom' ? topAngle : 30} selected={topAnglePreset === 'custom'} />
-                <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>Custom</Typography>
-              </ToggleButton>
-            </ToggleButtonGroup>
-            {topAnglePreset === 'custom' ? (
+          <SectionTitle>Chamfer / Fillet</SectionTitle>
+          <SegmentedControl className="fill-row" value={roundStyle} onValueChange={(v) => setRoundStyle(v as RoundStyle)} aria-label="Edge style">
+            <SegmentedControlItem value="none">None</SegmentedControlItem>
+            <SegmentedControlItem value="chamfer">Chamfer</SegmentedControlItem>
+            <SegmentedControlItem value="fillet">Fillet</SegmentedControlItem>
+          </SegmentedControl>
+          {roundStyle !== 'none' ? (
+            <>
+              {shape === 'rectangle' ? (
+                <SegmentedControl className="fill-row" value={roundLocation} onValueChange={(v) => setRoundLocation(v as RoundLocation)} aria-label="Edge location">
+                  <SegmentedControlItem value="top">Top</SegmentedControlItem>
+                  <SegmentedControlItem value="edges">Edges</SegmentedControlItem>
+                  <SegmentedControlItem value="both">Both</SegmentedControlItem>
+                </SegmentedControl>
+              ) : null}
               <LabeledSlider
-                label="Top Angle"
-                value={topAngle}
-                onChange={setTopAngle}
+                label="Size"
+                value={roundSize}
+                onChange={setRoundSize}
                 min={0}
-                max={45}
+                max={5}
+                step={0.1}
+              />
+            </>
+          ) : null}
+
+          <Separator />
+
+          <SectionTitle>Trim</SectionTitle>
+          <CheckField checked={trimEnabled} onChange={setTrimEnabled}>Add Trim</CheckField>
+          {trimEnabled ? (
+            <>
+              <SegmentedControl className="fill-row" value={trimProfileId} onValueChange={setTrimProfileId} aria-label="Trim profile">
+                {TRIM_PROFILES.map((tp) => {
+                  const profile = tp.id === 'custom'
+                    ? { ...tp, points: customTrimPoints }
+                    : tp
+                  return (
+                    <Tooltip key={tp.id} content={tp.name} side="top">
+                      <SegmentedControlItem value={tp.id} aria-label={tp.name}>
+                        <TrimProfileIcon profile={profile} selected={trimProfileId === tp.id} />
+                      </SegmentedControlItem>
+                    </Tooltip>
+                  )
+                })}
+              </SegmentedControl>
+              {trimProfileId !== 'custom' ? (
+                <div className="center-row">
+                  <Button size="sm" onClick={handleEditPreset}>
+                    <EditIcon /> Edit Preset
+                  </Button>
+                </div>
+              ) : null}
+              {trimProfileId === 'custom' ? (
+                <div>
+                  <div className="center-row">
+                    <TrimProfileEditor
+                      points={customTrimPoints}
+                      onChange={setCustomTrimPoints}
+                    />
+                  </div>
+                  <div className="center-row">
+                    <Button size="sm" onClick={handleSaveJson}>
+                      <CopyIcon /> Export
+                    </Button>
+                    <Button size="sm" onClick={() => { setJsonDialogOpen(true) }}>
+                      <PasteIcon /> Import
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+              <LabeledSlider
+                label="Trim Height"
+                value={trimHeight}
+                onChange={setTrimHeight}
+                min={1}
+                max={height - 1}
+                step={0.5}
+              />
+              <LabeledSlider
+                label="Trim Size"
+                value={trimSize}
+                onChange={setTrimSize}
+                min={0.5}
+                max={15}
+                step={0.5}
+              />
+            </>
+          ) : null}
+
+          <Separator />
+
+          <SectionTitle>Plinth Hole</SectionTitle>
+          <CheckField checked={addHole} onChange={setAddHole}>Add Hole</CheckField>
+          {addHole ? (
+            <>
+              <LabeledSlider label="Hole Diameter" value={holeDiameter} onChange={(v) => { setHoleDiameter(v); if (!(jigDiffHole && addHole)) setJigHoleDiameter(v) }} min={DEFAULT_MIN_HOLE_DIAMETER} max={DEFAULT_MAX_HOLE_DIAMETER} step={0.5} />
+              <LabeledSlider
+                label="Hole Depth"
+                value={holeDepth}
+                onChange={setHoleDepth}
+                min={1}
+                max={50}
+              />
+            </>
+          ) : null}
+
+          <Separator />
+
+          <SectionTitle>Hollow</SectionTitle>
+          <CheckField checked={hollowEnabled} onChange={setHollowEnabled}>Enable Hollowing</CheckField>
+          {hollowEnabled ? (
+            <>
+              <LabeledSlider
+                label="Top Thickness"
+                value={topThickness}
+                onChange={setTopThickness}
+                min={1}
+                max={height - 1}
+                step={0.5}
+              />
+              <LabeledSlider
+                label="Wall Thickness"
+                value={hollowWallThickness}
+                onChange={setHollowWallThickness}
+                min={0.5}
+                max={Math.min(width, depth) / 2 - 0.5}
+                step={0.1}
+              />
+              <CheckField checked={suctionHoleEnabled} onChange={setSuctionHoleEnabled}>
+                Add Hole for Suction Cup prevention
+              </CheckField>
+              {suctionHoleEnabled ? (
+                <LabeledSlider
+                  label="Hole Diameter"
+                  value={suctionHoleDiameter}
+                  onChange={setSuctionHoleDiameter}
+                  min={1}
+                  max={Math.min(width, depth) - 2 * hollowWallThickness}
+                  step={0.5}
+                />
+              ) : null}
+            </>
+          ) : null}
+
+          <Separator />
+
+          <SectionTitle>Drill Jig</SectionTitle>
+          <CheckField checked={addDrillJig} onChange={setAddDrillJig}>Generate Drill Jig</CheckField>
+          {addDrillJig ? (
+            <>
+              <LabeledSlider
+                label="Hole Diameter"
+                value={jigDiffHole && addHole ? jigHoleDiameter : holeDiameter}
+                onChange={(v) => {
+                  if (jigDiffHole && addHole) {
+                    setJigHoleDiameter(v)
+                  } else {
+                    setHoleDiameter(v)
+                    setJigHoleDiameter(v)
+                  }
+                }}
+                min={DEFAULT_MIN_HOLE_DIAMETER}
+                max={DEFAULT_MAX_HOLE_DIAMETER}
+                step={0.5}
+                disabled={addHole && !jigDiffHole}
+              />
+              {addHole ? (
+                <CheckField checked={jigDiffHole} onChange={setJigDiffHole}>
+                  Use Different Hole Size to Plinth
+                </CheckField>
+              ) : null}
+              <LabeledSlider
+                label="Wall Size"
+                value={jigWallSize}
+                onChange={setJigWallSize}
+                min={1}
+                max={10}
+                step={0.1}
+              />
+              <LabeledSlider
+                label="Height"
+                value={jigHeight}
+                onChange={setJigHeight}
+                min={1}
+                max={50}
+                step={0.1}
+              />
+              <LabeledSlider
+                label="Overlap"
+                value={jigOverlap}
+                onChange={setJigOverlap}
+                min={1}
+                max={20}
+                step={0.1}
+              />
+              <LabeledSlider
+                label="Tolerance"
+                value={jigTolerance}
+                onChange={setJigTolerance}
+                min={0}
+                max={1}
+                step={0.01}
+              />
+              <CheckField checked={jigLift} onChange={setJigLift}>Lift Drill Jig</CheckField>
+              <CheckField checked={jigFlattenTop} onChange={setJigFlattenTop}>Flatten Top</CheckField>
+            </>
+          ) : null}
+
+          <Separator />
+
+          <SectionTitle>Supports</SectionTitle>
+          <CheckField checked={addSupports} onChange={setAddSupports}>Generate Resin Supports</CheckField>
+          {addSupports ? (
+            <>
+              <LabeledSlider
+                label="Plinth Angle"
+                value={plinthAngle}
+                onChange={setPlinthAngle}
+                min={0}
+                max={30}
                 step={1}
                 unit="°"
               />
-            ) : null}
-
-            <Divider sx={{ my: 1.5 }} />
-
-            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
-              Chamfer / Fillet
-            </Typography>
-            <ToggleButtonGroup
-              value={roundStyle}
-              exclusive
-              onChange={(_e, v: RoundStyle | null) => {
-                if (v !== null) {
-                  setRoundStyle(v)
-                }
-              }}
-              size="small"
-              fullWidth
-              sx={{ mb: 1 }}
-            >
-              <ToggleButton value="none">None</ToggleButton>
-              <ToggleButton value="chamfer">Chamfer</ToggleButton>
-              <ToggleButton value="fillet">Fillet</ToggleButton>
-            </ToggleButtonGroup>
-            {roundStyle !== 'none' ? (
-              <>
-                {shape === 'rectangle' ? (
-                  <ToggleButtonGroup
-                    value={roundLocation}
-                    exclusive
-                    onChange={(_e, v: RoundLocation | null) => { if (v !== null) setRoundLocation(v) }}
-                    size="small"
-                    fullWidth
-                    sx={{ mb: 1 }}
-                  >
-                    <ToggleButton value="top">Top</ToggleButton>
-                    <ToggleButton value="edges">Edges</ToggleButton>
-                    <ToggleButton value="both">Both</ToggleButton>
-                  </ToggleButtonGroup>
-                ) : null}
-                <LabeledSlider
-                  label="Size"
-                  value={roundSize}
-                  onChange={setRoundSize}
-                  min={0}
-                  max={5}
-                  step={0.1}
-                />
-              </>
-            ) : null}
-
-            <Divider sx={{ my: 1.5 }} />
-
-            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
-              Trim
-            </Typography>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={trimEnabled}
-                  onChange={(e) => setTrimEnabled(e.target.checked)}
-                  size="small"
-                />
-              }
-              label="Add Trim"
-              sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-            />
-            {trimEnabled ? (
-              <>
-                <ToggleButtonGroup
-                  value={trimProfileId}
-                  exclusive
-                  onChange={(_e, v: string | null) => { if (v !== null) setTrimProfileId(v) }}
-                  size="small"
-                  fullWidth
-                  sx={{ mb: 1 }}
-                >
-                  {TRIM_PROFILES.map((tp) => {
-                    const profile = tp.id === 'custom'
-                      ? { ...tp, points: customTrimPoints }
-                      : tp
-                    return (
-                    <Tooltip key={tp.id} title={tp.name} placement="top" arrow>
-                      <ToggleButton
-                        value={tp.id}
-                        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 0.75 }}
-                      >
-                        <TrimProfileIcon profile={profile} selected={trimProfileId === tp.id} />
-                      </ToggleButton>
-                    </Tooltip>
-                    )
-                  })}
-                </ToggleButtonGroup>
-                {trimProfileId !== 'custom' ? (
-                  <Box sx={{ mb: 1, display: 'flex', justifyContent: 'center' }}>
-                    <Button
-                      size="small"
-                      startIcon={<EditIcon />}
-                      onClick={handleEditPreset}
-                      variant="outlined"
-                    >
-                      Edit Preset
-                    </Button>
-                  </Box>
-                ) : null}
-                {trimProfileId === 'custom' ? (
-                  <Box sx={{ mb: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-                      <TrimProfileEditor
-                        points={customTrimPoints}
-                        onChange={setCustomTrimPoints}
-                      />
-                    </Box>
-                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                      <Button
-                        size="small"
-                        startIcon={<ContentCopyIcon />}
-                        onClick={handleSaveJson}
-                        variant="outlined"
-                      >
-                        Export
-                      </Button>
-                      <Button
-                        size="small"
-                        startIcon={<ContentPasteIcon />}
-                        onClick={() => { setJsonDialogOpen(true) }}
-                        variant="outlined"
-                      >
-                        Import
-                      </Button>
-                    </Box>
-                  </Box>
-                ) : null}
-                <LabeledSlider
-                  label="Trim Height"
-                  value={trimHeight}
-                  onChange={setTrimHeight}
-                  min={1}
-                  max={height - 1}
-                  step={0.5}
-                />
-                <LabeledSlider
-                  label="Trim Size"
-                  value={trimSize}
-                  onChange={setTrimSize}
-                  min={0.5}
-                  max={15}
-                  step={0.5}
-                />
-              </>
-            ) : null}
-
-            <Divider sx={{ my: 1.5 }} />
-
-            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
-              Plinth Hole
-            </Typography>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={addHole}
-                  onChange={(e) => setAddHole(e.target.checked)}
-                  size="small"
-                />
-              }
-              label="Add Hole"
-              sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-            />
-            {addHole ? (
-              <>
-                <LabeledSlider label="Hole Diameter" value={holeDiameter} onChange={(v) => { setHoleDiameter(v); if (!(jigDiffHole && addHole)) setJigHoleDiameter(v) }} min={DEFAULT_MIN_HOLE_DIAMETER} max={DEFAULT_MAX_HOLE_DIAMETER} step={0.5} />
-                <LabeledSlider
-                  label="Hole Depth"
-                  value={holeDepth}
-                  onChange={setHoleDepth}
-                  min={1}
-                  max={50}
-                />
-              </>
-            ) : null}
-
-            <Divider sx={{ my: 1.5 }} />
-
-            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
-              Hollow
-            </Typography>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={hollowEnabled}
-                  onChange={(e) => setHollowEnabled(e.target.checked)}
-                  size="small"
-                />
-              }
-              label="Enable Hollowing"
-              sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-            />
-            {hollowEnabled ? (
-              <>
-                <LabeledSlider
-                  label="Top Thickness"
-                  value={topThickness}
-                  onChange={setTopThickness}
-                  min={1}
-                  max={height - 1}
-                  step={0.5}
-                />
-                <LabeledSlider
-                  label="Wall Thickness"
-                  value={hollowWallThickness}
-                  onChange={setHollowWallThickness}
-                  min={0.5}
-                  max={Math.min(width, depth) / 2 - 0.5}
-                  step={0.1}
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={suctionHoleEnabled}
-                      onChange={(e) => setSuctionHoleEnabled(e.target.checked)}
-                      size="small"
-                    />
+              <LabeledSlider
+                label="Raise By"
+                value={raiseBy}
+                onChange={setRaiseBy}
+                min={1}
+                max={30}
+              />
+              <LabeledSlider
+                label="Support Size"
+                value={supportSize}
+                onChange={setSupportSize}
+                min={0.5}
+                max={2}
+              />
+              <LabeledSlider
+                label="Support Tip Size"
+                value={supportTipSize}
+                onChange={setSupportTipSize}
+                min={0}
+                max={0.5}
+                step={0.025}
+              />
+              <LabeledSlider
+                label="Support Spacing (Edges)"
+                value={supportSpacing}
+                onChange={setSupportSpacing}
+                min={2}
+                max={5}
+              />
+              <CheckField
+                checked={lockEdgeToFill}
+                onChange={(checked) => {
+                  setLockEdgeToFill(checked)
+                  if (checked) setInteriorSpacing(supportSpacing)
+                }}
+              >
+                Lock Edge Spacing to Fill
+              </CheckField>
+              <LabeledSlider
+                label="Support Spacing (Fill)"
+                value={lockEdgeToFill ? supportSpacing : interiorSpacing}
+                onChange={(v) => {
+                  if (lockEdgeToFill) {
+                    setSupportSpacing(v)
+                    setInteriorSpacing(v)
+                  } else {
+                    setInteriorSpacing(v)
                   }
-                  label="Add Hole for Suction Cup prevention"
-                  sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-                />
-                {suctionHoleEnabled ? (
-                  <LabeledSlider
-                    label="Hole Diameter"
-                    value={suctionHoleDiameter}
-                    onChange={setSuctionHoleDiameter}
-                    min={1}
-                    max={Math.min(width, depth) - 2 * hollowWallThickness}
-                    step={0.5}
-                  />
-                ) : null}
-              </>
-            ) : null}
-
-            <Divider sx={{ my: 1.5 }} />
-
-            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
-              Drill Jig
-            </Typography>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={addDrillJig}
-                  onChange={(e) => setAddDrillJig(e.target.checked)}
-                  size="small"
-                />
-              }
-              label="Generate Drill Jig"
-              sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-            />
-            {addDrillJig ? (
-              <>
+                }}
+                min={2}
+                max={5}
+                disabled={lockEdgeToFill}
+              />
+              <CheckField checked={scaffoldingEnabled} onChange={setScaffoldingEnabled}>Add Scaffolding</CheckField>
+              {scaffoldingEnabled ? (
                 <LabeledSlider
-                  label="Hole Diameter"
-                  value={jigDiffHole && addHole ? jigHoleDiameter : holeDiameter}
-                  onChange={(v) => {
-                    if (jigDiffHole && addHole) {
-                      setJigHoleDiameter(v)
-                    } else {
-                      setHoleDiameter(v)
-                      setJigHoleDiameter(v)
-                    }
-                  }}
-                  min={DEFAULT_MIN_HOLE_DIAMETER}
-                  max={DEFAULT_MAX_HOLE_DIAMETER}
-                  step={0.5}
-                  disabled={addHole && !jigDiffHole}
-                />
-                {addHole ? (
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={jigDiffHole}
-                        onChange={(e) => setJigDiffHole(e.target.checked)}
-                        size="small"
-                      />
-                    }
-                    label="Use Different Hole Size to Plinth"
-                    sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-                  />
-                ) : null}
-                <LabeledSlider
-                  label="Wall Size"
-                  value={jigWallSize}
-                  onChange={setJigWallSize}
-                  min={1}
-                  max={10}
-                  step={0.1}
-                />
-                <LabeledSlider
-                  label="Height"
-                  value={jigHeight}
-                  onChange={setJigHeight}
-                  min={1}
-                  max={50}
-                  step={0.1}
-                />
-                <LabeledSlider
-                  label="Overlap"
-                  value={jigOverlap}
-                  onChange={setJigOverlap}
-                  min={1}
-                  max={20}
-                  step={0.1}
-                />
-                <LabeledSlider
-                  label="Tolerance"
-                  value={jigTolerance}
-                  onChange={setJigTolerance}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={jigLift}
-                      onChange={(e) => setJigLift(e.target.checked)}
-                      size="small"
-                    />
-                  }
-                  label="Lift Drill Jig"
-                  sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={jigFlattenTop}
-                      onChange={(e) => setJigFlattenTop(e.target.checked)}
-                      size="small"
-                    />
-                  }
-                  label="Flatten Top"
-                  sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-                />
-              </>
-            ) : null}
-
-            <Divider sx={{ my: 1.5 }} />
-
-            <Typography variant="overline" sx={{ color: 'primary.main', fontSize: '0.9rem', fontWeight: 600 }}>
-              Supports
-            </Typography>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={addSupports}
-                  onChange={(e) => setAddSupports(e.target.checked)}
-                  size="small"
-                />
-              }
-              label="Generate Resin Supports"
-              sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-            />
-            {addSupports ? (
-              <>
-                <LabeledSlider
-                  label="Plinth Angle"
-                  value={plinthAngle}
-                  onChange={setPlinthAngle}
-                  min={0}
-                  max={30}
+                  label="Scaffolding Angle"
+                  value={scaffoldingAngle}
+                  onChange={setScaffoldingAngle}
+                  min={15}
+                  max={75}
                   step={1}
                   unit="°"
                 />
-                <LabeledSlider
-                  label="Raise By"
-                  value={raiseBy}
-                  onChange={setRaiseBy}
-                  min={1}
-                  max={30}
-                />
-                <LabeledSlider
-                  label="Support Size"
-                  value={supportSize}
-                  onChange={setSupportSize}
-                  min={0.5}
-                  max={2}
-                />
-                <LabeledSlider
-                  label="Support Tip Size"
-                  value={supportTipSize}
-                  onChange={setSupportTipSize}
-                  min={0}
-                  max={0.5}
-                  step={0.025}
-                />
-                <LabeledSlider
-                  label="Support Spacing (Edges)"
-                  value={supportSpacing}
-                  onChange={setSupportSpacing}
-                  min={2}
-                  max={5}
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={lockEdgeToFill}
-                      onChange={(e) => {
-                        setLockEdgeToFill(e.target.checked)
-                        if (e.target.checked) setInteriorSpacing(supportSpacing)
-                      }}
-                      size="small"
-                    />
-                  }
-                  label="Lock Edge Spacing to Fill"
-                  sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-                />
-                <LabeledSlider
-                  label="Support Spacing (Fill)"
-                  value={lockEdgeToFill ? supportSpacing : interiorSpacing}
-                  onChange={(v) => {
-                    if (lockEdgeToFill) {
-                      setSupportSpacing(v)
-                      setInteriorSpacing(v)
-                    } else {
-                      setInteriorSpacing(v)
-                    }
-                  }}
-                  min={2}
-                  max={5}
-                  disabled={lockEdgeToFill}
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={scaffoldingEnabled}
-                      onChange={(e) => setScaffoldingEnabled(e.target.checked)}
-                      size="small"
-                    />
-                  }
-                  label="Add Scaffolding"
-                  sx={{ display: 'flex', '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-                />
-                {scaffoldingEnabled ? (
-                  <LabeledSlider
-                    label="Scaffolding Angle"
-                    value={scaffoldingAngle}
-                    onChange={setScaffoldingAngle}
-                    min={15}
-                    max={75}
-                    step={1}
-                    unit="°"
-                  />
-                ) : null}
-                <LabeledSlider
-                  label="Raft Thickness"
-                  value={raftHeight}
-                  onChange={setRaftHeight}
-                  min={MIN_RAFT_HEIGHT}
-                  max={MAX_RAFT_HEIGHT}
-                  step={0.05}
-                  unit="mm"
-                />
-              </>
-            ) : null}
-          </Box>
-
-          <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {addDrillJig ? (
-                <Button
-                  variant="contained"
-                  fullWidth
-                  color="secondary"
-                  disabled={downloadingJig}
-                  startIcon={downloadingJig ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
-                  onClick={async () => {
-                    setDownloadingJig(true)
-                    try {
-                      const { promise } = build({ type: 'jig', shape, plinthParams, jigParams: drillJigParams, baseSegMM: downloadResolution, filletSegMM: downloadResolution, useCDT: true, computeCavity: true })
-                      const msg = await promise
-                      if (msg.type !== 'jig') return
-                      const geo = deserializeGeometry(msg.jig)
-                      exportSTL(geo, buildJigFilename(plinthParams, drillJigParams))
-                      geo.dispose()
-                    } finally {
-                      setDownloadingJig(false)
-                    }
-                  }}
-                >
-                  {downloadingJig ? 'Generating...' : 'Download Drill Jig (.stl)'}
-                </Button>
               ) : null}
-              <Button
-                variant="contained"
-                fullWidth
-                disabled={downloadingPlinth}
-                startIcon={downloadingPlinth ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
-                onClick={async () => {
-                  setDownloadingPlinth(true)
-                  try {
-                    const { promise } = build({ type: 'plinth', params: plinthParams, baseSegMM: downloadResolution, filletSegMM: downloadResolution, useCDT: true })
-                    const msg = await promise
-                    if (msg.type !== 'plinth') return
-                    const geo = deserializeGeometry(msg.geometry)
-                    if (addSupports) {
-                      const supportGeo = buildSupportMeshGeometry(shape, plinthParams, supportParams, 16, scaffoldingEnabled)
-                      const transformedPlinth = applySupportTransform(geo, supportParams, plinthParams.depth)
-                      const merged = mergePlinthWithSupports(transformedPlinth, supportGeo)
-                      const zup = applyYUpToZUp(merged)
-                      exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution, true))
-                      if (merged !== transformedPlinth) merged.dispose()
-                      transformedPlinth.dispose()
-                      supportGeo.dispose()
-                      zup.dispose()
-                    } else {
-                      const zup = applyYUpToZUp(geo)
-                      exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution, false))
-                      zup.dispose()
-                    }
-                    geo.dispose()
-                  } finally {
-                    setDownloadingPlinth(false)
-                  }
-                }}
-              >
-                {downloadingPlinth ? 'Generating...' : 'Download Plinth (.stl)'}
-              </Button>
-            </Box>
-          </Box>
-        </Box>
-      </Drawer>
+              <LabeledSlider
+                label="Raft Thickness"
+                value={raftHeight}
+                onChange={setRaftHeight}
+                min={MIN_RAFT_HEIGHT}
+                max={MAX_RAFT_HEIGHT}
+                step={0.05}
+                unit="mm"
+              />
+            </>
+          ) : null}
+        </div>
 
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          position: 'relative',
-          height: 'calc(100vh - 48px)',
-          mt: '48px',
-        }}
-      >
+        <div className="sidebar-footer">
+          {addDrillJig ? (
+            <Button
+              className="fill-button"
+              disabled={downloadingJig}
+              onClick={async () => {
+                setDownloadingJig(true)
+                try {
+                  const { promise } = build({ type: 'jig', shape, plinthParams, jigParams: drillJigParams, baseSegMM: downloadResolution, filletSegMM: downloadResolution, useCDT: true, computeCavity: true })
+                  const msg = await promise
+                  if (msg.type !== 'jig') return
+                  const geo = deserializeGeometry(msg.jig)
+                  exportSTL(geo, buildJigFilename(plinthParams, drillJigParams))
+                  geo.dispose()
+                } finally {
+                  setDownloadingJig(false)
+                }
+              }}
+            >
+              {downloadingJig ? <Spinner label="Generating" /> : <DownloadIcon />}
+              {downloadingJig ? 'Generating...' : 'Download Drill Jig (.stl)'}
+            </Button>
+          ) : null}
+          <Button
+            variant="primary"
+            className="fill-button"
+            disabled={downloadingPlinth}
+            onClick={async () => {
+              setDownloadingPlinth(true)
+              try {
+                const { promise } = build({ type: 'plinth', params: plinthParams, baseSegMM: downloadResolution, filletSegMM: downloadResolution, useCDT: true })
+                const msg = await promise
+                if (msg.type !== 'plinth') return
+                const geo = deserializeGeometry(msg.geometry)
+                if (addSupports) {
+                  const supportGeo = buildSupportMeshGeometry(shape, plinthParams, supportParams, 16, scaffoldingEnabled)
+                  const transformedPlinth = applySupportTransform(geo, supportParams, plinthParams.depth)
+                  const merged = mergePlinthWithSupports(transformedPlinth, supportGeo)
+                  const zup = applyYUpToZUp(merged)
+                  exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution, true))
+                  if (merged !== transformedPlinth) merged.dispose()
+                  transformedPlinth.dispose()
+                  supportGeo.dispose()
+                  zup.dispose()
+                } else {
+                  const zup = applyYUpToZUp(geo)
+                  exportSTL(zup, buildPlinthFilename(plinthParams, downloadResolution, false))
+                  zup.dispose()
+                }
+                geo.dispose()
+              } finally {
+                setDownloadingPlinth(false)
+              }
+            }}
+          >
+            {downloadingPlinth ? <Spinner label="Generating" /> : <DownloadIcon />}
+            {downloadingPlinth ? 'Generating...' : 'Download Plinth (.stl)'}
+          </Button>
+        </div>
+      </aside>
+
+      <main className="viewport">
         <Viewport
           plinthParams={plinthParams}
           drillJigParams={drillJigParams}
@@ -946,30 +676,27 @@ function App() {
           filletSegMM={0.5}
         />
         <BuildingIndicator />
-      </Box>
+      </main>
 
-      <Dialog open={jsonDialogOpen} onClose={() => setJsonDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Trim Profile JSON</DialogTitle>
-        <DialogContent>
-          <TextField
-            multiline
-            fullWidth
-            minRows={6}
-            maxRows={16}
+      <Dialog open={jsonDialogOpen} onOpenChange={setJsonDialogOpen}>
+        <DialogContent className="json-dialog" aria-describedby={undefined}>
+          <DialogTitle>Trim Profile JSON</DialogTitle>
+          <Textarea
+            className="json-text"
+            rows={10}
+            aria-label="Trim profile JSON"
             value={jsonText}
             onChange={(e) => setJsonText(e.target.value)}
-            sx={{ mt: 1, fontFamily: 'monospace' }}
-            size="small"
           />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setJsonDialogOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleLoadJson}>Load</Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setJsonDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleLoadJson} variant="contained">Load</Button>
-        </DialogActions>
       </Dialog>
 
       <HelpDialog ref={helpRef} />
-    </Box>
+    </div>
   )
 }
 

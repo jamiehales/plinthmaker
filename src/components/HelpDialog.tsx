@@ -1,17 +1,13 @@
 import { useEffect, useState, forwardRef, useImperativeHandle } from 'react'
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Button,
-  FormControlLabel,
   Checkbox,
-  Typography,
-  Box,
-  IconButton,
-} from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from '@jamiehales/next-kit/ui/mostlymaking'
 import { HELP_TITLE, HELP_INTRO, HELP_SECTIONS } from '../helpContent.ts'
 
 const STORAGE_KEY = 'plinthmaker.helpDismissed'
@@ -54,47 +50,28 @@ const HelpDialog = forwardRef<HelpDialogHandle>((_props, ref) => {
     }
   }
 
-  const close = () => setOpen(false)
-
   return (
-    <Dialog open={open} onClose={close} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ pr: 6 }}>{HELP_TITLE}</DialogTitle>
-      <IconButton
-        onClick={close}
-        aria-label="close"
-        sx={{ position: 'absolute', right: 8, top: 8, color: 'grey.500' }}
-      >
-        <CloseIcon />
-      </IconButton>
-      <DialogContent dividers>
-        <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
-          {HELP_INTRO}
-        </Typography>
-        {HELP_SECTIONS.map((s) => (
-          <Box key={s.title} sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" sx={{ color: 'primary.main' }}>
-              {s.title}
-            </Typography>
-            <Typography variant="body2">{s.body}</Typography>
-          </Box>
-        ))}
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="help-dialog">
+        <DialogTitle>{HELP_TITLE}</DialogTitle>
+        <DialogDescription>{HELP_INTRO}</DialogDescription>
+        <div className="help-sections">
+          {HELP_SECTIONS.map((s) => (
+            <section key={s.title}>
+              <h3 className="mm-type-label help-section-title">{s.title}</h3>
+              <p className="mm-type-small">{s.body}</p>
+            </section>
+          ))}
+        </div>
+        <DialogFooter className="help-footer">
+          <Checkbox checked={dontShow} onCheckedChange={(next) => toggleDontShow(next === true)}>
+            Don't show this again
+          </Checkbox>
+          <Button variant="primary" onClick={() => setOpen(false)}>
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions sx={{ justifyContent: 'space-between', px: 3 }}>
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={dontShow}
-              onChange={(e) => toggleDontShow(e.target.checked)}
-              size="small"
-            />
-          }
-          label="Don't show this again"
-          sx={{ '& .MuiFormControlLabel-label': { fontSize: 14 } }}
-        />
-        <Button onClick={close} variant="contained">
-          Close
-        </Button>
-      </DialogActions>
     </Dialog>
   )
 })

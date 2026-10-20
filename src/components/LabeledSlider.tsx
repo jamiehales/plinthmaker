@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Box, TextField, Typography, InputAdornment } from '@mui/material'
+import { Input, Slider } from '@jamiehales/next-kit/ui/mostlymaking'
 
 interface LabeledSliderProps {
   label: string
@@ -28,10 +28,6 @@ export default function LabeledSlider({
     setText(String(value))
   }, [value])
 
-  const handleSliderChange = (_e: unknown, v: number | number[]) => {
-    onChange(v as number)
-  }
-
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setText(e.target.value)
     const parsed = parseFloat(e.target.value)
@@ -50,53 +46,29 @@ export default function LabeledSlider({
   }
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-      <Typography variant="body2" sx={{ color: disabled ? 'text.disabled' : 'text.secondary', width: 96, flexShrink: 0 }}>
-        {label}
-      </Typography>
-      <Box
-        component="input"
-        type="range"
+    <div className="labeled-slider" data-disabled={disabled ? '' : undefined}>
+      <span className="labeled-slider-label mm-type-small">{label}</span>
+      <Slider
+        className="labeled-slider-track"
+        aria-label={label}
+        value={[value]}
+        onValueChange={([next]) => onChange(next)}
         min={min}
         max={max}
         step={step}
-        value={value}
         disabled={disabled}
-        onChange={(e) => handleSliderChange(e, parseFloat(e.target.value))}
-        style={{
-          flex: 1,
-          accentColor: '#1976d2',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          opacity: disabled ? 0.5 : 1,
-        }}
       />
-      <TextField
-        value={text}
-        onChange={handleTextChange}
-        onBlur={handleTextBlur}
-        size="small"
-        variant="outlined"
-        disabled={disabled}
-        sx={{ width: 110, flexShrink: 0 }}
-        slotProps={{
-          htmlInput: {
-            inputMode: 'decimal',
-            step,
-            sx: { py: 0.75, px: 1 },
-          },
-          input: unit
-            ? {
-                endAdornment: (
-                  <InputAdornment position="end" sx={{ mr: -0.5 }}>
-                    <Typography variant="caption" sx={{ color: 'text.disabled' }}>
-                      {unit}
-                    </Typography>
-                  </InputAdornment>
-                ),
-              }
-            : undefined,
-        }}
-      />
-    </Box>
+      <span className="labeled-slider-input">
+        <Input
+          value={text}
+          onChange={handleTextChange}
+          onBlur={handleTextBlur}
+          inputMode="decimal"
+          aria-label={`${label} (${unit})`}
+          disabled={disabled}
+        />
+        {unit ? <span className="labeled-slider-unit">{unit}</span> : null}
+      </span>
+    </div>
   )
 }
