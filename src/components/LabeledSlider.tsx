@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Input, Slider } from '@jamiehales/next-kit/ui/mostlymaking'
+import { Input, Slider } from '@jamiehales/ui-kit/mostlymaking'
 
 interface LabeledSliderProps {
   label: string

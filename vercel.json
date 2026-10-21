@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "installCommand": "sh scripts/install-next-kit.sh && pnpm install --frozen-lockfile",
+  "installCommand": "sh scripts/install-kits.sh && pnpm install --frozen-lockfile",
   "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
   "rewrites": [

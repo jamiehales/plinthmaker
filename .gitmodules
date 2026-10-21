@@ -1,3 +1,3 @@
-[submodule "vendor/next-kit"]
-	path = vendor/next-kit
-	url = https://github.com/jamiehales/next-kit.git
+[submodule "vendor/ui-kit"]
+	path = vendor/ui-kit
+	url = https://github.com/jamiehales/ui-kit.git

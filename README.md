@@ -5,7 +5,7 @@ A browser-based tool for generating parametric STL plinth models. Runs entirely 
 ## Stack
 
 - **Vite** + **React 19** + **TypeScript**
-- **mostlymaking controls** (`@jamiehales/next-kit`, a git submodule in `vendor/next-kit`) for the interface
+- **mostlymaking controls** (`@jamiehales/ui-kit`, a git submodule in `vendor/ui-kit`) for the interface
 - **three.js** via `@react-three/fiber` + `@react-three/drei` for the 3D viewport
 - **pnpm** for package management
 - Deployed to **Vercel** (static SPA)

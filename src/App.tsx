@@ -12,7 +12,7 @@ import {
   Spinner,
   Textarea,
   Tooltip,
-} from '@jamiehales/next-kit/ui/mostlymaking'
+} from '@jamiehales/ui-kit/mostlymaking'
 import { CircleIcon, CopyIcon, DownloadIcon, EditIcon, HelpIcon, PasteIcon, SquareIcon } from './components/icons.tsx'
 import { CheckField, SectionTitle } from './components/FormParts.tsx'
 import Viewport from './components/Viewport.tsx'

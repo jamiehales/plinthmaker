@@ -7,7 +7,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
-} from '@jamiehales/next-kit/ui/mostlymaking'
+} from '@jamiehales/ui-kit/mostlymaking'
 import { HELP_TITLE, HELP_INTRO, HELP_SECTIONS } from '../helpContent.ts'
 
 const STORAGE_KEY = 'plinthmaker.helpDismissed'

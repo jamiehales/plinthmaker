@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Checkbox } from '@jamiehales/next-kit/ui/mostlymaking'
+import { Checkbox } from '@jamiehales/ui-kit/mostlymaking'
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   return <h2 className="section-title mm-type-label">{children}</h2>

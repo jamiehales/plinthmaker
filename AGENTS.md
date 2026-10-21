@@ -8,7 +8,7 @@
 
 **plinthgenerator** is a browser-based, fully client-side SPA that generates parametric STL plinth models from user-controlled parameters. No backend, no API calls — everything runs in the browser and works offline once loaded. Deployed to Vercel as a static site.
 
-- **Stack:** Vite + React 19 + TypeScript, the mostlymaking controls from the `vendor/next-kit` submodule (`@jamiehales/next-kit/ui/mostlymaking`, Radix-based; read its `DESIGN.md` and `CHANGELOG.md`; run `git submodule update --init` after cloning), three.js via `@react-three/fiber` + `@react-three/drei`
+- **Stack:** Vite + React 19 + TypeScript, the mostlymaking controls from the `vendor/ui-kit` submodule (`@jamiehales/ui-kit/mostlymaking`, Radix-based; read its `DESIGN.md` and `CHANGELOG.md`; run `git submodule update --init` after cloning), three.js via `@react-three/fiber` + `@react-three/drei`
 - **Package manager:** pnpm (lockfile committed; always use `pnpm install --frozen-lockfile`)
 - **Repository:** https://github.com/jamiehale/plinthmaker.git
 - **Branch:** `main` (default)
@@ -77,7 +77,7 @@ plinthgenerator/
 
 ### Styling
 
-- The UI library is the mostlymaking controls in the `vendor/next-kit` submodule (dark theme, tokens in `mostlymaking.css`). Prefer its components and CSS variables (`var(--primary)`, `.mm-type-*`) over new hand-written styles. Update the pinned kit commit and read its `CHANGELOG.md` to pick up changes.
+- The UI library is the mostlymaking controls in the `vendor/ui-kit` submodule (dark theme, tokens in `mostlymaking.css`). Prefer its components and CSS variables (`var(--primary)`, `.mm-type-*`) over new hand-written styles. Update the pinned kit commit and read its `CHANGELOG.md` to pick up changes.
 - `src/index.css` holds the page layout and the few app-specific styles; use the kit's components for anything it already provides.
 
 ## Deployment
