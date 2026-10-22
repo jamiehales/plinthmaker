@@ -25,6 +25,8 @@ pnpm run lint           # oxlint (config in .oxlintrc.json)
 
 Before considering any task complete, run **both** `pnpm run build` and `pnpm run lint` and ensure they pass clean.
 
+To work on the kit in `vendor/ui-kit` (e.g. run its `pnpm typecheck` / `pnpm test`), install it from inside that directory with `pnpm install --frozen-lockfile --ignore-workspace`. This project's `pnpm-workspace.yaml` (which holds `patchedDependencies`) makes pnpm treat this repo as the workspace root, so a plain `pnpm install` in the kit installs this app instead and leaves the kit's `node_modules` empty.
+
 ## Repo structure
 
 ```
