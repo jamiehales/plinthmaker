@@ -1,7 +1,11 @@
 import { handleBuild, type BuildMessage, type BuildResultMessage } from './geometryWorker.ts'
+import { loadManifold } from './csg.ts'
 
-self.onmessage = (e: MessageEvent<BuildMessage>) => {
+const manifoldReady = loadManifold()
+
+self.onmessage = async (e: MessageEvent<BuildMessage>) => {
   try {
+    await manifoldReady
     const result: BuildResultMessage = handleBuild(e.data)
     ;(self as unknown as Worker).postMessage(result)
   } catch (err) {

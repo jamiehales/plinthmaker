@@ -1,10 +1,6 @@
 import * as THREE from 'three'
-import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
 import { getTrimProfile, sampleTrimRings, type TrimProfilePoint } from './trimProfiles.ts'
-
-export function enableCDT(evaluator: Evaluator): void {
-  ;(evaluator as unknown as { useCDTClipping: boolean }).useCDTClipping = true
-}
+import { subtractAll } from './csg.ts'
 
 export type Shape = 'rectangle' | 'ellipse'
 export type RoundStyle = 'none' | 'chamfer' | 'fillet'
@@ -533,13 +529,13 @@ function buildHollowCavity(p: PlinthParams, segMM: number): THREE.BufferGeometry
   return flat
 }
 
-export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM, useCDT = true): THREE.BufferGeometry {
-  const bodyGeo = buildPlinthBody(p, 0, baseSegMM, filletSegMM, useCDT)
+export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM, _useCDT = true): THREE.BufferGeometry {
+  const bodyGeo = buildPlinthBody(p, 0, baseSegMM, filletSegMM)
   const h = Math.max(0.1, p.height)
 
   if (!p.addHole && !p.hollowEnabled) return bodyGeo
 
-  let currentGeo = bodyGeo
+  const cutters: THREE.BufferGeometry[] = []
 
   if (p.addHole) {
     const drop = topDrop(p)
@@ -554,43 +550,12 @@ export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT
     const extraTop = 2 + radius * tanA
     const holeGeo = new THREE.CylinderGeometry(radius, radius, holeDepth + extraTop, circleSegments(radius * 2, baseSegMM), 1)
     holeGeo.translate(0, topCenterY + (extraTop - holeDepth) / 2, 0)
-
-    const holeBrush = new Brush(holeGeo)
-    holeBrush.updateMatrixWorld(true)
-    const bodyBrush = new Brush(currentGeo)
-    bodyBrush.updateMatrixWorld(true)
-
-    const evaluator = new Evaluator()
-    if (useCDT) enableCDT(evaluator)
-    evaluator.attributes = ['position', 'normal']
-    evaluator.useGroups = false
-    const result = evaluator.evaluate(bodyBrush, holeBrush, SUBTRACTION)
-
-    const prevGeo = currentGeo
-    currentGeo = result.geometry
-    if (currentGeo !== prevGeo) prevGeo.dispose()
-    holeGeo.dispose()
+    cutters.push(holeGeo)
   }
 
   if (p.hollowEnabled) {
     const hollowSegMM = Math.max(baseSegMM, 3)
-    const cavityGeo = buildHollowCavity(p, hollowSegMM)
-
-    const cavityBrush = new Brush(cavityGeo)
-    cavityBrush.updateMatrixWorld(true)
-    const bodyBrush = new Brush(currentGeo)
-    bodyBrush.updateMatrixWorld(true)
-
-    const evaluator = new Evaluator()
-    if (useCDT) enableCDT(evaluator)
-    evaluator.attributes = ['position', 'normal']
-    evaluator.useGroups = false
-    const result = evaluator.evaluate(bodyBrush, cavityBrush, SUBTRACTION)
-
-    const prevGeo = currentGeo
-    currentGeo = result.geometry
-    if (currentGeo !== prevGeo) prevGeo.dispose()
-    cavityGeo.dispose()
+    cutters.push(buildHollowCavity(p, hollowSegMM))
   }
 
   if (p.hollowEnabled && p.suctionHoleEnabled) {
@@ -615,25 +580,13 @@ export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT
     const suctionHeight = suctionTop - suctionBottom
     const suctionGeo = new THREE.CylinderGeometry(suctionRadius, suctionRadius, suctionHeight, circleSegments(suctionRadius * 2, baseSegMM), 1)
     suctionGeo.translate(0, suctionBottom + suctionHeight / 2, suctionZ)
-
-    const suctionBrush = new Brush(suctionGeo)
-    suctionBrush.updateMatrixWorld(true)
-    const bodyBrush = new Brush(currentGeo)
-    bodyBrush.updateMatrixWorld(true)
-
-    const evaluator = new Evaluator()
-    if (useCDT) enableCDT(evaluator)
-    evaluator.attributes = ['position', 'normal']
-    evaluator.useGroups = false
-    const result = evaluator.evaluate(bodyBrush, suctionBrush, SUBTRACTION)
-
-    const prevGeo = currentGeo
-    currentGeo = result.geometry
-    if (currentGeo !== prevGeo) prevGeo.dispose()
-    suctionGeo.dispose()
+    cutters.push(suctionGeo)
   }
 
-  return currentGeo
+  const result = subtractAll(bodyGeo, cutters)
+  bodyGeo.dispose()
+  for (const cutter of cutters) cutter.dispose()
+  return result
 }
 
 function buildJigMesh(

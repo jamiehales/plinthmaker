@@ -1,8 +1,8 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { Brush, Evaluator, ADDITION } from 'three-bvh-csg'
 import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM, suctionHoleZ, topDrop } from './geometryBuilder.ts'
 import { sampleTrimOffset, getTrimProfile } from './trimProfiles.ts'
+import { union } from './csg.ts'
 import {
   DEFAULT_CONE_START_GAP, DEFAULT_RAFT_HEIGHT, DEFAULT_RAFT_BOTTOM_INSET,
   DEFAULT_CONE_TIP_PENETRATION, DEFAULT_SUPPORT_OFFSET_EDGE, DEFAULT_SUPPORT_OFFSET_CAVITY, DEFAULT_SUPPORT_CAPS,
@@ -1183,20 +1183,10 @@ function csgUnion(a: THREE.BufferGeometry, b: THREE.BufferGeometry): THREE.Buffe
 
   const aGeo = stripToPosition(a)
   const bGeo = stripToPosition(b)
-  const aBrush = new Brush(aGeo)
-  aBrush.updateMatrixWorld(true)
-  const bBrush = new Brush(bGeo)
-  bBrush.updateMatrixWorld(true)
-
-  const evaluator = new Evaluator()
-  ;(evaluator as unknown as { useCDTClipping: boolean }).useCDTClipping = true
-  evaluator.attributes = ['position', 'normal']
-  evaluator.useGroups = false
-  const result = evaluator.evaluate(aBrush, bBrush, ADDITION)
-
+  const result = union(aGeo, bGeo)
   aGeo.dispose()
   bGeo.dispose()
-  return result.geometry
+  return result
 }
 
 export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number): THREE.BufferGeometry {

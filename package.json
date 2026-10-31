@@ -18,11 +18,11 @@
     "@jamiehales/ui-kit": "link:vendor/ui-kit",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.7.0",
+    "manifold-3d": "^3.5.4",
     "radix-ui": "^1.8.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "three": "^0.185.1",
-    "three-bvh-csg": "^0.0.18",
     "three-mesh-bvh": "^0.9.14"
   },
   "devDependencies": {

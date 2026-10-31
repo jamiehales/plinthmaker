@@ -36,8 +36,12 @@ export default defineConfig(({ command }) => ({
   resolve: {
     dedupe: ['react', 'react-dom'],
   },
+  optimizeDeps: {
+    exclude: ['manifold-3d'],
+  },
   test: {
     exclude: [...configDefaults.exclude, 'vendor/**'],
+    setupFiles: ['src/tests/setup.ts'],
   },
   build: {
     target: 'es2023',
