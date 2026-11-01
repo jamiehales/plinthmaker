@@ -4,8 +4,8 @@ import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_
 import {
   makeBaseOutlinePoints,
   projectToGround,
-  buildSupportCircles,
-  computeSupportPositions,
+  buildRingOutlines,
+  computeSupportTipRings,
   buildSupportMeshGeometry,
   trimFootprintOffset,
 } from './supportBuilder.ts'
@@ -16,12 +16,13 @@ interface SupportOverlayProps {
   shape: Shape
   plinthParams: PlinthParams
   supportParams: SupportParams
+  showGuide: boolean
   baseSegMM?: number
 }
 
 const EMPTY_GEO = new THREE.BufferGeometry()
 
-export default function SupportOverlay({ shape, plinthParams, supportParams, baseSegMM = RENDER_BASE_SEGMENT_MM }: SupportOverlayProps) {
+export default function SupportOverlay({ shape, plinthParams, supportParams, showGuide, baseSegMM = RENDER_BASE_SEGMENT_MM }: SupportOverlayProps) {
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const cosT = Math.cos(tilt)
   const radius = supportParams.supportSize / 2
@@ -44,19 +45,19 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
     }
   }, [shape, plinthParams, baseSegMM, cosT])
 
-  const supportPositions = useMemo(() => {
+  const tipRings = useMemo(() => {
     try {
-      return computeSupportPositions(shape, plinthParams, supportParams, baseSegMM)
+      return computeSupportTipRings(shape, plinthParams, supportParams, 32)
     } catch (err) {
-      console.error('support positions error:', err)
+      console.error('support tip rings error:', err)
       return []
     }
-  }, [shape, plinthParams, supportParams, baseSegMM])
+  }, [shape, plinthParams, supportParams])
 
   const supportCircles = useMemo(() => {
     try {
       return new THREE.LineSegments(
-        buildSupportCircles(supportPositions, radius, 32),
+        buildRingOutlines(tipRings),
         new THREE.LineBasicMaterial({ color: 0x6affb0, transparent: true, opacity: 0.8, depthTest: false }),
       )
     } catch (err) {
@@ -66,7 +67,7 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
         new THREE.LineBasicMaterial({ color: 0x6affb0, transparent: true, opacity: 0.8, depthTest: false }),
       )
     }
-  }, [supportPositions, radius])
+  }, [tipRings])
 
   useEffect(() => {
     if (radius <= 0) {
@@ -137,8 +138,12 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, bas
 
   return (
     <group>
-      <primitive object={footprint} position={[0, 0, 0]} renderOrder={1000} />
-      <primitive object={supportCircles} position={[0, 0, 0]} renderOrder={1000} />
+      {showGuide ? (
+        <>
+          <primitive object={footprint} position={[0, 0, 0]} renderOrder={1000} />
+          <primitive object={supportCircles} position={[0, 0, 0]} renderOrder={1000} />
+        </>
+      ) : null}
       <mesh geometry={supportMesh.geo}>
         <meshStandardMaterial color="#6affb0" metalness={0.1} roughness={0.6} />
       </mesh>

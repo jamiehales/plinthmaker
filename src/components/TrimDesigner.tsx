@@ -285,6 +285,7 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
         type="single"
         collapsible
         variant="minimal"
+        trailingDivider={false}
         className="trim-editor"
         value={editorOpen ? 'edit' : ''}
         onValueChange={(value) => setEditorOpen(value === 'edit')}

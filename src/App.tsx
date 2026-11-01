@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, type CSSProperties } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef, type CSSProperties } from 'react'
 import {
   Accordion,
   AccordionContent,
@@ -11,6 +11,7 @@ import {
   SegmentedControlItem,
   Separator,
   Spinner,
+  WarningTooltip,
 } from '@jamiehales/ui-kit/mostlymaking'
 import { CircleIcon, DownloadIcon, HelpIcon, SquareIcon } from './components/icons.tsx'
 import { CheckField, SectionTitle } from './components/FormParts.tsx'
@@ -46,6 +47,12 @@ import { describePlinthFeatures, describePlinthSize } from './components/plinthS
 import TrimDesigner from './components/TrimDesigner.tsx'
 import { useTrimDesign } from './components/useTrimDesign.ts'
 import PlinthAngleIcon from './components/PlinthAngleIcon.tsx'
+import { type CavityGuideMode } from './components/CavityGuide.tsx'
+import { type HoleGuideMode } from './components/HoleGuide.tsx'
+
+type IntroPreview = 'hollow' | 'hole' | 'suction' | 'supports'
+
+const HOLLOWING_RECOMMENDATION = 'When printing on a resin printer, I recommend hollowing the model. It reduces the likelihood of a failed print due to the pull forces generated'
 
 function BuildingIndicator() {
   const building = useBuilding()
@@ -104,6 +111,9 @@ function App() {
   const [hollowEnabled, setHollowEnabled] = useState(DEFAULT_HOLLOW_ENABLED)
   const [topThickness, setTopThickness] = useState(DEFAULT_HOLLOW_TOP_THICKNESS)
   const [hollowWallThickness, setHollowWallThickness] = useState(DEFAULT_HOLLOW_WALL_THICKNESS)
+  const [editingHole, setEditingHole] = useState<HoleGuideMode | null>(null)
+  const [editingSupportLayout, setEditingSupportLayout] = useState(false)
+  const [editingHollow, setEditingHollow] = useState<CavityGuideMode | null>(null)
   const [suctionHoleEnabled, setSuctionHoleEnabled] = useState(DEFAULT_SUCTION_HOLE_ENABLED)
   const [suctionHoleDiameter, setSuctionHoleDiameter] = useState(DEFAULT_SUCTION_HOLE_DIAMETER)
   const [trimEnabled, setTrimEnabled] = useState(DEFAULT_TRIM_ENABLED)
@@ -115,6 +125,27 @@ function App() {
   const { build } = useGeometryWorker()
   const helpRef = useRef<HelpDialogHandle>(null)
   const sheetRef = useRef<HTMLElement>(null)
+  const [introPreview, setIntroPreview] = useState<IntroPreview | null>(null)
+
+  const enableWithIntro = (feature: IntroPreview, setEnabled: (enabled: boolean) => void) => (enabled: boolean) => {
+    setEnabled(enabled)
+    setIntroPreview((current) => (enabled ? feature : current === feature ? null : current))
+  }
+
+  useEffect(() => {
+    const sheet = sheetRef.current
+    if (!introPreview || !sheet) return
+    const dismiss = () => setIntroPreview(null)
+    const timer = setTimeout(() => {
+      sheet.addEventListener('pointerdown', dismiss)
+      sheet.addEventListener('focusin', dismiss)
+    }, 0)
+    return () => {
+      clearTimeout(timer)
+      sheet.removeEventListener('pointerdown', dismiss)
+      sheet.removeEventListener('focusin', dismiss)
+    }
+  }, [introPreview])
   const compact = useMediaQuery(COMPACT_LAYOUT_QUERY)
   const windowHeight = useWindowHeight()
   const sheetHeights = getSheetHeights(windowHeight)
@@ -128,6 +159,20 @@ function App() {
     setWidth(w)
     if (lockedAspect) setDepth(w)
   }
+
+  const handleEditingHollow = (mode: CavityGuideMode, editing: boolean) => {
+    setEditingHollow((current) => (editing ? mode : current === mode ? null : current))
+  }
+
+  const handleEditingHole = (mode: HoleGuideMode, editing: boolean) => {
+    setEditingHole((current) => (editing ? mode : current === mode ? null : current))
+  }
+
+  const introHoleGuide: HoleGuideMode | null = introPreview === 'hole' ? 'diameter' : introPreview === 'suction' ? 'suction' : null
+  const activeHoleGuide = editingHole ?? introHoleGuide
+  const visibleHoleGuide = activeHoleGuide === 'suction'
+    ? (hollowEnabled && suctionHoleEnabled ? activeHoleGuide : null)
+    : addHole ? activeHoleGuide : null
 
   const maxSupportTipSize = Math.min(1, supportSize)
 
@@ -406,16 +451,17 @@ function App() {
           <Separator />
 
           <SectionTitle>Plinth Hole</SectionTitle>
-          <CheckField checked={addHole} onChange={setAddHole}>Add Hole</CheckField>
+          <CheckField checked={addHole} onChange={enableWithIntro('hole', setAddHole)}>Add Hole</CheckField>
           {addHole ? (
             <>
-              <LabeledSlider label="Hole Diameter" value={holeDiameter} onChange={(v) => { setHoleDiameter(v); if (!(jigDiffHole && addHole)) setJigHoleDiameter(v) }} min={DEFAULT_MIN_HOLE_DIAMETER} max={DEFAULT_MAX_HOLE_DIAMETER} step={0.5} />
+              <LabeledSlider label="Hole Diameter" value={holeDiameter} onChange={(v) => { setHoleDiameter(v); if (!(jigDiffHole && addHole)) setJigHoleDiameter(v) }} min={DEFAULT_MIN_HOLE_DIAMETER} max={DEFAULT_MAX_HOLE_DIAMETER} step={0.5} onEditingChange={(editing) => handleEditingHole('diameter', editing)} />
               <LabeledSlider
                 label="Hole Depth"
                 value={holeDepth}
                 onChange={setHoleDepth}
                 min={1}
                 max={50}
+                onEditingChange={(editing) => handleEditingHole('depth', editing)}
               />
             </>
           ) : null}
@@ -423,7 +469,7 @@ function App() {
           <Separator />
 
           <SectionTitle>Hollow</SectionTitle>
-          <CheckField checked={hollowEnabled} onChange={setHollowEnabled}>Enable Hollowing</CheckField>
+          <CheckField checked={hollowEnabled} onChange={enableWithIntro('hollow', setHollowEnabled)}>Enable Hollowing</CheckField>
           {hollowEnabled ? (
             <>
               <LabeledSlider
@@ -433,6 +479,7 @@ function App() {
                 min={1}
                 max={height - 1}
                 step={0.5}
+                onEditingChange={(editing) => handleEditingHollow('top', editing)}
               />
               <LabeledSlider
                 label="Wall Thickness"
@@ -441,8 +488,9 @@ function App() {
                 min={0.5}
                 max={Math.min(width, depth) / 2 - 0.5}
                 step={0.1}
+                onEditingChange={(editing) => handleEditingHollow('wall', editing)}
               />
-              <CheckField checked={suctionHoleEnabled} onChange={setSuctionHoleEnabled}>
+              <CheckField checked={suctionHoleEnabled} onChange={enableWithIntro('suction', setSuctionHoleEnabled)}>
                 Add Hole for Suction Cup prevention
               </CheckField>
               {suctionHoleEnabled ? (
@@ -453,6 +501,7 @@ function App() {
                   min={1}
                   max={Math.min(width, depth) - 2 * hollowWallThickness}
                   step={0.5}
+                  onEditingChange={(editing) => handleEditingHole('suction', editing)}
                 />
               ) : null}
             </>
@@ -485,47 +534,59 @@ function App() {
                   Use Different Hole Size to Plinth
                 </CheckField>
               ) : null}
-              <LabeledSlider
-                label="Wall Size"
-                value={jigWallSize}
-                onChange={setJigWallSize}
-                min={1}
-                max={10}
-                step={0.1}
-              />
-              <LabeledSlider
-                label="Height"
-                value={jigHeight}
-                onChange={setJigHeight}
-                min={1}
-                max={50}
-                step={0.1}
-              />
-              <LabeledSlider
-                label="Overlap"
-                value={jigOverlap}
-                onChange={setJigOverlap}
-                min={1}
-                max={20}
-                step={0.1}
-              />
-              <LabeledSlider
-                label="Tolerance"
-                value={jigTolerance}
-                onChange={setJigTolerance}
-                min={0}
-                max={1}
-                step={0.01}
-              />
-              <CheckField checked={jigLift} onChange={setJigLift}>Lift Drill Jig</CheckField>
               <CheckField checked={jigFlattenTop} onChange={setJigFlattenTop}>Flatten Top</CheckField>
+              <Accordion type="single" collapsible variant="minimal" trailingDivider={false} className="advanced-options">
+                <AccordionItem value="advanced">
+                  <AccordionTrigger>Advanced options</AccordionTrigger>
+                  <AccordionContent className="advanced-options-body">
+                    <LabeledSlider
+                      label="Wall Size"
+                      value={jigWallSize}
+                      onChange={setJigWallSize}
+                      min={1}
+                      max={10}
+                      step={0.1}
+                    />
+                    <LabeledSlider
+                      label="Height"
+                      value={jigHeight}
+                      onChange={setJigHeight}
+                      min={1}
+                      max={50}
+                      step={0.1}
+                    />
+                    <LabeledSlider
+                      label="Overlap"
+                      value={jigOverlap}
+                      onChange={setJigOverlap}
+                      min={1}
+                      max={20}
+                      step={0.1}
+                    />
+                    <LabeledSlider
+                      label="Tolerance"
+                      value={jigTolerance}
+                      onChange={setJigTolerance}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                    />
+                    <CheckField checked={jigLift} onChange={setJigLift}>Lift Drill Jig</CheckField>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </>
           ) : null}
 
           <Separator />
 
           <SectionTitle>Supports</SectionTitle>
-          <CheckField checked={addSupports} onChange={setAddSupports}>Generate Resin Supports</CheckField>
+          <div className="check-row">
+            <CheckField checked={addSupports} onChange={enableWithIntro('supports', setAddSupports)}>Generate Resin Supports</CheckField>
+            {addSupports && !hollowEnabled ? (
+              <WarningTooltip aria-label="Hollowing recommended" content={HOLLOWING_RECOMMENDATION} />
+            ) : null}
+          </div>
           {addSupports ? (
             <>
               <LabeledSlider
@@ -535,6 +596,7 @@ function App() {
                 min={0.05}
                 max={maxSupportTipSize}
                 step={0.025}
+                onEditingChange={setEditingSupportLayout}
               />
               <LabeledSlider
                 label="Spacing"
@@ -542,8 +604,9 @@ function App() {
                 onChange={setSupportSpacing}
                 min={2}
                 max={5}
+                onEditingChange={setEditingSupportLayout}
               />
-              <Accordion type="single" collapsible variant="minimal" className="advanced-options">
+              <Accordion type="single" collapsible variant="minimal" trailingDivider={false} className="advanced-options">
                 <AccordionItem value="advanced">
                   <AccordionTrigger>Advanced options</AccordionTrigger>
                   <AccordionContent className="advanced-options-body">
@@ -619,6 +682,9 @@ function App() {
           plinthParams={plinthParams}
           drillJigParams={drillJigParams}
           supportParams={supportParams}
+          cavityGuide={hollowEnabled ? (editingHollow ?? (introPreview === 'hollow' ? 'outline' : null)) : null}
+          showSupportGuide={editingSupportLayout || introPreview === 'supports'}
+          holeGuide={visibleHoleGuide}
           baseSegMM={0.5}
           filletSegMM={0.5}
         />

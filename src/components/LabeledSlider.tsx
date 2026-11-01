@@ -10,6 +10,7 @@ interface LabeledSliderProps {
   step?: number
   unit?: string
   disabled?: boolean
+  onEditingChange?: (editing: boolean) => void
 }
 
 export default function LabeledSlider({
@@ -21,6 +22,7 @@ export default function LabeledSlider({
   step = 0.1,
   unit = 'mm',
   disabled = false,
+  onEditingChange,
 }: LabeledSliderProps) {
   const [text, setText] = useState(String(value))
   const stepDecimals = (String(step).split('.')[1] ?? '').length
@@ -47,7 +49,14 @@ export default function LabeledSlider({
   }
 
   return (
-    <div className="labeled-slider" data-disabled={disabled ? '' : undefined}>
+    <div
+      className="labeled-slider"
+      data-disabled={disabled ? '' : undefined}
+      onFocus={() => onEditingChange?.(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) onEditingChange?.(false)
+      }}
+    >
       <span className="labeled-slider-label mm-type-small">{label}</span>
       <Slider
         className="labeled-slider-track"

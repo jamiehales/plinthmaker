@@ -376,25 +376,29 @@ export function equidistantPointsWithAnchors(points: THREE.Vector3[], anchors: T
   return positions
 }
 
-export function buildSupportCircles(positions: THREE.Vector3[], radius: number, segs: number): THREE.BufferGeometry {
-  const vertCount = positions.length * segs * 2
-  const arr = new Float32Array(vertCount * 3)
-  let offset = 0
-  for (const point of positions) {
-    for (let j = 0; j < segs; j++) {
-      const angle1 = (j / segs) * Math.PI * 2
-      const angle2 = ((j + 1) / segs) * Math.PI * 2
-      arr[offset++] = point.x + Math.cos(angle1) * radius
-      arr[offset++] = 0
-      arr[offset++] = point.z + Math.sin(angle1) * radius
-      arr[offset++] = point.x + Math.cos(angle2) * radius
-      arr[offset++] = 0
-      arr[offset++] = point.z + Math.sin(angle2) * radius
-    }
+export function buildRingOutlines(rings: THREE.Vector3[][]): THREE.BufferGeometry {
+  const points = rings.flatMap((ring) => ring.flatMap((point, i) => [point, ring[(i + 1) % ring.length]]))
+  return new THREE.BufferGeometry().setFromPoints(points)
+}
+
+function tipRingPoints(contactPoint: THREE.Vector3, surfaceNormal: THREE.Vector3, tipRadius: number, segs: number): THREE.Vector3[] {
+  const points: THREE.Vector3[] = []
+  for (let j = 0; j < segs; j++) {
+    const angle = (j / segs) * Math.PI * 2
+    const groundDir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle))
+    const planeDir = groundDir.clone().addScaledVector(surfaceNormal, -groundDir.dot(surfaceNormal))
+    if (planeDir.lengthSq() < 1e-12) planeDir.set(1, 0, 0)
+    planeDir.normalize()
+    points.push(contactPoint.clone().addScaledVector(planeDir, tipRadius))
   }
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.BufferAttribute(arr, 3))
-  return geo
+  return points
+}
+
+function supportContactHeight(index: number, tipPositions: THREE.Vector3[], contactHeights: number[], overCavity: boolean[] | null, cavityParams: CavityParams | null): number {
+  const tipPoint = tipPositions[index]
+  return overCavity && overCavity[index] && cavityParams
+    ? cavityIntersectionHeight(tipPoint.x, tipPoint.z, cavityParams)
+    : contactHeights[index]
 }
 
 function buildSupportMesh(basePositions: THREE.Vector3[], tipPositions: THREE.Vector3[], supportRadius: number, tipRadius: number, contactHeights: number[], overCavity: boolean[] | null, cavityParams: CavityParams | null, sinTilt: number, cosTilt: number, segs: number, caps: boolean, raftHeight: number): THREE.BufferGeometry {
@@ -406,9 +410,7 @@ function buildSupportMesh(basePositions: THREE.Vector3[], tipPositions: THREE.Ve
     const basePoint = basePositions[i]
     const tipPoint = tipPositions[i]
     const supportOverCavity = overCavity ? overCavity[i] : false
-    const yContactCenter = supportOverCavity && cavityParams
-      ? cavityIntersectionHeight(tipPoint.x, tipPoint.z, cavityParams)
-      : contactHeights[i]
+    const yContactCenter = supportContactHeight(i, tipPositions, contactHeights, overCavity, cavityParams)
     const yConeStart = yContactCenter - CONE_START_GAP
     if (yConeStart <= raftHeight) continue
 
@@ -443,17 +445,8 @@ function buildSupportMesh(basePositions: THREE.Vector3[], tipPositions: THREE.Ve
     }
     const ring2Vtx = ring1Vtx + segs
     const surfaceNormal = supportSurfaceNormal(tipPoint, supportOverCavity, cavityParams, sinTilt, cosTilt).normalize()
-    const contactPoint = new THREE.Vector3(tipPoint.x, yContactCenter, tipPoint.z)
-    for (let j = 0; j < segs; j++) {
-      const angle = (j / segs) * Math.PI * 2
-      const groundDir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle))
-      const planeDir = groundDir.clone().addScaledVector(surfaceNormal, -groundDir.dot(surfaceNormal))
-      if (planeDir.lengthSq() < 1e-12) planeDir.set(1, 0, 0)
-      planeDir.normalize()
-      const tipX = contactPoint.x + planeDir.x * tipRadius
-      const tipY = contactPoint.y + planeDir.y * tipRadius
-      const tipZ = contactPoint.z + planeDir.z * tipRadius
-      verts.push(tipX, tipY, tipZ)
+    for (const point of tipRingPoints(new THREE.Vector3(tipPoint.x, yContactCenter, tipPoint.z), surfaceNormal, tipRadius, segs)) {
+      verts.push(point.x, point.y, point.z)
     }
     for (let j = 0; j < segs; j++) {
       const jNext = (j + 1) % segs
@@ -1026,7 +1019,20 @@ export function buildScaffoldingMesh(
   return merged ?? new THREE.BufferGeometry()
 }
 
-export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number, includeScaffolding = false): THREE.BufferGeometry {
+interface PreparedSupports {
+  radius: number
+  tipRadius: number
+  sinTilt: number
+  cosTilt: number
+  raftHeight: number
+  cavityParams: CavityParams | null
+  overCavity: boolean[] | null
+  basePositions: THREE.Vector3[]
+  tipPositions: THREE.Vector3[]
+  contactHeights: number[]
+}
+
+function prepareSupports(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams): PreparedSupports | null {
   const radius = supportParams.supportSize / 2
   const tipRadius = supportParams.supportTipSize / 2
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
@@ -1034,7 +1040,7 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
   const cosTilt = Math.cos(tilt)
   const raftHeight = supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT
   const raise = raftHeight + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
-  if (radius <= 0) return new THREE.BufferGeometry()
+  if (radius <= 0) return null
 
   const positionsRaw = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const sinTilt = Math.sin(tilt)
@@ -1057,6 +1063,28 @@ export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParam
     ? positionsRaw.map((point) => isSupportOverCavity(point, radius, tipRadius, plinthParams, cosTilt))
     : null
   const { basePositions, tipPositions, contactHeights } = applySupportOffset(positionsRaw, overCavity, cavityParams, sinTilt, tanTilt, raise, supportParams.supportOffsetCavity ?? SUPPORT_OFFSET_CAVITY)
+  return { radius, tipRadius, sinTilt, cosTilt, raftHeight, cavityParams, overCavity, basePositions, tipPositions, contactHeights }
+}
+
+export function computeSupportTipRings(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number): THREE.Vector3[][] {
+  const prepared = prepareSupports(shape, plinthParams, supportParams)
+  if (!prepared) return []
+  const { tipRadius, sinTilt, cosTilt, raftHeight, cavityParams, overCavity, tipPositions, contactHeights } = prepared
+  const rings: THREE.Vector3[][] = []
+  for (let i = 0; i < tipPositions.length; i++) {
+    const tipPoint = tipPositions[i]
+    const yContactCenter = supportContactHeight(i, tipPositions, contactHeights, overCavity, cavityParams)
+    if (yContactCenter - CONE_START_GAP <= raftHeight) continue
+    const surfaceNormal = supportSurfaceNormal(tipPoint, overCavity ? overCavity[i] : false, cavityParams, sinTilt, cosTilt).normalize()
+    rings.push(tipRingPoints(new THREE.Vector3(tipPoint.x, yContactCenter, tipPoint.z), surfaceNormal, tipRadius, segs))
+  }
+  return rings
+}
+
+export function buildSupportMeshGeometry(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number, includeScaffolding = false): THREE.BufferGeometry {
+  const prepared = prepareSupports(shape, plinthParams, supportParams)
+  if (!prepared) return new THREE.BufferGeometry()
+  const { radius, tipRadius, sinTilt, cosTilt, raftHeight, cavityParams, overCavity, basePositions, tipPositions, contactHeights } = prepared
   const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinTilt, cosTilt, segs, supportParams.supportCaps ?? SUPPORT_CAPS, raftHeight)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
 
@@ -1101,36 +1129,9 @@ function csgUnion(a: THREE.BufferGeometry, b: THREE.BufferGeometry): THREE.Buffe
 }
 
 export function buildSupportMeshGeometryUnioned(shape: Shape, plinthParams: PlinthParams, supportParams: SupportParams, segs: number): THREE.BufferGeometry {
-  const radius = supportParams.supportSize / 2
-  const tipRadius = supportParams.supportTipSize / 2
-  const tilt = (supportParams.plinthAngle * Math.PI) / 180
-  const tanTilt = Math.tan(tilt)
-  const cosTilt = Math.cos(tilt)
-  const raftHeight = supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT
-  const raise = raftHeight + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt)
-  if (radius <= 0) return new THREE.BufferGeometry()
-
-  const positionsRaw = computeSupportPositions(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
-  const sinTilt = Math.sin(tilt)
-  const wallThickness = Math.max(0.5, plinthParams.hollowWallThickness)
-  const cavityParams: CavityParams | null = plinthParams.hollowEnabled
-    ? {
-        shape,
-        cavityHalfWidth: Math.max(0.01, (plinthParams.width - 2 * wallThickness) / 2),
-        cavityHalfDepth: Math.max(0.01, (plinthParams.depth - 2 * wallThickness) / 2),
-        hollowHeight: Math.max(0.1, plinthParams.hollowHeight),
-        plinthDepth: Math.max(0.1, plinthParams.depth),
-        topTanAngle: plinthParams.angleTop ? Math.tan((Math.min(89, Math.max(0.5, plinthParams.topAngle)) * Math.PI) / 180) : 0,
-        raise,
-        sinTilt,
-        cosTilt,
-        tanTilt,
-      }
-    : null
-  const overCavity = plinthParams.hollowEnabled
-    ? positionsRaw.map((point) => isSupportOverCavity(point, radius, tipRadius, plinthParams, cosTilt))
-    : null
-  const { basePositions, tipPositions, contactHeights } = applySupportOffset(positionsRaw, overCavity, cavityParams, sinTilt, tanTilt, raise, supportParams.supportOffsetCavity ?? SUPPORT_OFFSET_CAVITY)
+  const prepared = prepareSupports(shape, plinthParams, supportParams)
+  if (!prepared) return new THREE.BufferGeometry()
+  const { radius, tipRadius, sinTilt, cosTilt, raftHeight, cavityParams, overCavity, basePositions, tipPositions, contactHeights } = prepared
   const supportGeo = buildSupportMesh(basePositions, tipPositions, radius, tipRadius, contactHeights, overCavity, cavityParams, sinTilt, cosTilt, segs, supportParams.supportCaps ?? SUPPORT_CAPS, raftHeight)
   const raftGeo = buildRaftMesh(shape, plinthParams, supportParams, RENDER_BASE_SEGMENT_MM)
   const unioned = csgUnion(supportGeo, raftGeo)

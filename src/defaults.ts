@@ -7,7 +7,7 @@ export const DEFAULT_HEIGHT = 40
 export const DEFAULT_LOCKED_ASPECT = true
 export const DEFAULT_ADD_HOLE = false
 export const DEFAULT_HOLE_DIAMETER = 2
-export const DEFAULT_HOLE_DEPTH = 15
+export const DEFAULT_HOLE_DEPTH = 10
 export const DEFAULT_ADD_DRILL_JIG = false
 export const DEFAULT_JIG_WALL_SIZE = 2
 export const DEFAULT_JIG_HEIGHT = 10
@@ -27,7 +27,7 @@ export const DEFAULT_MIN_HOLE_DIAMETER = 2
 export const DEFAULT_MAX_HOLE_DIAMETER = 10
 
 export const DEFAULT_HOLLOW_ENABLED = false
-export const DEFAULT_HOLLOW_TOP_THICKNESS = 10
+export const DEFAULT_HOLLOW_TOP_THICKNESS = 12
 export const DEFAULT_HOLLOW_WALL_THICKNESS = 6
 export const DEFAULT_HOLLOW_SEGMENT_MM = 10
 export const DEFAULT_SUCTION_HOLE_ENABLED = true
