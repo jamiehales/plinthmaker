@@ -49,7 +49,6 @@ export interface SupportParams {
   supportSize: number
   supportTipSize: number
   supportSpacing: number
-  interiorSpacing: number
   supportCaps: boolean
   scaffoldingEnabled: boolean
   scaffoldingAngle: number

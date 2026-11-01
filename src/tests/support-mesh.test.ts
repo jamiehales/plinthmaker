@@ -174,7 +174,6 @@ function buildSupportConfig(opts: Partial<SupportParams> = {}): SupportParams {
     supportSize: 2,
     supportTipSize: 0.4,
     supportSpacing: 5,
-    interiorSpacing: 5,
     supportCaps: false,
     scaffoldingEnabled: false,
     scaffoldingAngle: 45,
@@ -482,19 +481,34 @@ describe('computeSupportPositions', () => {
     expect(nearHoleRing.length).toBeGreaterThanOrEqual(4)
   })
 
-  it('rectangle: interior points respect interiorSpacing minimum from each other', () => {
+  it('rectangle: no two supports closer than the lattice coverage radius', () => {
     const p = buildPlinthConfig('rectangle', { width: 40, depth: 40 })
-    const s = buildSupportConfig({ plinthAngle: 15, supportSpacing: 4, interiorSpacing: 3 })
+    const s = buildSupportConfig({ plinthAngle: 15, supportSpacing: 3 })
     const positions = computeSupportPositions('rectangle', p, s, 1.5)
-    const interior = positions.slice(positions.length / 2)
-    const minD2 = (s.interiorSpacing - 0.01) ** 2
-    for (let i = 0; i < interior.length; i++) {
-      for (let j = i + 1; j < interior.length; j++) {
-        const d2 = interior[i].distanceToSquared(interior[j])
-        expect(d2, 'interior points closer than interiorSpacing').toBeGreaterThanOrEqual(minD2)
+    const cosT = Math.cos((s.plinthAngle * Math.PI) / 180)
+    const coverageRadius = (s.supportSpacing * Math.sqrt(2 / Math.sqrt(3))) / Math.sqrt(3)
+    const minD2 = (coverageRadius * cosT - 0.01) ** 2
+    for (let i = 0; i < positions.length; i++) {
+      for (let j = i + 1; j < positions.length; j++) {
+        const d2 = positions[i].distanceToSquared(positions[j])
+        expect(d2, 'supports closer than the lattice coverage radius').toBeGreaterThanOrEqual(minD2)
       }
     }
   })
+
+  for (const shape of ['rectangle', 'ellipse'] as Shape[]) {
+    for (const spacing of [2, 3, 5]) {
+      it(`${shape}: spacing ${spacing} gives roughly one support per spacing² of surface`, () => {
+        const p = buildPlinthConfig(shape, { width: 60, depth: 40 })
+        const s = buildSupportConfig({ plinthAngle: 15, supportSpacing: spacing })
+        const positions = computeSupportPositions(shape, p, s, 1.5)
+        const area = shape === 'ellipse' ? Math.PI * (p.width / 2) * (p.depth / 2) : p.width * p.depth
+        const ratio = positions.length / (area / (spacing * spacing))
+        expect(ratio).toBeGreaterThan(0.95)
+        expect(ratio).toBeLessThan(1.5)
+      })
+    }
+  }
 
   it('rectangle: no interior point inside hole exclusion zone', () => {
     const p = buildPlinthConfig('rectangle', { addHole: true, holeDiameter: 10, holeDepth: 15, hollowEnabled: true, hollowHeight: 20 })

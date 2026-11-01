@@ -533,30 +533,6 @@ function buildRaftMesh(shape: Shape, plinthParams: PlinthParams, supportParams: 
   return geo
 }
 
-function mulberry32(seed: number): () => number {
-  let state = seed >>> 0
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0
-    let t = state
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-function hashSeed(parts: Array<number | string | boolean>): number {
-  let hash = 2166136261
-  for (const part of parts) {
-    const value = typeof part === 'number' ? Math.round(part * 1000) : part
-    const str = String(value)
-    for (let i = 0; i < str.length; i++) {
-      hash ^= str.charCodeAt(i)
-      hash = Math.imul(hash, 16777619)
-    }
-  }
-  return hash >>> 0
-}
-
 function pointInFootprint(shape: Shape, x: number, z: number, halfWidth: number, halfDepth: number): boolean {
   if (halfWidth <= 0 || halfDepth <= 0) return false
   if (shape === 'ellipse') {
@@ -618,143 +594,94 @@ function inAnyExclusion(x: number, z: number, exclusions: Array<{ cx: number, cz
   return false
 }
 
-function sampleInteriorPoisson(
+function sampleInteriorFill(
   shape: Shape,
   halfWidth: number,
   halfDepth: number,
-  minDist: number,
-  ringPoints: THREE.Vector3[],
-  exclusions: Array<{ cx: number, cz: number, rx: number, rz: number }>,
-  seed: number,
+  spacing: number,
+  fixedPoints: THREE.Vector3[],
+  cosTilt: number,
+  isAllowed: (x: number, zProjected: number) => boolean,
 ): THREE.Vector3[] {
-  if (halfWidth <= 0 || halfDepth <= 0 || minDist <= 0) return []
-  const rng = mulberry32(seed)
-  const cell = minDist / Math.SQRT2
-  const cols = Math.max(1, Math.ceil((2 * halfWidth) / cell))
-  const rows = Math.max(1, Math.ceil((2 * halfDepth) / cell))
-  const grid: (THREE.Vector3 | null)[] = new Array(cols * rows).fill(null)
-  const gridOriginX = -halfWidth
-  const gridOriginZ = -halfDepth
-  const toGridIndex = (x: number, z: number): number => {
-    const gridX = Math.min(cols - 1, Math.max(0, Math.floor((x - gridOriginX) / cell)))
-    const gridZ = Math.min(rows - 1, Math.max(0, Math.floor((z - gridOriginZ) / cell)))
-    return gridZ * cols + gridX
-  }
-  const points: THREE.Vector3[] = []
-  const active: THREE.Vector3[] = []
+  if (halfWidth <= 0 || halfDepth <= 0 || spacing <= 0) return []
+  const latticeStep = spacing * Math.sqrt(2 / Math.sqrt(3))
+  const clearance = latticeStep / Math.sqrt(3)
+  const clearanceSquared = clearance * clearance
+  const searchRadius = 2 * spacing
+  const accepts = (x: number, z: number): boolean => pointInFootprint(shape, x, z, halfWidth, halfDepth) && isAllowed(x, z * cosTilt)
 
-  const maxDim = Math.max(halfWidth, halfDepth)
-  const exclusionMargin = minDist
-  for (const exclusion of exclusions) {
-    const sampleCount = Math.max(8, Math.ceil((2 * Math.PI * Math.max(exclusion.rx, exclusion.rz)) / minDist))
-    for (let i = 0; i < sampleCount; i++) {
-      const angle = (i / sampleCount) * Math.PI * 2
-      const radiusScale = 1 + exclusionMargin / Math.max(exclusion.rx, exclusion.rz)
-      const x = exclusion.cx + Math.cos(angle) * exclusion.rx * radiusScale
-      const z = exclusion.cz + Math.sin(angle) * exclusion.rz * radiusScale
-      if (!pointInFootprint(shape, x, z, halfWidth, halfDepth)) continue
-      if (inAnyExclusion(x, z, exclusions)) continue
-      const point = new THREE.Vector3(x, 0, z)
-      points.push(point)
-      active.push(point)
-      grid[toGridIndex(x, z)] = point
-    }
-  }
-
-  const ringMinDistSquared = minDist * minDist
-  for (let i = 0; i < ringPoints.length; i++) {
-    const ringPoint = ringPoints[i]
-    const gridX = Math.min(cols - 1, Math.max(0, Math.floor((ringPoint.x - gridOriginX) / cell)))
-    const gridZ = Math.min(rows - 1, Math.max(0, Math.floor((ringPoint.z - gridOriginZ) / cell)))
-    for (let gz = Math.max(0, gridZ - 2); gz <= Math.min(rows - 1, gridZ + 2); gz++) {
-      for (let gx = Math.max(0, gridX - 2); gx <= Math.min(cols - 1, gridX + 2); gx++) {
-        const gridPoint = grid[gz * cols + gx]
-        if (gridPoint && gridPoint.distanceToSquared(ringPoint) < ringMinDistSquared) {
-          grid[gz * cols + gx] = null
-          const pointIdx = points.indexOf(gridPoint)
-          if (pointIdx >= 0) points.splice(pointIdx, 1)
-          const activeIdx = active.indexOf(gridPoint)
-          if (activeIdx >= 0) active.splice(activeIdx, 1)
+  const cellSize = spacing
+  const cellCols = Math.max(1, Math.ceil((2 * halfWidth) / cellSize) + 1)
+  const cellRows = Math.max(1, Math.ceil((2 * halfDepth) / cellSize) + 1)
+  const cells: Array<Array<{ x: number, z: number }>> = Array.from({ length: cellCols * cellRows }, () => [])
+  const cellColumn = (x: number): number => Math.min(cellCols - 1, Math.max(0, Math.floor((x + halfWidth) / cellSize)))
+  const cellRow = (z: number): number => Math.min(cellRows - 1, Math.max(0, Math.floor((z + halfDepth) / cellSize)))
+  const addPoint = (x: number, z: number) => cells[cellRow(z) * cellCols + cellColumn(x)].push({ x, z })
+  const nearestDistanceSquared = (x: number, z: number, limit: number): number => {
+    const reach = Math.ceil(limit / cellSize)
+    const column = cellColumn(x)
+    const row = cellRow(z)
+    let best = limit * limit
+    for (let r = Math.max(0, row - reach); r <= Math.min(cellRows - 1, row + reach); r++) {
+      for (let c = Math.max(0, column - reach); c <= Math.min(cellCols - 1, column + reach); c++) {
+        for (const point of cells[r * cellCols + c]) {
+          const dx = x - point.x
+          const dz = z - point.z
+          const distanceSquared = dx * dx + dz * dz
+          if (distanceSquared < best) best = distanceSquared
         }
       }
     }
+    return best
   }
 
-  if (active.length === 0 && points.length === 0) {
-    let placed = false
-    for (let tries = 0; tries < 30 && !placed; tries++) {
-      const x = (rng() * 2 - 1) * halfWidth
-      const z = (rng() * 2 - 1) * halfDepth
-      if (!pointInFootprint(shape, x, z, halfWidth, halfDepth)) continue
-      if (inAnyExclusion(x, z, exclusions)) continue
-      let tooClose = false
-      for (const ringPoint of ringPoints) {
-        const dx = x - ringPoint.x
-        const dz = z - ringPoint.z
-        if (dx * dx + dz * dz < ringMinDistSquared) { tooClose = true; break }
-      }
-      if (tooClose) continue
-      const point = new THREE.Vector3(x, 0, z)
-      points.push(point)
-      active.push(point)
-      grid[toGridIndex(x, z)] = point
-      placed = true
-    }
-    if (!placed) return points
-  }
+  for (const point of fixedPoints) addPoint(point.x, point.z / cosTilt)
 
-  const maxCandidates = 30
-  const minDistSquared = minDist * minDist
-  let iterations = 0
-  const maxIterations = 20000
-  while (active.length > 0 && iterations < maxIterations) {
-    iterations++
-    const activeIdx = Math.floor(rng() * active.length)
-    const basePoint = active[activeIdx]
-    let found = false
-    for (let j = 0; j < maxCandidates; j++) {
-      const angle = rng() * Math.PI * 2
-      const radius = minDist + rng() * minDist
-      const x = basePoint.x + Math.cos(angle) * radius
-      const z = basePoint.z + Math.sin(angle) * radius
-      if (!pointInFootprint(shape, x, z, halfWidth, halfDepth)) continue
-      if (inAnyExclusion(x, z, exclusions)) continue
-      let tooClose = false
-      for (const ringPoint of ringPoints) {
-        const dx = x - ringPoint.x
-        const dz = z - ringPoint.z
-        if (dx * dx + dz * dz < ringMinDistSquared) { tooClose = true; break }
-      }
-      if (tooClose) continue
-      const gridX = Math.min(cols - 1, Math.max(0, Math.floor((x - gridOriginX) / cell)))
-      const gridZ = Math.min(rows - 1, Math.max(0, Math.floor((z - gridOriginZ) / cell)))
-      let neighborTooClose = false
-      for (let gz = Math.max(0, gridZ - 2); gz <= Math.min(rows - 1, gridZ + 2); gz++) {
-        for (let gx = Math.max(0, gridX - 2); gx <= Math.min(cols - 1, gridX + 2); gx++) {
-          const gridPoint = grid[gz * cols + gx]
-          if (gridPoint && gridPoint !== basePoint) {
-            const dx = x - gridPoint.x
-            const dz = z - gridPoint.z
-            if (dx * dx + dz * dz < minDistSquared) { neighborTooClose = true; break }
-          }
-        }
-        if (neighborTooClose) break
-      }
-      if (neighborTooClose) continue
-      const point = new THREE.Vector3(x, 0, z)
-      points.push(point)
-      active.push(point)
-      grid[gridZ * cols + gridX] = point
-      found = true
-      break
-    }
-    if (!found) {
-      active.splice(activeIdx, 1)
+  const filled: Array<{ x: number, z: number }> = []
+  const rowStep = (latticeStep * Math.sqrt(3)) / 2
+  const rowReach = Math.ceil(halfDepth / rowStep)
+  const columnReach = Math.ceil(halfWidth / latticeStep) + 1
+  for (let row = -rowReach; row <= rowReach; row++) {
+    const z = row * rowStep
+    const rowOffset = Math.abs(row) % 2 === 1 ? latticeStep / 2 : 0
+    for (let column = -columnReach; column <= columnReach; column++) {
+      const x = column * latticeStep + rowOffset
+      if (!accepts(x, z)) continue
+      if (nearestDistanceSquared(x, z, clearance) < clearanceSquared) continue
+      filled.push({ x, z })
     }
   }
+  for (const point of filled) addPoint(point.x, point.z)
 
-  void maxDim
-  return points
+  const candidateStep = spacing / 4
+  const candidates: Array<{ x: number, z: number, distanceSquared: number }> = []
+  for (let z = -halfDepth; z <= halfDepth; z += candidateStep) {
+    for (let x = -halfWidth; x <= halfWidth; x += candidateStep) {
+      if (!accepts(x, z)) continue
+      const distanceSquared = nearestDistanceSquared(x, z, searchRadius)
+      if (distanceSquared >= clearanceSquared) candidates.push({ x, z, distanceSquared })
+    }
+  }
+  while (candidates.length > 0) {
+    let farthestIndex = 0
+    for (let i = 1; i < candidates.length; i++) {
+      if (candidates[i].distanceSquared > candidates[farthestIndex].distanceSquared) farthestIndex = i
+    }
+    const farthest = candidates[farthestIndex]
+    if (farthest.distanceSquared < clearanceSquared) break
+    filled.push({ x: farthest.x, z: farthest.z })
+    addPoint(farthest.x, farthest.z)
+    let kept = 0
+    for (const candidate of candidates) {
+      const dx = candidate.x - farthest.x
+      const dz = candidate.z - farthest.z
+      candidate.distanceSquared = Math.min(candidate.distanceSquared, dx * dx + dz * dz)
+      if (candidate.distanceSquared >= clearanceSquared) candidates[kept++] = candidate
+    }
+    candidates.length = kept
+  }
+
+  return filled.map((point) => new THREE.Vector3(point.x, 0, point.z * cosTilt))
 }
 
 function computeRingPositionsAroundOutline(shape: Shape, ringWidth: number, ringDepth: number, spacing: number, cosTilt: number, segMM: number, centerZ: number, ensurePlusZ: boolean): THREE.Vector3[] {
@@ -883,32 +810,9 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
 
   const inset = tipRadius + CONE_TIP_PENETRATION
   const interiorHalfWidth = Math.max(0, (plinthParams.width + 2 * trimOff) / 2 - inset)
-  const interiorHalfDepth = Math.max(0, (plinthParams.depth + 2 * trimOff) / 2 * cosTilt - inset * cosTilt)
+  const interiorHalfDepth = Math.max(0, (plinthParams.depth + 2 * trimOff) / 2 - inset)
 
-  const seedParts: Array<number | string | boolean> = [
-    shape,
-    plinthParams.width, plinthParams.depth, plinthParams.height,
-    plinthParams.addHole, plinthParams.holeDiameter, plinthParams.holeDepth,
-    plinthParams.hollowEnabled, plinthParams.hollowHeight, plinthParams.hollowWallThickness,
-    plinthParams.suctionHoleEnabled, plinthParams.suctionHoleDiameter,
-    plinthParams.trimEnabled, plinthParams.trimSize, plinthParams.trimHeight, plinthParams.trimProfileId,
-    supportParams.supportSize, supportParams.supportTipSize,
-    supportParams.supportSpacing, supportParams.interiorSpacing,
-    supportParams.plinthAngle,
-  ]
-  const seed = hashSeed(seedParts)
-
-  const interiorPositionsRaw = sampleInteriorPoisson(
-    shape,
-    interiorHalfWidth,
-    interiorHalfDepth,
-    supportParams.interiorSpacing,
-    ringPositionsAll,
-    exclusions,
-    seed,
-  )
-
-  let interiorPositions = interiorPositionsRaw
+  let nearCavityEdge = (x: number, z: number): boolean => { void x; void z; return false }
   if (plinthParams.hollowEnabled) {
     const wallThickness = Math.max(0.5, plinthParams.hollowWallThickness)
     const cavityHalfWidth = Math.max(0.01, (plinthParams.width - 2 * wallThickness) / 2)
@@ -919,11 +823,18 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
     const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
     const plinthDepth = Math.max(0.1, plinthParams.depth)
     const keepDistance = supportParams.supportSize
-    interiorPositions = interiorPositionsRaw.filter((point) => {
-      const distance = distanceToCavityTopEdge(point.x, point.z, shape, cavityHalfWidth, cavityHalfDepth, cosTilt, sinTilt, topTanAngle, hollowHeight, plinthDepth)
-      return distance >= keepDistance
-    })
+    nearCavityEdge = (x, z) => distanceToCavityTopEdge(x, z, shape, cavityHalfWidth, cavityHalfDepth, cosTilt, sinTilt, topTanAngle, hollowHeight, plinthDepth) < keepDistance
   }
+
+  const interiorPositions = sampleInteriorFill(
+    shape,
+    interiorHalfWidth,
+    interiorHalfDepth,
+    supportParams.supportSpacing,
+    ringPositionsAll,
+    cosTilt,
+    (x, z) => !inAnyExclusion(x, z, exclusions) && !nearCavityEdge(x, z),
+  )
 
   return ringPositionsAll.concat(interiorPositions)
 }

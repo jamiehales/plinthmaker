@@ -23,6 +23,7 @@ export default function LabeledSlider({
   disabled = false,
 }: LabeledSliderProps) {
   const [text, setText] = useState(String(value))
+  const stepDecimals = (String(step).split('.')[1] ?? '').length
 
   useEffect(() => {
     setText(String(value))
@@ -52,7 +53,7 @@ export default function LabeledSlider({
         className="labeled-slider-track"
         aria-label={label}
         value={[value]}
-        onValueChange={([next]) => onChange(next)}
+        onValueChange={([next]) => onChange(Number(next.toFixed(stepDecimals)))}
         min={min}
         max={max}
         step={step}

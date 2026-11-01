@@ -251,7 +251,7 @@ export function traceSections(sections: TrimSection[]): TracedPoint[] {
 
 export function sectionIconPath(type: TrimSectionType, flipped: boolean): string {
   const shape = sectionShape({ type, height: 1, depth: 1, flipped })
-  return ['M3 17', ...shape.map(([inward, up]) => `L${(3 + inward * 14).toFixed(1)} ${(17 - up * 14).toFixed(1)}`)].join(' ')
+  return ['M17 17', ...shape.map(([inward, up]) => `L${(17 - inward * 14).toFixed(1)} ${(17 - up * 14).toFixed(1)}`)].join(' ')
 }
 
 const STORAGE_KEY = 'plinthgenerator.customTrimProfiles'

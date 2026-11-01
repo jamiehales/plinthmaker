@@ -1,5 +1,9 @@
 import { useState, useMemo, useCallback, useRef, type CSSProperties } from 'react'
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Button,
   IconButton,
   LinkedPair,
@@ -25,8 +29,8 @@ import {
   DEFAULT_JIG_LIFT, DEFAULT_JIG_FLATTEN_TOP, DEFAULT_TOP_ANGLE,
   DEFAULT_ROUND_STYLE, DEFAULT_ROUND_LOCATION, DEFAULT_ROUND_SIZE, DEFAULT_DOWNLOAD_RESOLUTION,
   DEFAULT_ADD_SUPPORTS, DEFAULT_PLINTH_ANGLE, DEFAULT_RAISE_BY, DEFAULT_SUPPORT_SIZE,
-  DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_INTERIOR_SPACING, DEFAULT_SUPPORT_CAPS,
-  DEFAULT_LOCK_EDGE_SPACING_FILL, DRAWER_WIDTH,
+  DEFAULT_SUPPORT_TIP_SIZE, DEFAULT_SUPPORT_SPACING, DEFAULT_SUPPORT_CAPS,
+  DRAWER_WIDTH,
   DEFAULT_SCAFFOLDING_ENABLED, DEFAULT_SCAFFOLDING_ANGLE,
   DEFAULT_RAFT_HEIGHT, MIN_RAFT_HEIGHT, MAX_RAFT_HEIGHT,
   DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE, DEFAULT_TRIM_LINKED,
@@ -93,8 +97,6 @@ function App() {
   const [supportSize, setSupportSize] = useState(DEFAULT_SUPPORT_SIZE)
   const [supportTipSize, setSupportTipSize] = useState(DEFAULT_SUPPORT_TIP_SIZE)
   const [supportSpacing, setSupportSpacing] = useState(DEFAULT_SUPPORT_SPACING)
-  const [interiorSpacing, setInteriorSpacing] = useState(DEFAULT_INTERIOR_SPACING)
-  const [lockEdgeToFill, setLockEdgeToFill] = useState(DEFAULT_LOCK_EDGE_SPACING_FILL)
   const [supportCaps] = useState(DEFAULT_SUPPORT_CAPS)
   const [scaffoldingEnabled, setScaffoldingEnabled] = useState(DEFAULT_SCAFFOLDING_ENABLED)
   const [scaffoldingAngle, setScaffoldingAngle] = useState(DEFAULT_SCAFFOLDING_ANGLE)
@@ -125,6 +127,13 @@ function App() {
   const handleWidth = (w: number) => {
     setWidth(w)
     if (lockedAspect) setDepth(w)
+  }
+
+  const maxSupportTipSize = Math.min(1, supportSize)
+
+  const handleSupportSize = (size: number) => {
+    setSupportSize(size)
+    setSupportTipSize((tipSize) => Math.min(tipSize, Math.min(1, size)))
   }
 
   const handleLocked = (checked: boolean) => {
@@ -187,8 +196,6 @@ function App() {
     holeDiameter: jigDiffHole && addHole ? jigHoleDiameter : undefined,
   }), [addDrillJig, jigWallSize, jigHeight, jigOverlap, jigTolerance, jigLift, jigFlattenTop, jigDiffHole, jigHoleDiameter, addHole])
 
-  const effectiveInteriorSpacing = lockEdgeToFill ? supportSpacing : interiorSpacing
-
   const supportParams: SupportParams = useMemo(() => ({
     enabled: addSupports,
     plinthAngle,
@@ -196,12 +203,11 @@ function App() {
     supportSize,
     supportTipSize,
     supportSpacing,
-    interiorSpacing: effectiveInteriorSpacing,
     supportCaps,
     scaffoldingEnabled,
     scaffoldingAngle,
     raftHeight,
-  }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, effectiveInteriorSpacing, supportCaps, scaffoldingEnabled, scaffoldingAngle, raftHeight])
+  }), [addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, supportCaps, scaffoldingEnabled, scaffoldingAngle, raftHeight])
 
   const downloadJig = async () => {
     setDownloadingJig(true)
@@ -523,83 +529,71 @@ function App() {
           {addSupports ? (
             <>
               <LabeledSlider
-                label="Plinth Angle"
-                value={plinthAngle}
-                onChange={setPlinthAngle}
-                min={0}
-                max={30}
-                step={1}
-                unit="°"
-              />
-              <LabeledSlider
-                label="Raise By"
-                value={raiseBy}
-                onChange={setRaiseBy}
-                min={1}
-                max={30}
-              />
-              <LabeledSlider
-                label="Support Size"
-                value={supportSize}
-                onChange={setSupportSize}
-                min={0.5}
-                max={2}
-              />
-              <LabeledSlider
-                label="Support Tip Size"
+                label="Tip Size"
                 value={supportTipSize}
                 onChange={setSupportTipSize}
-                min={0}
-                max={0.5}
+                min={0.05}
+                max={maxSupportTipSize}
                 step={0.025}
               />
-              <LinkedPair
-                linked={lockEdgeToFill}
-                onLinkedChange={(linked) => {
-                  setLockEdgeToFill(linked)
-                  if (linked) setInteriorSpacing(supportSpacing)
-                }}
-                label="Link fill spacing to edge spacing"
-                linkedHint="Fill spacing follows edge spacing"
-                unlinkedHint="Link fill spacing to edge spacing"
-              >
-                <LabeledSlider
-                  label="Support Spacing (Edges)"
-                  value={supportSpacing}
-                  onChange={setSupportSpacing}
-                  min={2}
-                  max={5}
-                />
-                <LabeledSlider
-                  label="Support Spacing (Fill)"
-                  value={lockEdgeToFill ? supportSpacing : interiorSpacing}
-                  onChange={setInteriorSpacing}
-                  min={2}
-                  max={5}
-                  disabled={lockEdgeToFill}
-                />
-              </LinkedPair>
-              <CheckField checked={scaffoldingEnabled} onChange={setScaffoldingEnabled}>Add Scaffolding</CheckField>
-              {scaffoldingEnabled ? (
-                <LabeledSlider
-                  label="Scaffolding Angle"
-                  value={scaffoldingAngle}
-                  onChange={setScaffoldingAngle}
-                  min={15}
-                  max={75}
-                  step={1}
-                  unit="°"
-                />
-              ) : null}
               <LabeledSlider
-                label="Raft Thickness"
-                value={raftHeight}
-                onChange={setRaftHeight}
-                min={MIN_RAFT_HEIGHT}
-                max={MAX_RAFT_HEIGHT}
-                step={0.05}
-                unit="mm"
+                label="Spacing"
+                value={supportSpacing}
+                onChange={setSupportSpacing}
+                min={2}
+                max={5}
               />
+              <Accordion type="single" collapsible variant="minimal" className="advanced-options">
+                <AccordionItem value="advanced">
+                  <AccordionTrigger>Advanced options</AccordionTrigger>
+                  <AccordionContent className="advanced-options-body">
+                    <LabeledSlider
+                      label="Plinth Angle"
+                      value={plinthAngle}
+                      onChange={setPlinthAngle}
+                      min={0}
+                      max={30}
+                      step={1}
+                      unit="°"
+                    />
+                    <LabeledSlider
+                      label="Plinth Lift"
+                      value={raiseBy}
+                      onChange={setRaiseBy}
+                      min={1}
+                      max={30}
+                    />
+                    <LabeledSlider
+                      label="Support Size"
+                      value={supportSize}
+                      onChange={handleSupportSize}
+                      min={0.5}
+                      max={2}
+                    />
+                    <CheckField checked={scaffoldingEnabled} onChange={setScaffoldingEnabled}>Add Scaffolding</CheckField>
+                    {scaffoldingEnabled ? (
+                      <LabeledSlider
+                        label="Scaffolding Angle"
+                        value={scaffoldingAngle}
+                        onChange={setScaffoldingAngle}
+                        min={15}
+                        max={75}
+                        step={1}
+                        unit="°"
+                      />
+                    ) : null}
+                    <LabeledSlider
+                      label="Raft Thickness"
+                      value={raftHeight}
+                      onChange={setRaftHeight}
+                      min={MIN_RAFT_HEIGHT}
+                      max={MAX_RAFT_HEIGHT}
+                      step={0.05}
+                      unit="mm"
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </>
           ) : null}
         </div>

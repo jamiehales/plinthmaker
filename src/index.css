@@ -379,7 +379,8 @@ body {
   font-size: 13px;
 }
 
-.trim-editor-body {
+.trim-editor-body,
+.advanced-options-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
