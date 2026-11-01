@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import type { Shape } from './geometryBuilder.ts'
+import { ngonOutline } from './ngon.ts'
 
 export const GUIDE_COLOR = 0xffc857
 export const EXCESS_COLOR = 0xe2685c
@@ -32,20 +34,23 @@ export function translucentMesh(geometry: THREE.BufferGeometry, depthTest = true
 
 const ELLIPSE_SEGMENTS = 96
 
-export function makeOutline(shape: 'rectangle' | 'ellipse', width: number, depth: number): THREE.Vector2[] {
+export function makeOutline(shape: Shape, width: number, depth: number, sides = 0, offset = 0): THREE.Vector2[] {
+  if (shape === 'ngon') return ngonOutline(sides, width, depth, offset)
+  const halfWidth = width / 2 + offset
+  const halfDepth = depth / 2 + offset
   if (shape === 'ellipse') {
     const outline: THREE.Vector2[] = []
     for (let i = 0; i < ELLIPSE_SEGMENTS; i++) {
       const angle = (i / ELLIPSE_SEGMENTS) * Math.PI * 2
-      outline.push(new THREE.Vector2((width / 2) * Math.cos(angle), (depth / 2) * Math.sin(angle)))
+      outline.push(new THREE.Vector2(halfWidth * Math.cos(angle), halfDepth * Math.sin(angle)))
     }
     return outline
   }
   return [
-    new THREE.Vector2(-width / 2, -depth / 2),
-    new THREE.Vector2(width / 2, -depth / 2),
-    new THREE.Vector2(width / 2, depth / 2),
-    new THREE.Vector2(-width / 2, depth / 2),
+    new THREE.Vector2(-halfWidth, -halfDepth),
+    new THREE.Vector2(halfWidth, -halfDepth),
+    new THREE.Vector2(halfWidth, halfDepth),
+    new THREE.Vector2(-halfWidth, halfDepth),
   ]
 }
 

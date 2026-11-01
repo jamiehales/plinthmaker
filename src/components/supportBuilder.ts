@@ -3,10 +3,11 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { type Shape, type PlinthParams, type SupportParams, RENDER_BASE_SEGMENT_MM, suctionHoleZ, topDrop } from './geometryBuilder.ts'
 import { sampleTrimOffset, getTrimProfile } from './trimProfiles.ts'
 import { union } from './csg.ts'
+import { ngonOutline, ngonCavityOutline, polygonEdges, pointInConvexPolygon, distanceToPolygonBoundary } from './ngon.ts'
 import {
   DEFAULT_CONE_START_GAP, DEFAULT_RAFT_HEIGHT, DEFAULT_RAFT_BOTTOM_INSET,
   DEFAULT_CONE_TIP_PENETRATION, DEFAULT_SUPPORT_OFFSET_EDGE, DEFAULT_SUPPORT_OFFSET_CAVITY, DEFAULT_SUPPORT_CAPS,
-  DEFAULT_SCAFFOLDING_SCALE, DEFAULT_SCAFFOLDING_GAP_TOLERANCE,
+  DEFAULT_SCAFFOLDING_SCALE, DEFAULT_SCAFFOLDING_GAP_TOLERANCE, DEFAULT_NGON_SIDES,
 } from '../defaults.ts'
 
 const CONE_START_GAP = DEFAULT_CONE_START_GAP
@@ -40,6 +41,11 @@ function isSupportOverCavity(
   const zLocal = point.z / Math.max(0.01, cosTilt)
   const maxRadius = Math.max(supportRadius, tipRadius)
 
+  if (plinthParams.shape === 'ngon') {
+    const cavityOutline = ngonCavityOutline(plinthParams.ngonSides, Math.max(0.1, plinthParams.width), Math.max(0.1, plinthParams.depth), wallThickness)
+    return pointInConvexPolygon(cavityOutline, point.x, zLocal, maxRadius)
+  }
+
   if (plinthParams.shape === 'ellipse') {
     const ellipseHalfWidth = cavityHalfWidth - maxRadius
     const ellipseHalfDepth = cavityHalfDepth - maxRadius
@@ -52,6 +58,7 @@ function isSupportOverCavity(
 
 interface CavityParams {
   shape: Shape
+  cavityOutline: THREE.Vector2[] | null
   cavityHalfWidth: number
   cavityHalfDepth: number
   hollowHeight: number
@@ -70,8 +77,29 @@ function cavityCeilingHeight(xWorld: number, zWorld: number, cavity: CavityParam
   return cavity.raise + (cavity.hollowHeight - (cavity.plinthDepth / 2) * cavity.topTanAngle - zWorld * (cavity.sinTilt + cavity.cosTilt * cavity.topTanAngle)) / safeDenom
 }
 
+function polygonCavityWallHit(xWorld: number, zWorld: number, cavity: CavityParams, cavityOutline: THREE.Vector2[]): { yWorld: number; normal: THREE.Vector3 } | null {
+  const safeCosTilt = Math.max(0.01, cavity.cosTilt)
+  const ceilingAtZLocal = (zLocal: number) => cavity.hollowHeight - (zLocal + cavity.plinthDepth / 2) * cavity.topTanAngle
+  let best: { yWorld: number; normal: THREE.Vector3 } | null = null
+  for (const { start, end, normal } of polygonEdges(cavityOutline)) {
+    const edgeDx = end.x - start.x
+    if (Math.abs(edgeDx) < 1e-9) continue
+    const t = (xWorld - start.x) / edgeDx
+    if (t < 0 || t > 1) continue
+    const zLocal = start.y + t * (end.y - start.y)
+    const yLocal = (zWorld - zLocal * cavity.cosTilt) / cavity.sinTilt
+    if (yLocal < 0 || yLocal > ceilingAtZLocal(zLocal)) continue
+    const yWorld = cavity.raise + yLocal / safeCosTilt - zWorld * cavity.tanTilt
+    if (!best || yWorld < best.yWorld) {
+      best = { yWorld, normal: new THREE.Vector3(normal.x, -normal.y * cavity.sinTilt, normal.y * cavity.cosTilt) }
+    }
+  }
+  return best
+}
+
 function cavityWallHeight(xWorld: number, zWorld: number, cavity: CavityParams): number {
   if (Math.abs(cavity.sinTilt) < 1e-6) return Infinity
+  if (cavity.cavityOutline) return polygonCavityWallHit(xWorld, zWorld, cavity, cavity.cavityOutline)?.yWorld ?? Infinity
   const safeCosTilt = Math.max(0.01, cavity.cosTilt)
   const ceilingAtZLocal = (zLocal: number) => cavity.hollowHeight - (zLocal + cavity.plinthDepth / 2) * cavity.topTanAngle
 
@@ -121,6 +149,7 @@ function cavityCeilingNormal(cavity: CavityParams): THREE.Vector3 {
 
 function cavityWallNormal(xWorld: number, zWorld: number, cavity: CavityParams): THREE.Vector3 | null {
   if (Math.abs(cavity.sinTilt) < 1e-6) return null
+  if (cavity.cavityOutline) return polygonCavityWallHit(xWorld, zWorld, cavity, cavity.cavityOutline)?.normal ?? null
   const safeCosTilt = Math.max(0.01, cavity.cosTilt)
   const ceilingAtZLocal = (zLocal: number) => cavity.hollowHeight - (zLocal + cavity.plinthDepth / 2) * cavity.topTanAngle
 
@@ -207,7 +236,12 @@ function applySupportOffset(
   return { basePositions, tipPositions, contactHeights }
 }
 
-export function makeBaseOutlinePoints(shape: Shape, width: number, depth: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
+function outlineToGround(outline: THREE.Vector2[]): THREE.Vector3[] {
+  return outline.map((point) => new THREE.Vector3(point.x, 0, point.y))
+}
+
+export function makeBaseOutlinePoints(shape: Shape, width: number, depth: number, segMM: number, trimOffset = 0, sides = DEFAULT_NGON_SIDES): THREE.Vector3[] {
+  if (shape === 'ngon') return outlineToGround(ngonOutline(sides, width, depth, trimOffset))
   const expandedWidth = width + 2 * trimOffset
   const expandedDepth = depth + 2 * trimOffset
   if (shape === 'ellipse') {
@@ -243,7 +277,8 @@ function makeEllipseOutline(width: number, depth: number, segmentCount: number, 
   return pts
 }
 
-export function makeInsetOutlinePoints(shape: Shape, width: number, depth: number, inset: number, segMM: number, trimOffset = 0): THREE.Vector3[] {
+export function makeInsetOutlinePoints(shape: Shape, width: number, depth: number, inset: number, segMM: number, trimOffset = 0, sides = DEFAULT_NGON_SIDES): THREE.Vector3[] {
+  if (shape === 'ngon') return makeBaseOutlinePoints(shape, width, depth, segMM, trimOffset - inset, sides)
   const insetWidth = Math.max(0.01, width + 2 * trimOffset - 2 * inset)
   const insetDepth = Math.max(0.01, depth + 2 * trimOffset - 2 * inset)
   return makeBaseOutlinePoints(shape, insetWidth, insetDepth, segMM)
@@ -331,7 +366,8 @@ function nearestArcLength(points: THREE.Vector3[], cumulative: number[], target:
   return bestArc
 }
 
-function computeOuterRingAnchors(shape: Shape, width: number, depth: number, inset: number, cosTilt: number, trimOffset = 0): THREE.Vector3[] {
+function computeOuterRingAnchors(shape: Shape, width: number, depth: number, inset: number, cosTilt: number, trimOffset = 0, sides = DEFAULT_NGON_SIDES): THREE.Vector3[] {
+  if (shape === 'ngon') return projectToGround(makeInsetOutlinePoints(shape, width, depth, inset, 0, trimOffset, sides), cosTilt)
   const insetWidth = Math.max(0.01, width + 2 * trimOffset - 2 * inset)
   const insetDepth = Math.max(0.01, depth + 2 * trimOffset - 2 * inset)
   const halfWidth = insetWidth / 2
@@ -481,12 +517,16 @@ function buildRaftMesh(shape: Shape, plinthParams: PlinthParams, supportParams: 
   const bottomWidth = topWidth - 2 * RAFT_BOTTOM_INSET
   const bottomDepth = topDepth - 2 * RAFT_BOTTOM_INSET
 
-  const topPts = projectToGround(makeBaseOutlinePoints(shape, topWidth, topDepth, segMM), cosTilt)
+  const ngonTopOffset = trimOff + expand / 2
+  const topPts = shape === 'ngon'
+    ? projectToGround(makeBaseOutlinePoints(shape, plinthParams.width, plinthParams.depth, segMM, ngonTopOffset, plinthParams.ngonSides), cosTilt)
+    : projectToGround(makeBaseOutlinePoints(shape, topWidth, topDepth, segMM), cosTilt)
   const pointCount = topPts.length
-  const botPtsRaw = shape === 'ellipse'
+  const botPts = shape === 'ellipse'
     ? makeEllipseOutline(bottomWidth, bottomDepth, pointCount, cosTilt)
-    : makeBaseOutlinePoints(shape, bottomWidth, bottomDepth, segMM)
-  const botPts = shape === 'ellipse' ? botPtsRaw : projectToGround(makeBaseOutlinePoints(shape, bottomWidth, bottomDepth, segMM), cosTilt)
+    : shape === 'ngon'
+      ? projectToGround(makeBaseOutlinePoints(shape, plinthParams.width, plinthParams.depth, segMM, ngonTopOffset - RAFT_BOTTOM_INSET, plinthParams.ngonSides), cosTilt)
+      : projectToGround(makeBaseOutlinePoints(shape, bottomWidth, bottomDepth, segMM), cosTilt)
   if (pointCount < 3 || botPts.length !== pointCount) return new THREE.BufferGeometry()
 
   const raftHeight = supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT
@@ -587,28 +627,49 @@ function inAnyExclusion(x: number, z: number, exclusions: Array<{ cx: number, cz
   return false
 }
 
+interface InteriorRegion {
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
+  contains: (x: number, z: number) => boolean
+}
+
+function footprintRegion(shape: Shape, halfWidth: number, halfDepth: number): InteriorRegion {
+  return { minX: -halfWidth, maxX: halfWidth, minZ: -halfDepth, maxZ: halfDepth, contains: (x, z) => pointInFootprint(shape, x, z, halfWidth, halfDepth) }
+}
+
+function polygonRegion(outline: THREE.Vector2[]): InteriorRegion {
+  return {
+    minX: Math.min(...outline.map((point) => point.x)),
+    maxX: Math.max(...outline.map((point) => point.x)),
+    minZ: Math.min(...outline.map((point) => point.y)),
+    maxZ: Math.max(...outline.map((point) => point.y)),
+    contains: (x, z) => pointInConvexPolygon(outline, x, z),
+  }
+}
+
 function sampleInteriorFill(
-  shape: Shape,
-  halfWidth: number,
-  halfDepth: number,
+  region: InteriorRegion,
   spacing: number,
   fixedPoints: THREE.Vector3[],
   cosTilt: number,
   isAllowed: (x: number, zProjected: number) => boolean,
 ): THREE.Vector3[] {
-  if (halfWidth <= 0 || halfDepth <= 0 || spacing <= 0) return []
+  const { minX, maxX, minZ, maxZ } = region
+  if (maxX <= minX || maxZ <= minZ || spacing <= 0) return []
   const latticeStep = spacing * Math.sqrt(2 / Math.sqrt(3))
   const clearance = latticeStep / Math.sqrt(3)
   const clearanceSquared = clearance * clearance
   const searchRadius = 2 * spacing
-  const accepts = (x: number, z: number): boolean => pointInFootprint(shape, x, z, halfWidth, halfDepth) && isAllowed(x, z * cosTilt)
+  const accepts = (x: number, z: number): boolean => region.contains(x, z) && isAllowed(x, z * cosTilt)
 
   const cellSize = spacing
-  const cellCols = Math.max(1, Math.ceil((2 * halfWidth) / cellSize) + 1)
-  const cellRows = Math.max(1, Math.ceil((2 * halfDepth) / cellSize) + 1)
+  const cellCols = Math.max(1, Math.ceil((maxX - minX) / cellSize) + 1)
+  const cellRows = Math.max(1, Math.ceil((maxZ - minZ) / cellSize) + 1)
   const cells: Array<Array<{ x: number, z: number }>> = Array.from({ length: cellCols * cellRows }, () => [])
-  const cellColumn = (x: number): number => Math.min(cellCols - 1, Math.max(0, Math.floor((x + halfWidth) / cellSize)))
-  const cellRow = (z: number): number => Math.min(cellRows - 1, Math.max(0, Math.floor((z + halfDepth) / cellSize)))
+  const cellColumn = (x: number): number => Math.min(cellCols - 1, Math.max(0, Math.floor((x - minX) / cellSize)))
+  const cellRow = (z: number): number => Math.min(cellRows - 1, Math.max(0, Math.floor((z - minZ) / cellSize)))
   const addPoint = (x: number, z: number) => cells[cellRow(z) * cellCols + cellColumn(x)].push({ x, z })
   const nearestDistanceSquared = (x: number, z: number, limit: number): number => {
     const reach = Math.ceil(limit / cellSize)
@@ -632,12 +693,12 @@ function sampleInteriorFill(
 
   const filled: Array<{ x: number, z: number }> = []
   const rowStep = (latticeStep * Math.sqrt(3)) / 2
-  const rowReach = Math.ceil(halfDepth / rowStep)
-  const columnReach = Math.ceil(halfWidth / latticeStep) + 1
-  for (let row = -rowReach; row <= rowReach; row++) {
+  const firstColumn = Math.floor(minX / latticeStep) - 1
+  const lastColumn = Math.ceil(maxX / latticeStep) + 1
+  for (let row = Math.floor(minZ / rowStep); row <= Math.ceil(maxZ / rowStep); row++) {
     const z = row * rowStep
     const rowOffset = Math.abs(row) % 2 === 1 ? latticeStep / 2 : 0
-    for (let column = -columnReach; column <= columnReach; column++) {
+    for (let column = firstColumn; column <= lastColumn; column++) {
       const x = column * latticeStep + rowOffset
       if (!accepts(x, z)) continue
       if (nearestDistanceSquared(x, z, clearance) < clearanceSquared) continue
@@ -648,8 +709,8 @@ function sampleInteriorFill(
 
   const candidateStep = spacing / 4
   const candidates: Array<{ x: number, z: number, distanceSquared: number }> = []
-  for (let z = -halfDepth; z <= halfDepth; z += candidateStep) {
-    for (let x = -halfWidth; x <= halfWidth; x += candidateStep) {
+  for (let z = minZ; z <= maxZ; z += candidateStep) {
+    for (let x = minX; x <= maxX; x += candidateStep) {
       if (!accepts(x, z)) continue
       const distanceSquared = nearestDistanceSquared(x, z, searchRadius)
       if (distanceSquared >= clearanceSquared) candidates.push({ x, z, distanceSquared })
@@ -703,6 +764,11 @@ function computeCavityEdgeRingPositions(shape: Shape, plinthParams: PlinthParams
   const cavityWidth = Math.max(0.1, plinthParams.width - 2 * wallThickness)
   const cavityDepth = Math.max(0.1, plinthParams.depth - 2 * wallThickness)
   const expand = tipRadius + CONE_TIP_PENETRATION
+  if (shape === 'ngon') {
+    if (expand > wallThickness) return []
+    const ringProjected = projectToGround(makeBaseOutlinePoints(shape, plinthParams.width, plinthParams.depth, segMM, expand - wallThickness, plinthParams.ngonSides), cosTilt)
+    return equidistantPointsWithAnchors(ringProjected, ringProjected, supportParams.supportSpacing)
+  }
   const ringWidth = cavityWidth + 2 * expand
   const ringDepth = cavityDepth + 2 * expand
   if (ringWidth > plinthParams.width || ringDepth > plinthParams.depth) return []
@@ -758,12 +824,12 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
   const cosTilt = Math.cos(tilt)
 
   const trimOff = trimFootprintOffset(plinthParams)
-  const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, segMM, trimOff)
+  const insetLocal = makeInsetOutlinePoints(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, segMM, trimOff, plinthParams.ngonSides)
   const insetProjected = projectToGround(insetLocal, cosTilt)
   const perim = perimeterLength(insetProjected)
   if (perim < 1e-6) return []
 
-  const anchors = computeOuterRingAnchors(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, cosTilt, trimOff)
+  const anchors = computeOuterRingAnchors(shape, plinthParams.width, plinthParams.depth, tipRadius + CONE_TIP_PENETRATION, cosTilt, trimOff, plinthParams.ngonSides)
   const ringPositions = equidistantPointsWithAnchors(insetProjected, anchors, supportParams.supportSpacing)
 
   const cavityRingPositions = computeCavityEdgeRingPositions(shape, plinthParams, supportParams, cosTilt, segMM)
@@ -802,8 +868,13 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
   }
 
   const inset = tipRadius + CONE_TIP_PENETRATION
-  const interiorHalfWidth = Math.max(0, (plinthParams.width + 2 * trimOff) / 2 - inset)
-  const interiorHalfDepth = Math.max(0, (plinthParams.depth + 2 * trimOff) / 2 - inset)
+  const interiorRegion = shape === 'ngon'
+    ? polygonRegion(ngonOutline(plinthParams.ngonSides, plinthParams.width, plinthParams.depth, trimOff - inset))
+    : footprintRegion(
+        shape,
+        Math.max(0, (plinthParams.width + 2 * trimOff) / 2 - inset),
+        Math.max(0, (plinthParams.depth + 2 * trimOff) / 2 - inset),
+      )
 
   let nearCavityEdge = (x: number, z: number): boolean => { void x; void z; return false }
   if (plinthParams.hollowEnabled) {
@@ -816,13 +887,20 @@ export function computeSupportPositions(shape: Shape, plinthParams: PlinthParams
     const hollowHeight = Math.max(0.1, plinthParams.hollowHeight)
     const plinthDepth = Math.max(0.1, plinthParams.depth)
     const keepDistance = supportParams.supportSize
-    nearCavityEdge = (x, z) => distanceToCavityTopEdge(x, z, shape, cavityHalfWidth, cavityHalfDepth, cosTilt, sinTilt, topTanAngle, hollowHeight, plinthDepth) < keepDistance
+    if (shape === 'ngon') {
+      const ceilingYLocal = hollowHeight - (plinthDepth / 2) * topTanAngle
+      const zCenter = ceilingYLocal * sinTilt
+      const zScale = cosTilt - topTanAngle * sinTilt
+      const projectedCavityEdge = ngonCavityOutline(plinthParams.ngonSides, Math.max(0.1, plinthParams.width), plinthDepth, wallThickness)
+        .map((point) => new THREE.Vector2(point.x, zCenter + point.y * zScale))
+      nearCavityEdge = (x, z) => distanceToPolygonBoundary(projectedCavityEdge, x, z) < keepDistance
+    } else {
+      nearCavityEdge = (x, z) => distanceToCavityTopEdge(x, z, shape, cavityHalfWidth, cavityHalfDepth, cosTilt, sinTilt, topTanAngle, hollowHeight, plinthDepth) < keepDistance
+    }
   }
 
   const interiorPositions = sampleInteriorFill(
-    shape,
-    interiorHalfWidth,
-    interiorHalfDepth,
+    interiorRegion,
     supportParams.supportSpacing,
     ringPositionsAll,
     cosTilt,
@@ -1048,6 +1126,9 @@ function prepareSupports(shape: Shape, plinthParams: PlinthParams, supportParams
   const cavityParams: CavityParams | null = plinthParams.hollowEnabled
     ? {
         shape,
+        cavityOutline: shape === 'ngon'
+          ? ngonCavityOutline(plinthParams.ngonSides, Math.max(0.1, plinthParams.width), Math.max(0.1, plinthParams.depth), wallThickness)
+          : null,
         cavityHalfWidth: Math.max(0.01, (plinthParams.width - 2 * wallThickness) / 2),
         cavityHalfDepth: Math.max(0.01, (plinthParams.depth - 2 * wallThickness) / 2),
         hollowHeight: Math.max(0.1, plinthParams.hollowHeight),

@@ -1,6 +1,9 @@
 import type { Shape, RoundStyle, RoundLocation } from './components/geometryBuilder.ts'
 
 export const DEFAULT_SHAPE: Shape = 'rectangle'
+export const DEFAULT_NGON_SIDES = 6
+export const MIN_NGON_SIDES = 3
+export const MAX_NGON_SIDES = 20
 export const DEFAULT_WIDTH = 40
 export const DEFAULT_DEPTH = 40
 export const DEFAULT_HEIGHT = 40

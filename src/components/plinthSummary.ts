@@ -2,7 +2,7 @@ import type { PlinthParams, SupportParams } from './geometryBuilder.ts'
 import type { DrillJigParams } from './DrillJig.tsx'
 
 export function describePlinthSize(params: PlinthParams) {
-  const shapeName = params.shape === 'ellipse' ? 'Ellipse' : 'Rectangle'
+  const shapeName = params.shape === 'ellipse' ? 'Ellipse' : params.shape === 'ngon' ? `${params.ngonSides}-sided polygon` : 'Rectangle'
   return `${shapeName} · ${params.width} × ${params.depth} × ${params.height} mm`
 }
 

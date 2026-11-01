@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { type Shape, type PlinthParams, type SupportParams } from '../components/geometryBuilder.ts'
 import { buildSupportMeshGeometry, computeSupportPositions, mergePlinthWithSupports, applySupportTransform, applyYUpToZUp, buildScaffoldingMesh } from '../components/supportBuilder.ts'
-import { buildGeometry } from '../components/geometryBuilder.ts'
+import { buildGeometry, buildPlinthBody, suctionHoleZ } from '../components/geometryBuilder.ts'
+import { ngonOutline, ngonCavityOutline, ngonDepthRatio, ngonVertices, pointInConvexPolygon } from '../components/ngon.ts'
 
 type MeshCheckResult = {
   name: string
@@ -142,6 +143,7 @@ function checkMesh(name: string, geo: THREE.BufferGeometry): MeshCheckResult[] {
 function buildPlinthConfig(shape: Shape, opts: Partial<PlinthParams> = {}): PlinthParams {
   return {
     shape,
+    ngonSides: 6,
     width: 40,
     depth: 40,
     height: 30,
@@ -819,4 +821,95 @@ describe('buildScaffoldingMesh', () => {
     geoNoFlag.dispose()
     geoWithFlag.dispose()
   })
+})
+describe('ngon plinths', () => {
+  const expectValid = (name: string, geo: THREE.BufferGeometry) => {
+    for (const r of checkMesh(name, geo)) {
+      if (!r.pass) console.error(`FAIL ${r.name}: ${r.details}`)
+      expect(r.pass, `${r.name} — ${r.details}`).toBe(true)
+    }
+  }
+
+  const variants: Array<{ name: string; opts: Partial<PlinthParams> }> = [
+    { name: 'plain', opts: {} },
+    { name: 'fillet-top', opts: { roundStyle: 'fillet', roundLocation: 'top', roundSize: 2 } },
+    { name: 'fillet-edges', opts: { roundStyle: 'fillet', roundLocation: 'edges', roundSize: 2 } },
+    { name: 'chamfer-both-angled', opts: { roundStyle: 'chamfer', roundLocation: 'both', roundSize: 1, angleTop: true, topAngle: 20 } },
+    { name: 'hollow', opts: { hollowEnabled: true, hollowHeight: 20 } },
+    { name: 'hole-angled', opts: { addHole: true, holeDiameter: 3, holeDepth: 15, angleTop: true, topAngle: 20 } },
+    { name: 'chamfer-edges', opts: { roundStyle: 'chamfer', roundLocation: 'edges', roundSize: 2 } },
+    { name: 'trim', opts: { trimEnabled: true, trimSize: 5, trimHeight: 10, trimProfileId: 'quarterCircle' } },
+    { name: 'trim-fillet-edges', opts: { trimEnabled: true, trimSize: 5, trimHeight: 10, trimProfileId: 'stepped', roundStyle: 'fillet', roundLocation: 'edges', roundSize: 2 } },
+    { name: 'trim-hollow-angled', opts: { trimEnabled: true, trimSize: 5, trimHeight: 10, trimProfileId: 'quarterCircle', hollowEnabled: true, hollowHeight: 20, suctionHoleEnabled: true, suctionHoleDiameter: 3, addHole: true, holeDiameter: 3, holeDepth: 15, angleTop: true, topAngle: 20 } },
+  ]
+
+  for (let sides = 3; sides <= 20; sides++) {
+    it(`${sides} sides: natural depth ratio gives equal edge lengths`, () => {
+      const vertices = ngonVertices(sides, 40, 40 * ngonDepthRatio(sides))
+      const lengths = vertices.map((vertex, i) => vertex.distanceTo(vertices[(i + 1) % vertices.length]))
+      for (const length of lengths) expect(length).toBeCloseTo(lengths[0], 6)
+    })
+  }
+
+  for (const sides of [3, 4, 5, 6, 7, 12, 20]) {
+    it(`${sides} sides: base has a flat edge at the front and fills the footprint`, () => {
+      const p = buildPlinthConfig('ngon', { ngonSides: sides, width: 40, depth: 30 })
+      const geo = buildGeometry(p, 1.0, 1.0, false)
+      const box = new THREE.Box3().setFromBufferAttribute(geo.attributes.position as THREE.BufferAttribute)
+      expect(box.max.x - box.min.x).toBeCloseTo(40, 3)
+      expect(box.max.z - box.min.z).toBeCloseTo(30, 3)
+      const pos = geo.attributes.position as THREE.BufferAttribute
+      const frontXs = new Set<string>()
+      for (let i = 0; i < pos.count; i++) {
+        if (Math.abs(pos.getY(i)) < 1e-6 && Math.abs(pos.getZ(i) - box.max.z) < 1e-4) frontXs.add(pos.getX(i).toFixed(3))
+      }
+      expect(frontXs.size).toBeGreaterThanOrEqual(2)
+      geo.dispose()
+    })
+
+    for (const { name, opts } of variants) {
+      it(`${sides} sides: ${name} plinth body is valid and the full plinth builds`, () => {
+        const p = buildPlinthConfig('ngon', { ngonSides: sides, ...opts })
+        const body = buildPlinthBody(p, 0, 1.0, 1.0)
+        expectValid(`ngon${sides}-${name}`, body)
+        body.dispose()
+        const geo = buildGeometry(p, 1.0, 1.0, false)
+        expect(geo.attributes.position.count).toBeGreaterThan(0)
+        geo.dispose()
+      })
+    }
+
+    it(`${sides} sides: supports stay inside the footprint and hold both corners of the lowest edge`, () => {
+      const p = buildPlinthConfig('ngon', { ngonSides: sides, width: 40, depth: 40 })
+      const s = buildSupportConfig({ plinthAngle: 0 })
+      const positions = computeSupportPositions('ngon', p, s, 1.5)
+      expect(positions.length).toBeGreaterThan(sides)
+      const inset = s.supportTipSize / 2 + 0.1
+      const footprint = ngonOutline(sides, p.width, p.depth)
+      for (const point of positions) {
+        expect(pointInConvexPolygon(footprint, point.x, point.z, inset - 1e-3)).toBe(true)
+      }
+      const insetCorners = ngonOutline(sides, p.width, p.depth, -inset)
+      const lowestZ = Math.max(...insetCorners.map((corner) => corner.y))
+      const lowestCorners = insetCorners.filter((corner) => Math.abs(corner.y - lowestZ) < 1e-6)
+      expect(lowestCorners.length).toBe(2)
+      for (const corner of lowestCorners) {
+        expect(positions.some((point) => Math.hypot(point.x - corner.x, point.z - corner.y) < 1e-3)).toBe(true)
+      }
+    })
+
+    it(`${sides} sides: hollow support mesh is valid with caps`, () => {
+      const p = buildPlinthConfig('ngon', { ngonSides: sides, hollowEnabled: true, hollowHeight: 20, suctionHoleEnabled: true, suctionHoleDiameter: 3 })
+      const geo = buildSupportMeshGeometry('ngon', p, buildSupportConfig({ supportCaps: true }), 16)
+      expect(geo.attributes.position.count).toBeGreaterThan(0)
+      expectValid(`ngon${sides}-supports`, geo)
+      geo.dispose()
+    })
+
+    it(`${sides} sides: suction hole sits inside the cavity`, () => {
+      const p = buildPlinthConfig('ngon', { ngonSides: sides, hollowEnabled: true, hollowHeight: 20, suctionHoleEnabled: true, suctionHoleDiameter: 3 })
+      const cavity = ngonCavityOutline(sides, p.width, p.depth, p.hollowWallThickness)
+      expect(pointInConvexPolygon(cavity, 0, suctionHoleZ(p), 1.5 - 1e-6)).toBe(true)
+    })
+  }
 })

@@ -4,6 +4,7 @@ import { useThree, type ThreeEvent } from '@react-three/fiber'
 import { type PlinthParams } from './geometryBuilder.ts'
 import { type FigureSilhouette, loadFigureSilhouette } from './figureCatalog.ts'
 import { GUIDE_COLOR } from './guideShapes.ts'
+import { clampToConvexPolygon, ngonVertices } from './ngon.ts'
 import {
   FIGURE_OPACITY, FIGURE_HANDLE_RADIUS_SCALE, FIGURE_HANDLE_MIN_RADIUS, FIGURE_HANDLE_MAX_RADIUS,
   FIGURE_HANDLE_OPACITY, FIGURE_HANDLE_HOVER_OPACITY, FIGURE_HANDLE_ARROW_SCALE,
@@ -55,6 +56,7 @@ function topAngleRadians(params: PlinthParams): number {
 function clampToTop(params: PlinthParams, position: FigurePosition): FigurePosition {
   const halfWidth = Math.max(0.1, params.width) / 2
   const halfDepth = Math.max(0.1, params.depth) / 2
+  if (params.shape === 'ngon') return clampToConvexPolygon(ngonVertices(params.ngonSides, halfWidth * 2, halfDepth * 2), position.x, position.z)
   if (params.shape === 'ellipse') {
     const distance = Math.hypot(position.x / halfWidth, position.z / halfDepth)
     return distance <= 1 ? position : { x: position.x / distance, z: position.z / distance }

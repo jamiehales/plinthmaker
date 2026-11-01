@@ -3,12 +3,17 @@ import * as THREE from 'three'
 import { type Shape, type PlinthParams, type DrillJigParams, topDrop, RENDER_BASE_SEGMENT_MM, RENDER_FILLET_SEGMENT_MM } from './geometryBuilder.ts'
 import { useGeometryWorker, deserializeGeometry, markBuilding, markDone, markFailed, markSuccess } from './useGeometryWorker.ts'
 import { DEFAULT_RENDER_THROTTLE_MS } from '../defaults.ts'
+import { ngonOutline } from './ngon.ts'
 
 export type { DrillJigParams } from './geometryBuilder.ts'
 
-function makeOutlineLoop(shape: Shape, w: number, d: number, segMM: number, zScale = 1): THREE.LineLoop {
+function makeOutlineLoop(shape: Shape, sides: number, plinthWidth: number, plinthDepth: number, offset: number, segMM: number, zScale = 1): THREE.LineLoop {
+  const w = plinthWidth + 2 * offset
+  const d = plinthDepth + 2 * offset
   let pts: THREE.Vector3[]
-  if (shape === 'ellipse') {
+  if (shape === 'ngon') {
+    pts = ngonOutline(sides, plinthWidth, plinthDepth, offset).map((point) => new THREE.Vector3(point.x, 0, point.y * zScale))
+  } else if (shape === 'ellipse') {
     const hw = w / 2
     const hd = (d / 2) * zScale
     const perim = Math.PI * (3 * (hw + hd) - Math.sqrt((3 * hw + hd) * (hw + 3 * hd)))
@@ -113,9 +118,9 @@ export default function DrillJig({
   const topZScale = plinthParams.angleTop ? 1 / Math.max(0.01, cosA) : 1
   const flatten = jigParams.flattenTop
 
-  const bottomOutline = useMemo(() => makeOutlineLoop(shape, plinthParams.width + jigParams.tolerance, plinthParams.depth + jigParams.tolerance, baseSegMM, topZScale), [shape, plinthParams.width, plinthParams.depth,  jigParams.tolerance, baseSegMM, topZScale])
+  const bottomOutline = useMemo(() => makeOutlineLoop(shape, plinthParams.ngonSides, plinthParams.width, plinthParams.depth, jigParams.tolerance / 2, baseSegMM, topZScale), [shape, plinthParams.ngonSides, plinthParams.width, plinthParams.depth,  jigParams.tolerance, baseSegMM, topZScale])
   const topOutlineZScale = topZScale
-  const topOutline = useMemo(() => makeOutlineLoop(shape, plinthParams.width + jigParams.tolerance, plinthParams.depth + jigParams.tolerance, baseSegMM, topOutlineZScale), [shape, plinthParams.width, plinthParams.depth, jigParams.tolerance, baseSegMM, topOutlineZScale])
+  const topOutline = useMemo(() => makeOutlineLoop(shape, plinthParams.ngonSides, plinthParams.width, plinthParams.depth, jigParams.tolerance / 2, baseSegMM, topOutlineZScale), [shape, plinthParams.ngonSides, plinthParams.width, plinthParams.depth, jigParams.tolerance, baseSegMM, topOutlineZScale])
   const makeHoleCircle = useMemo(() => {
     return (skewed: boolean) => {
       const r = Math.max(0.05, (jigParams.holeDiameter ?? plinthParams.holeDiameter) / 2)
@@ -171,13 +176,11 @@ export default function DrillJig({
 
   const bottomY = baseY - overlap
 
-  const jigOW = w + 2 * wall
-  const jigOD = d + 2 * wall
   const jigZScale = plinthParams.angleTop && !flatten ? 1 / Math.max(0.01, cosA) : 1
   const jigBottomZScale = plinthParams.angleTop ? 1 / Math.max(0.01, cosA) : 1
 
-  const jigTopOutline = useMemo(() => makeOutlineLoop(shape, jigOW, jigOD, baseSegMM, jigZScale), [shape, jigOW, jigOD, baseSegMM, jigZScale])
-  const jigBottomOutline = useMemo(() => makeOutlineLoop(shape, jigOW, jigOD, baseSegMM, jigBottomZScale), [shape, jigOW, jigOD, baseSegMM, jigBottomZScale])
+  const jigTopOutline = useMemo(() => makeOutlineLoop(shape, plinthParams.ngonSides, w, d, wall, baseSegMM, jigZScale), [shape, plinthParams.ngonSides, w, d, wall, baseSegMM, jigZScale])
+  const jigBottomOutline = useMemo(() => makeOutlineLoop(shape, plinthParams.ngonSides, w, d, wall, baseSegMM, jigBottomZScale), [shape, plinthParams.ngonSides, w, d, wall, baseSegMM, jigBottomZScale])
 
   useEffect(() => {
     return () => {

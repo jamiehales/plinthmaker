@@ -34,7 +34,7 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, sho
   const footprint = useMemo(() => {
     try {
       const trimOff = trimFootprintOffset(plinthParams)
-      const local = makeBaseOutlinePoints(shape, plinthParams.width, plinthParams.depth, baseSegMM, trimOff)
+      const local = makeBaseOutlinePoints(shape, plinthParams.width, plinthParams.depth, baseSegMM, trimOff, plinthParams.ngonSides)
       const projected = projectToGround(local, cosT)
       const geo = new THREE.BufferGeometry().setFromPoints(projected)
       return new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color: 0x4ad6ff, transparent: true, opacity: 0.8, depthTest: false }))

@@ -13,7 +13,7 @@ import {
   Spinner,
   WarningTooltip,
 } from '@jamiehales/ui-kit/mostlymaking'
-import { CircleIcon, DownloadIcon, HelpIcon, SquareIcon } from './components/icons.tsx'
+import { CircleIcon, DownloadIcon, HelpIcon, HexagonIcon, SquareIcon } from './components/icons.tsx'
 import { CheckField, SectionTitle } from './components/FormParts.tsx'
 import Viewport from './components/Viewport.tsx'
 import HelpDialog, { type HelpDialogHandle } from './components/HelpDialog.tsx'
@@ -24,7 +24,7 @@ import LabeledSlider from './components/LabeledSlider.tsx'
 import { exportSTL } from './components/exportSTL.ts'
 import { buildSupportMeshGeometry, mergePlinthWithSupports, applySupportTransform, applyYUpToZUp } from './components/supportBuilder.ts'
 import {
-  DEFAULT_SHAPE, DEFAULT_WIDTH, DEFAULT_DEPTH, DEFAULT_HEIGHT, DEFAULT_LOCKED_ASPECT,
+  DEFAULT_SHAPE, DEFAULT_NGON_SIDES, MIN_NGON_SIDES, MAX_NGON_SIDES, DEFAULT_WIDTH, DEFAULT_DEPTH, DEFAULT_HEIGHT, DEFAULT_LOCKED_ASPECT,
   DEFAULT_ADD_HOLE, DEFAULT_HOLE_DIAMETER, DEFAULT_HOLE_DEPTH, DEFAULT_ADD_DRILL_JIG,
   DEFAULT_JIG_WALL_SIZE, DEFAULT_JIG_HEIGHT, DEFAULT_JIG_OVERLAP, DEFAULT_JIG_TOLERANCE,
   DEFAULT_JIG_LIFT, DEFAULT_JIG_FLATTEN_TOP, DEFAULT_TOP_ANGLE,
@@ -46,6 +46,7 @@ import { useMediaQuery, useWindowHeight } from './components/useLayout.ts'
 import { describePlinthFeatures, describePlinthSize } from './components/plinthSummary.ts'
 import TrimDesigner from './components/TrimDesigner.tsx'
 import { useTrimDesign } from './components/useTrimDesign.ts'
+import { ngonDepthRatio } from './components/ngon.ts'
 import PlinthAngleIcon from './components/PlinthAngleIcon.tsx'
 import { type CavityGuideMode } from './components/CavityGuide.tsx'
 import { type HoleGuideMode } from './components/HoleGuide.tsx'
@@ -83,6 +84,7 @@ function BuildingIndicator() {
 
 function App() {
   const [shape, setShape] = useState<Shape>(DEFAULT_SHAPE)
+  const [ngonSides, setNgonSides] = useState(DEFAULT_NGON_SIDES)
   const [width, setWidth] = useState(DEFAULT_WIDTH)
   const [depth, setDepth] = useState(DEFAULT_DEPTH)
   const [height, setHeight] = useState(DEFAULT_HEIGHT)
@@ -172,6 +174,8 @@ function App() {
     if (v === 'ellipse' && roundLocation !== 'top') setRoundLocation('top')
   }
 
+  const plinthDepth = lockedAspect && shape === 'ngon' ? Math.round(width * ngonDepthRatio(ngonSides) * 100) / 100 : depth
+
   const handleWidth = (w: number) => {
     setWidth(w)
     if (lockedAspect) setDepth(w)
@@ -200,7 +204,10 @@ function App() {
 
   const resetIf = (modified: boolean, reset: () => void) => (modified ? reset : null)
 
-  const resetShape = resetIf(shape !== DEFAULT_SHAPE, () => setShape(DEFAULT_SHAPE))
+  const resetShape = resetIf(shape !== DEFAULT_SHAPE || ngonSides !== DEFAULT_NGON_SIDES, () => {
+    setShape(DEFAULT_SHAPE)
+    setNgonSides(DEFAULT_NGON_SIDES)
+  })
   const resetDimensions = resetIf(
     width !== DEFAULT_WIDTH || depth !== DEFAULT_DEPTH || height !== DEFAULT_HEIGHT || lockedAspect !== DEFAULT_LOCKED_ASPECT,
     () => {
@@ -327,13 +334,14 @@ function App() {
 
   const handleLocked = (checked: boolean) => {
     setLockedAspect(checked)
-    if (checked) setDepth(width)
+    setDepth(checked ? width : plinthDepth)
   }
 
   const plinthParams: PlinthParams = useMemo(() => ({
     shape,
+    ngonSides,
     width,
-    depth,
+    depth: plinthDepth,
     height,
     addHole,
     holeDiameter,
@@ -353,7 +361,7 @@ function App() {
     hollowWallThickness,
     suctionHoleEnabled,
     suctionHoleDiameter,
-  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimDesign.trimProfileId, trimDesign.customTrimPoints, trimHeight, trimSize, hollowEnabled, topThickness, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter])
+  }), [shape, ngonSides, width, plinthDepth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimDesign.trimProfileId, trimDesign.customTrimPoints, trimHeight, trimSize, hollowEnabled, topThickness, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter])
 
   const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number, supported: boolean) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
@@ -363,7 +371,8 @@ function App() {
     const hollowPart = p.hollowEnabled ? `_hollow-${p.height - p.hollowHeight}x${p.hollowWallThickness}` : ''
     const supportPart = supported ? '_supported' : '_unsupported'
     const um = Math.round(resMM * 1000)
-    return `plinth_${p.shape}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}${trimPart}${hollowPart}${supportPart}_${um}um.stl`
+    const shapePart = p.shape === 'ngon' ? `ngon-${p.ngonSides}` : p.shape
+    return `plinth_${shapePart}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}${trimPart}${hollowPart}${supportPart}_${um}um.stl`
   }, [])
 
   const buildJigFilename = useCallback((p: PlinthParams, j: DrillJigParams) => {
@@ -490,20 +499,34 @@ function App() {
             <SegmentedControlItem value="ellipse">
               <CircleIcon /> Ellipse
             </SegmentedControlItem>
+            <SegmentedControlItem value="ngon">
+              <HexagonIcon /> N-gon
+            </SegmentedControlItem>
           </SegmentedControl>
+          {shape === 'ngon' ? (
+            <LabeledSlider
+              label="Sides"
+              value={ngonSides}
+              onChange={(sides) => setNgonSides(Math.min(MAX_NGON_SIDES, Math.max(MIN_NGON_SIDES, Math.round(sides))))}
+              min={MIN_NGON_SIDES}
+              max={MAX_NGON_SIDES}
+              step={1}
+              unit=""
+            />
+          ) : null}
 
           <SectionTitle onReset={resetDimensions}>Dimensions</SectionTitle>
           <LinkedPair
             linked={lockedAspect}
             onLinkedChange={handleLocked}
             label="Link depth to width"
-            linkedHint="Depth follows width"
+            linkedHint={shape === 'ngon' ? 'Depth keeps the sides equal' : 'Depth follows width'}
             unlinkedHint="Link depth to width"
           >
             <LabeledSlider label="Width" value={width} onChange={handleWidth} min={20} max={150} />
             <LabeledSlider
               label="Depth"
-              value={depth}
+              value={plinthDepth}
               onChange={setDepth}
               min={20}
               max={150}
@@ -557,7 +580,7 @@ function App() {
           </SegmentedControl>
           {roundStyle !== 'none' ? (
             <>
-              {shape === 'rectangle' ? (
+              {shape !== 'ellipse' ? (
                 <SegmentedControl fullWidth value={roundLocation} onValueChange={(v) => setRoundLocation(v as RoundLocation)} aria-label="Edge location">
                   <SegmentedControlItem value="top">Top</SegmentedControlItem>
                   <SegmentedControlItem value="edges">Edges</SegmentedControlItem>
@@ -632,7 +655,7 @@ function App() {
                 value={hollowWallThickness}
                 onChange={setHollowWallThickness}
                 min={0.5}
-                max={Math.min(width, depth) / 2 - 0.5}
+                max={Math.min(width, plinthDepth) / 2 - 0.5}
                 step={0.1}
                 onEditingChange={(editing) => handleEditingHollow('wall', editing)}
               />
@@ -645,7 +668,7 @@ function App() {
                   value={suctionHoleDiameter}
                   onChange={setSuctionHoleDiameter}
                   min={1}
-                  max={Math.min(MAX_SUCTION_HOLE_DIAMETER, Math.min(width, depth) - 2 * hollowWallThickness)}
+                  max={Math.min(MAX_SUCTION_HOLE_DIAMETER, Math.min(width, plinthDepth) - 2 * hollowWallThickness)}
                   step={0.5}
                   onEditingChange={(editing) => handleEditingHole('suction', editing)}
                 />

@@ -21,7 +21,9 @@ export default function CavityGuide({ params, mode }: { params: PlinthParams; mo
     const topYAt = (z: number) => Math.max(0, Math.min(height, height - (z + depth / 2) * tanAngle))
     const ceilingYAt = (z: number) => Math.max(0, topYAt(z) - topThickness)
 
-    const cavityOutline = makeOutline(params.shape, cavityWidth, cavityDepth)
+    const cavityOutline = params.shape === 'ngon'
+      ? makeOutline(params.shape, width, depth, params.ngonSides, -wall)
+      : makeOutline(params.shape, cavityWidth, cavityDepth)
     const cavityFloor = liftOutline(cavityOutline, () => 0)
     const cavityCeiling = liftOutline(cavityOutline, ceilingYAt)
     const verticalEvery = params.shape === 'ellipse' ? cavityOutline.length / ELLIPSE_VERTICAL_EDGES : 1
@@ -33,12 +35,12 @@ export default function CavityGuide({ params, mode }: { params: PlinthParams; mo
     let lowerLoop: THREE.Vector3[]
     let upperLoop: THREE.Vector3[]
     if (mode === 'top') {
-      const outerOutline = makeOutline(params.shape, width + 2 * SURFACE_OFFSET, depth + 2 * SURFACE_OFFSET)
+      const outerOutline = makeOutline(params.shape, width, depth, params.ngonSides, SURFACE_OFFSET)
       lowerLoop = liftOutline(outerOutline, ceilingYAt)
       upperLoop = liftOutline(outerOutline, topYAt)
     } else {
       const surfaceYAt = (z: number) => topYAt(z) + SURFACE_OFFSET
-      lowerLoop = liftOutline(makeOutline(params.shape, width, depth), surfaceYAt)
+      lowerLoop = liftOutline(makeOutline(params.shape, width, depth, params.ngonSides), surfaceYAt)
       upperLoop = liftOutline(cavityOutline, surfaceYAt)
     }
     const band = translucentMesh(stripGeometry(lowerLoop, upperLoop))

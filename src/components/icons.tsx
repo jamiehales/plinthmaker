@@ -36,6 +36,12 @@ export const CircleIcon = () => (
   </Icon>
 )
 
+export const HexagonIcon = () => (
+  <Icon filled>
+    <path d="M7.5 4.2h9L21 12l-4.5 7.8h-9L3 12Z" />
+  </Icon>
+)
+
 export const EditIcon = () => (
   <Icon>
     <path d="M4 20h4L19 9l-4-4L4 16v4ZM13 7l4 4" />

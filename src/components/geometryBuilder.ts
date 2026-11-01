@@ -1,13 +1,15 @@
 import * as THREE from 'three'
 import { getTrimProfile, sampleTrimRings, type TrimProfilePoint } from './trimProfiles.ts'
 import { subtractAll } from './csg.ts'
+import { ngonVertices, ngonOutline, ngonCavityOutline, offsetPolygon, polygonEdges, roundPolygonCorners, maxCornerRadius, maxCornerTurn, maxPolygonInset } from './ngon.ts'
 
-export type Shape = 'rectangle' | 'ellipse'
+export type Shape = 'rectangle' | 'ellipse' | 'ngon'
 export type RoundStyle = 'none' | 'chamfer' | 'fillet'
 export type RoundLocation = 'top' | 'edges' | 'both'
 
 export interface PlinthParams {
   shape: Shape
+  ngonSides: number
   width: number
   depth: number
   height: number
@@ -85,11 +87,28 @@ export function topDrop(p: Pick<PlinthParams, 'angleTop' | 'topAngle' | 'depth'>
 export function suctionHoleZ(p: PlinthParams): number {
   const suctionRadius = Math.max(0.05, p.suctionHoleDiameter / 2)
   const wall = Math.max(0.5, p.hollowWallThickness)
+  if (p.shape === 'ngon') {
+    const cavityOutline = ngonCavityOutline(p.ngonSides, Math.max(0.1, p.width), Math.max(0.1, p.depth), wall)
+    let lowestZ = -Infinity
+    for (const edge of polygonEdges(cavityOutline)) {
+      if (edge.normal.y < -1e-9) lowestZ = Math.max(lowestZ, (edge.offset - suctionRadius) / edge.normal.y)
+    }
+    return Math.min(0, lowestZ)
+  }
   const hd = Math.max(0.01, (p.depth - 2 * wall) / 2)
   return -(hd - suctionRadius)
 }
 
-function makeOutline(shape: Shape, w: number, d: number, style: RoundStyle, edgeRound: boolean, r: number, baseSegMM: number, filletSegMM: number): THREE.Vector2[] {
+function ngonArcSegments(vertices: THREE.Vector2[], style: RoundStyle, radius: number, filletSegMM: number): number {
+  return style === 'chamfer' ? 1 : segsForArc(radius, maxCornerTurn(vertices), filletSegMM, 2)
+}
+
+function makeOutline(shape: Shape, sides: number, w: number, d: number, style: RoundStyle, edgeRound: boolean, r: number, baseSegMM: number, filletSegMM: number): THREE.Vector2[] {
+  if (shape === 'ngon') {
+    const vertices = ngonVertices(sides, w, d)
+    if (!edgeRound) return vertices
+    return roundPolygonCorners(vertices, r, ngonArcSegments(vertices, style, r, filletSegMM))
+  }
   if (shape === 'ellipse') {
     const pts: THREE.Vector2[] = []
     const n = segsForEllipse(w / 2, d / 2, baseSegMM)
@@ -144,7 +163,12 @@ function makeOutline(shape: Shape, w: number, d: number, style: RoundStyle, edge
   return pts
 }
 
-function makeTrimOutline(shape: Shape, w: number, d: number, offset: number, style: RoundStyle, edgeRound: boolean, r: number, np: number): THREE.Vector2[] {
+function makeTrimOutline(shape: Shape, sides: number, w: number, d: number, offset: number, style: RoundStyle, edgeRound: boolean, r: number, np: number): THREE.Vector2[] {
+  if (shape === 'ngon') {
+    const vertices = ngonOutline(sides, w, d, offset)
+    if (!edgeRound) return vertices
+    return roundPolygonCorners(vertices, r, Math.max(1, np / vertices.length - 1))
+  }
   const wT = w + 2 * offset
   const dT = d + 2 * offset
   if (shape === 'ellipse') {
@@ -274,7 +298,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
 
   const rounding = p.roundStyle !== 'none' && p.roundSize > 0
 
-  const edgeRound = rounding && p.shape === 'rectangle' &&
+  const edgeRound = rounding && p.shape !== 'ellipse' &&
     (p.roundLocation === 'edges' || p.roundLocation === 'both')
   const topRound = rounding && (p.roundLocation === 'top' || p.roundLocation === 'both')
 
@@ -292,11 +316,17 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
   const trimHeight = trimOn ? Math.min(p.trimHeight, h - 0.01) : 0
   const trimSize = trimOn ? Math.max(0, p.trimSize) : 0
 
+  const ngonLimit = p.shape === 'ngon'
+    ? (() => {
+        const vertices = ngonVertices(p.ngonSides, w, d)
+        return Math.min(maxPolygonInset(vertices), edgeRound ? maxCornerRadius(vertices) : Infinity) - 0.01
+      })()
+    : Infinity
   const r = rounding
-    ? Math.min(p.roundSize, w / 2 - 0.01, d / 2 - 0.01, (h - trimHeight) / 2 - 0.01, minTopY - 0.01)
+    ? Math.min(p.roundSize, w / 2 - 0.01, d / 2 - 0.01, (h - trimHeight) / 2 - 0.01, minTopY - 0.01, ngonLimit)
     : 0
 
-  const baseOutline = makeOutline(p.shape, w, d, p.roundStyle, edgeRound, r, baseSegMM, filletSegMM)
+  const baseOutline = makeOutline(p.shape, p.ngonSides, w, d, p.roundStyle, edgeRound, r, baseSegMM, filletSegMM)
   const np = baseOutline.length
 
   const topYAt = (z: number) => Math.max(0, Math.min(h, h - (z + d / 2) * tanA))
@@ -314,7 +344,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
     for (const s of trimSamples) {
       const offset = trimSize * s.offset
       const outline = offset > 1e-6
-        ? makeTrimOutline(p.shape, w, d, offset, p.roundStyle, edgeRound, r, np)
+        ? makeTrimOutline(p.shape, p.ngonSides, w, d, offset, p.roundStyle, edgeRound, r, np)
         : baseOutline.map((pp) => pp.clone())
       rings.push({ y: s.y, ys: constYs(s.y, outline.length), pts: outline, section: s.section })
     }
@@ -473,7 +503,9 @@ function buildHollowCavity(p: PlinthParams, segMM: number): THREE.BufferGeometry
   const ceilingYAt = (z: number) => Math.max(bottomY, topYAt(z) - topThickness)
 
   let outline: THREE.Vector2[]
-  if (p.shape === 'ellipse') {
+  if (p.shape === 'ngon') {
+    outline = ngonCavityOutline(p.ngonSides, Math.max(0.1, p.width), d, wall)
+  } else if (p.shape === 'ellipse') {
     const n = segsForEllipse(cw / 2, cd / 2, segMM)
     outline = []
     for (let i = 0; i < n; i++) {
@@ -631,14 +663,19 @@ function buildJigMesh(
   const ow = jigOW
   const od = jigOD * jigZScale
 
-  const outerOutlineRaw = makeOutline(shape, ow, od, 'none', false, 0, baseSegMM, filletSegMM)
+  const scaleZ = (outline: THREE.Vector2[], zScale: number) => outline.map((point) => new THREE.Vector2(point.x, point.y * zScale))
+  const outerOutlineRaw = shape === 'ngon'
+    ? scaleZ(ngonOutline(p.ngonSides, w, d, wall), jigZScale)
+    : makeOutline(shape, p.ngonSides, ow, od, 'none', false, 0, baseSegMM, filletSegMM)
   const outerOutline = dedupOutline(outerOutlineRaw)
 
   const owBot = jigOW
   const odBot = jigOD * cavityZScale
 
   let outerBotOutline: THREE.Vector2[]
-  if (shape === 'ellipse') {
+  if (shape === 'ngon') {
+    outerBotOutline = scaleZ(ngonOutline(p.ngonSides, w, d, wall), cavityZScale)
+  } else if (shape === 'ellipse') {
     const nTop = outerOutline.length
     outerBotOutline = []
     for (let k = 0; k < nTop; k++) {
@@ -674,7 +711,9 @@ function buildJigMesh(
 
   const cavityOW = w + jig.tolerance
   const cavityOD = d * cavityZScale + jig.tolerance
-  const cavityOutlineRaw = makeOutline(shape, cavityOW, cavityOD, 'none', false, 0, baseSegMM, filletSegMM)
+  const cavityOutlineRaw = shape === 'ngon'
+    ? offsetPolygon(scaleZ(ngonVertices(p.ngonSides, w, d), cavityZScale), jig.tolerance / 2)
+    : makeOutline(shape, p.ngonSides, cavityOW, cavityOD, 'none', false, 0, baseSegMM, filletSegMM)
   const cavityOutline = dedupOutline(cavityOutlineRaw)
 
   const topRot = flatten ? 0 : angleRad

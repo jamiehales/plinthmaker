@@ -146,6 +146,7 @@ function buildConfig(
     shape,
     p: {
       shape,
+      ngonSides: 6,
       width: 60,
       depth: 60,
       height: 44.7,
@@ -182,7 +183,7 @@ function buildConfig(
 }
 
 const configs: Array<{ name: string; cfg: ReturnType<typeof buildConfig> }> = []
-for (const shape of ['rectangle', 'ellipse'] as Shape[]) {
+for (const shape of ['rectangle', 'ellipse', 'ngon'] as Shape[]) {
   for (const flatten of [true, false]) {
     for (const angleTop of [false, true]) {
       for (const addHole of [false, true]) {
@@ -248,6 +249,7 @@ describe('jig bottom invariant with flatten toggle', () => {
     it(`${shape}: jig bottom AABB unchanged when toggling flatten (angle=true)`, () => {
       const p: PlinthParams = {
         shape,
+        ngonSides: 6,
         width: 60,
         depth: 60,
         height: 44.7,
@@ -306,6 +308,7 @@ describe('jig top size invariant with flatten toggle (angle=true)', () => {
     it(`${shape}: jig top outline size unchanged when toggling flatten (angle=true)`, () => {
       const p: PlinthParams = {
         shape,
+        ngonSides: 6,
         width: 60,
         depth: 60,
         height: 44.7,
@@ -371,6 +374,7 @@ describe('jig top size matches angle=false when flatten=true', () => {
       }
       const pAngle: PlinthParams = {
         shape,
+        ngonSides: 6,
         width: 60,
         depth: 60,
         height: 44.7,
@@ -394,6 +398,7 @@ describe('jig top size matches angle=false when flatten=true', () => {
       }
       const pNoAngle: PlinthParams = {
         shape,
+        ngonSides: 6,
         width: 60,
         depth: 60,
         height: 44.7,

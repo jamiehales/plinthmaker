@@ -6,12 +6,15 @@ import type { Shape, PlinthParams } from './geometryBuilder.ts'
 import { topDrop, RENDER_BASE_SEGMENT_MM, RENDER_FILLET_SEGMENT_MM } from './geometryBuilder.ts'
 import { DEFAULT_RENDER_THROTTLE_MS } from '../defaults.ts'
 import { GUIDE_COLOR } from './guideShapes.ts'
+import { ngonVertices } from './ngon.ts'
 
 const DEBUG_OUTLINES = false
 
-function makeOutlineLoop(shape: Shape, w: number, d: number, segMM: number, zScale = 1, insetX = 0, insetZ = 0): THREE.LineLoop {
+function makeOutlineLoop(shape: Shape, sides: number, w: number, d: number, segMM: number, zScale = 1, insetX = 0, insetZ = 0): THREE.LineLoop {
   let pts: THREE.Vector3[]
-  if (shape === 'ellipse') {
+  if (shape === 'ngon') {
+    pts = ngonVertices(sides, Math.max(0.01, w - 2 * insetX), Math.max(0.01, d - 2 * insetZ)).map((point) => new THREE.Vector3(point.x, 0, point.y * zScale))
+  } else if (shape === 'ellipse') {
     const hw = Math.max(0.01, w / 2 - insetX)
     const hd = Math.max(0.01, (d / 2 - insetZ) * zScale)
     const perim = Math.PI * (3 * (hw + hd) - Math.sqrt((3 * hw + hd) * (hw + 3 * hd)))
@@ -182,12 +185,12 @@ export default function Plinth({ params, baseSegMM = RENDER_BASE_SEGMENT_MM, fil
   const shiftZ = cosA * shift
 
   const topOutline = useMemo(
-    () => makeOutlineLoop(params.shape, params.width, params.depth, baseSegMM, topZScale),
-    [params.shape, params.width, params.depth, baseSegMM, topZScale],
+    () => makeOutlineLoop(params.shape, params.ngonSides, params.width, params.depth, baseSegMM, topZScale),
+    [params.shape, params.ngonSides, params.width, params.depth, baseSegMM, topZScale],
   )
   const insetOutline = useMemo(
-    () => makeOutlineLoop(params.shape, params.width, params.depth, baseSegMM, topZScale, r, insetZWorld),
-    [params.shape, params.width, params.depth, baseSegMM, topZScale, r, insetZWorld],
+    () => makeOutlineLoop(params.shape, params.ngonSides, params.width, params.depth, baseSegMM, topZScale, r, insetZWorld),
+    [params.shape, params.ngonSides, params.width, params.depth, baseSegMM, topZScale, r, insetZWorld],
   )
 
   useEffect(() => {
