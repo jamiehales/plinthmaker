@@ -9,7 +9,7 @@ import {
   buildSupportMeshGeometry,
   trimFootprintOffset,
 } from './supportBuilder.ts'
-import { SHOW_SCAFFOLDING_IN_PREVIEW } from '../defaults.ts'
+import { SHOW_SCAFFOLDING_IN_PREVIEW, SUPPORT_PREVIEW_OPACITY } from '../defaults.ts'
 import { markBuilding, markDone, markFailed, markSuccess, useGenerationFailed } from './useGeometryWorker.ts'
 
 interface SupportOverlayProps {
@@ -17,13 +17,12 @@ interface SupportOverlayProps {
   plinthParams: PlinthParams
   supportParams: SupportParams
   showGuide: boolean
-  showMesh?: boolean
   baseSegMM?: number
 }
 
 const EMPTY_GEO = new THREE.BufferGeometry()
 
-export default function SupportOverlay({ shape, plinthParams, supportParams, showGuide, showMesh = true, baseSegMM = RENDER_BASE_SEGMENT_MM }: SupportOverlayProps) {
+export default function SupportOverlay({ shape, plinthParams, supportParams, showGuide, baseSegMM = RENDER_BASE_SEGMENT_MM }: SupportOverlayProps) {
   const tilt = (supportParams.plinthAngle * Math.PI) / 180
   const cosT = Math.cos(tilt)
   const radius = supportParams.supportSize / 2
@@ -71,7 +70,6 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, sho
   }, [tipRings])
 
   useEffect(() => {
-    if (!showMesh) return
     if (radius <= 0) {
       setSupportMesh((prev) => {
         if (prev.geo !== EMPTY_GEO) prev.geo.dispose()
@@ -113,7 +111,7 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, sho
       clearTimeout(t)
       markDone()
     }
-  }, [shape, plinthParams, supportParams, radius, showMesh])
+  }, [shape, plinthParams, supportParams, radius])
 
   useEffect(() => {
     return () => {
@@ -146,11 +144,9 @@ export default function SupportOverlay({ shape, plinthParams, supportParams, sho
           <primitive object={supportCircles} position={[0, 0, 0]} renderOrder={1000} />
         </>
       ) : null}
-      {showMesh ? (
-        <mesh geometry={supportMesh.geo}>
-          <meshStandardMaterial color="#6affb0" metalness={0.1} roughness={0.6} />
-        </mesh>
-      ) : null}
+      <mesh geometry={supportMesh.geo}>
+        <meshStandardMaterial color="#6affb0" metalness={0.1} roughness={0.6} transparent opacity={SUPPORT_PREVIEW_OPACITY} depthWrite={false} />
+      </mesh>
     </group>
   )
 }

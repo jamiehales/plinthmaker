@@ -1,6 +1,6 @@
 # Plinth Generator
 
-A browser-based tool for generating parametric STL plinth models. Runs entirely client-side — no API calls, works offline once loaded.
+A browser-based tool for generating parametric STL plinth models. Runs entirely client-side and works offline once loaded, except for the optional preview figures, which are loaded from [minicompare.info](https://minicompare.info).
 
 ## Stack
 

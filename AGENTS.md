@@ -6,7 +6,7 @@
 
 ## Overview
 
-**plinthgenerator** is a browser-based, fully client-side SPA that generates parametric STL plinth models from user-controlled parameters. No backend, no API calls — everything runs in the browser and works offline once loaded. Deployed to Vercel as a static site.
+**plinthgenerator** is a browser-based, fully client-side SPA that generates parametric STL plinth models from user-controlled parameters. No backend of its own — all geometry is generated in the browser, and plinth design and STL export work offline once loaded. The one network dependency is the Preview Figures feature, which loads its figure list and images from minicompare.info through a same-origin `/minicompare/*` proxy (a Vercel rewrite in production, a Vite proxy in dev/preview, an nginx `proxy_pass` in Docker). Deployed to Vercel as a static site.
 
 - **Stack:** Vite + React 19 + TypeScript, the mostlymaking controls from the `vendor/ui-kit` submodule (`@jamiehales/ui-kit/mostlymaking`, Radix-based; read its `DESIGN.md` and `CHANGELOG.md`; run `git submodule update --init` after cloning), three.js via `@react-three/fiber` + `@react-three/drei`
 - **Package manager:** pnpm (lockfile committed; always use `pnpm install --frozen-lockfile`)
@@ -68,7 +68,7 @@ plinthgenerator/
 
 - Uses `@react-three/fiber`'s `<Canvas>` with a perspective camera positioned for a top-down-angled view.
 - Lighting: one `directionalLight` (casts shadows) + `ambientLight`.
-- Floor: drei `<Grid>` (infinite, faded). `OrbitControls` has `maxPolarAngle` clamped just under the horizon so the camera can't look up from under the floor.
+- Floor: drei `<Grid>` (infinite, faded). `OrbitControls` can orbit fully around the model, including from underneath the floor.
 - A `<GizmoHelper>` with `<GizmoViewport>` shows the axis orientation gizmo in the bottom-right.
 - There's a placeholder `<Box>` mesh standing in for the plinth — replace it with the parametric geometry once parameters are wired in.
 - `gl={{ preserveDrawingBuffer: true }}` is set so STL export (when added) can read the scene without flushing — keep this when adding an exporter.
@@ -85,7 +85,7 @@ plinthgenerator/
 ## Deployment
 
 - **Vercel** auto-deploys on push to `main`. `vercel.json` sets `framework: vite`, `outputDirectory: dist`, and a catch-all rewrite `/(.*)` → `/index.html` so client-side routing works on refresh.
-- No API routes, no serverless functions, no env vars. The app is a pure static bundle.
+- No API routes, no serverless functions, no env vars. The app is a static bundle plus one external rewrite: `/minicompare/:path*` → `https://minicompare.info/:path*`, which Vercel's CDN caches (the figure list for a week, images for a year) via the `headers` in `vercel.json`. The browser also caches the figure list for 24 hours.
 - For local production preview without Vercel: `pnpm run build && pnpm run preview`, or use Docker (`docker build -t plinthmaker . && docker run -p 5173:5173 plinthmaker`).
 
 ## Git

@@ -27,8 +27,9 @@ interface ViewportProps {
 }
 
 export default function Viewport({ plinthParams, drillJigParams, supportParams, cavityGuide, showSupportGuide, showSupports, figures, onFigurePositionChange, onFigureLoadingChange, holeGuide, trimGuide, baseSegMM, filletSegMM }: ViewportProps) {
-  const tilt = supportParams.enabled ? (supportParams.plinthAngle * Math.PI) / 180 : 0
-  const raise = supportParams.enabled ? (supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT) + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt) : 0
+  const supportsVisible = supportParams.enabled && showSupports
+  const tilt = supportsVisible ? (supportParams.plinthAngle * Math.PI) / 180 : 0
+  const raise = supportsVisible ? (supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT) + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt) : 0
 
 
   return (
@@ -79,8 +80,8 @@ export default function Viewport({ plinthParams, drillJigParams, supportParams, 
           ))}
         </group>
 
-        {supportParams.enabled ? (
-          <SupportOverlay shape={plinthParams.shape} plinthParams={plinthParams} supportParams={supportParams} showGuide={showSupportGuide} showMesh={showSupports} baseSegMM={baseSegMM} />
+        {supportsVisible ? (
+          <SupportOverlay shape={plinthParams.shape} plinthParams={plinthParams} supportParams={supportParams} showGuide={showSupportGuide} baseSegMM={baseSegMM} />
         ) : null}
 
         <OrbitControls
@@ -89,7 +90,6 @@ export default function Viewport({ plinthParams, drillJigParams, supportParams, 
           dampingFactor={0.1}
           minDistance={10}
           maxDistance={5000}
-          maxPolarAngle={Math.PI / 2 + 0.3}
         />
         <GizmoHelper alignment="bottom-right" margin={[72, 72]}>
           <GizmoViewport
