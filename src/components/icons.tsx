@@ -24,6 +24,20 @@ export const DownloadIcon = () => (
   </Icon>
 )
 
+export const UploadIcon = () => (
+  <Icon>
+    <path d="M12 15V3m0 0-4 4m4-4 4 4M4 20h16" />
+  </Icon>
+)
+
+export const MoreIcon = () => (
+  <Icon filled>
+    <circle cx="5" cy="12" r="2" />
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="19" cy="12" r="2" />
+  </Icon>
+)
+
 export const SquareIcon = () => (
   <Icon filled>
     <rect x="4" y="4" width="16" height="16" rx="1" />

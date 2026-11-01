@@ -47,6 +47,8 @@ import { describePlinthFeatures, describePlinthSize } from './components/plinthS
 import TrimDesigner from './components/TrimDesigner.tsx'
 import { useTrimDesign } from './components/useTrimDesign.ts'
 import { ngonDepthRatio } from './components/ngon.ts'
+import SavedConfigs from './components/SavedConfigs.tsx'
+import type { PlinthConfig } from './components/savedConfigs.ts'
 import PlinthAngleIcon from './components/PlinthAngleIcon.tsx'
 import { type CavityGuideMode } from './components/CavityGuide.tsx'
 import { type HoleGuideMode } from './components/HoleGuide.tsx'
@@ -332,6 +334,63 @@ function App() {
     })
   }, [])
 
+  const currentConfig: PlinthConfig = {
+    shape, ngonSides, width, depth, height, lockedAspect,
+    topAngle, topAnglePreset, roundStyle, roundLocation, roundSize,
+    trimEnabled, trimSource: trimDesign.source, trimSections: trimDesign.sections, trimHeight, trimSize, trimLinked,
+    addHole, holeDiameter, holeDepth,
+    hollowEnabled, topThickness, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter,
+    addDrillJig, jigWallSize, jigHeight, jigOverlap, jigTolerance, jigLift, jigFlattenTop, jigDiffHole, jigHoleDiameter,
+    addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, scaffoldingEnabled, scaffoldingAngle, raftHeight,
+  }
+
+  const applyConfig = (config: PlinthConfig) => {
+    setShape(config.shape)
+    setNgonSides(config.ngonSides)
+    setWidth(config.width)
+    setDepth(config.depth)
+    setHeight(config.height)
+    setLockedAspect(config.lockedAspect)
+    setTopAngle(config.topAngle)
+    setTopAnglePreset(config.topAnglePreset)
+    setRoundStyle(config.roundStyle)
+    setRoundLocation(config.roundLocation)
+    setRoundSize(config.roundSize)
+    setTrimEnabled(config.trimEnabled)
+    trimDesign.load(config.trimSource, config.trimSections)
+    setTrimHeight(config.trimHeight)
+    setTrimSize(config.trimSize)
+    setTrimLinked(config.trimLinked)
+    setTrimResetCount((count) => count + 1)
+    setAddHole(config.addHole)
+    setHoleDiameter(config.holeDiameter)
+    setHoleDepth(config.holeDepth)
+    setHollowEnabled(config.hollowEnabled)
+    setTopThickness(config.topThickness)
+    setHollowWallThickness(config.hollowWallThickness)
+    setSuctionHoleEnabled(config.suctionHoleEnabled)
+    setSuctionHoleDiameter(config.suctionHoleDiameter)
+    setAddDrillJig(config.addDrillJig)
+    setJigWallSize(config.jigWallSize)
+    setJigHeight(config.jigHeight)
+    setJigOverlap(config.jigOverlap)
+    setJigTolerance(config.jigTolerance)
+    setJigLift(config.jigLift)
+    setJigFlattenTop(config.jigFlattenTop)
+    setJigDiffHole(config.jigDiffHole)
+    setJigHoleDiameter(config.jigHoleDiameter)
+    setAddSupports(config.addSupports)
+    setPlinthAngle(config.plinthAngle)
+    setRaiseBy(config.raiseBy)
+    setSupportSize(config.supportSize)
+    setSupportTipSize(config.supportTipSize)
+    setSupportSpacing(config.supportSpacing)
+    setScaffoldingEnabled(config.scaffoldingEnabled)
+    setScaffoldingAngle(config.scaffoldingAngle)
+    setRaftHeight(config.raftHeight)
+    setIntroPreview(null)
+  }
+
   const handleLocked = (checked: boolean) => {
     setLockedAspect(checked)
     setDepth(checked ? width : plinthDepth)
@@ -491,6 +550,10 @@ function App() {
           </ParameterSheetHeader>
         ) : null}
         <div className="sidebar-scroll">
+          <SavedConfigs current={currentConfig} onLoad={applyConfig} />
+
+          <Separator />
+
           <SectionTitle onReset={resetShape}>Shape</SectionTitle>
           <SegmentedControl fullWidth value={shape} onValueChange={(v) => handleShape(v as Shape)} aria-label="Shape">
             <SegmentedControlItem value="rectangle">

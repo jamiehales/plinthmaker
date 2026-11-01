@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
+import { downloadBlob } from './download.ts'
 
 export function exportSTL(geometry: THREE.BufferGeometry, filename: string, binary = true): void {
   const exporter = new STLExporter()
@@ -14,12 +15,5 @@ export function exportSTL(geometry: THREE.BufferGeometry, filename: string, bina
   } else {
     blob = new Blob([result as string], { type: 'text/plain' })
   }
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  downloadBlob(blob, filename)
 }

@@ -27,6 +27,7 @@ export interface TrimDesign {
   saveAsNew: (name: string) => void
   saveExisting: () => void
   deleteCustom: () => TrimSection[]
+  load: (source: TrimSource, sections: TrimSection[]) => void
 }
 
 export function useTrimDesign(defaultPresetId: string): TrimDesign {
@@ -88,6 +89,12 @@ export function useTrimDesign(defaultPresetId: string): TrimDesign {
     return selectPreset(defaultPresetId)
   }, [customProfiles, defaultPresetId, sections, selectPreset, source, updateCustomProfiles])
 
+  const load = useCallback((nextSource: TrimSource, nextSections: TrimSection[]) => {
+    const sourceExists = nextSource.kind === 'preset' || customProfiles.some((profile) => profile.id === nextSource.id)
+    setSource(sourceExists ? nextSource : { kind: 'preset', id: defaultPresetId })
+    setSections(cloneSections(nextSections))
+  }, [customProfiles, defaultPresetId])
+
   return {
     source,
     sourceName,
@@ -103,5 +110,6 @@ export function useTrimDesign(defaultPresetId: string): TrimDesign {
     saveAsNew,
     saveExisting,
     deleteCustom,
+    load,
   }
 }

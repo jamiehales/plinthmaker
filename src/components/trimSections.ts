@@ -260,7 +260,7 @@ export function sectionIconPath(type: TrimSectionType, flipped: boolean): string
 
 const STORAGE_KEY = 'plinthgenerator.customTrimProfiles'
 
-function isSection(value: unknown): value is TrimSection {
+export function isSection(value: unknown): value is TrimSection {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Record<string, unknown>
   return TRIM_SECTION_TYPES.includes(candidate.type as TrimSectionType)

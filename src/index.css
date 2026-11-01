@@ -535,6 +535,87 @@ body {
   font-size: 13px;
 }
 
+.saved-configs-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.saved-configs-row > .mm-btn:not([data-size="sm"]) {
+  flex: 1;
+}
+
+.saved-configs-menu {
+  min-width: 260px;
+}
+
+.saved-configs-menu .mm-mi {
+  gap: 10px;
+}
+
+.saved-configs-entry {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.saved-configs-entry .saved-configs-load {
+  flex: 1;
+  min-width: 0;
+}
+
+.saved-configs-entry .saved-configs-more {
+  width: auto;
+  flex: none;
+  padding: 8px;
+  color: var(--muted-foreground);
+}
+
+.saved-configs-entry .saved-configs-more[data-state="open"] {
+  background: var(--accent);
+}
+
+.saved-configs-name {
+  flex: 1;
+}
+
+.saved-configs-empty {
+  max-width: 260px;
+  margin: 0;
+  padding: 6px 10px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.saved-configs-title {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--brass);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-configs-file {
+  display: none;
+}
+
+.saved-configs-name-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+}
+
+.saved-configs-name-form .mm-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.saved-configs-save {
+  min-width: 64px;
+}
+
 .trim-editor-body,
 .advanced-options-body {
   display: flex;
