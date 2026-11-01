@@ -221,7 +221,7 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
 
   return (
     <>
-      <SegmentedControl className="fill-row" value={isCustom ? CUSTOM_VALUE : source.id} onValueChange={handlePresetChange} aria-label="Trim profile">
+      <SegmentedControl fullWidth value={isCustom ? CUSTOM_VALUE : source.id} onValueChange={handlePresetChange} aria-label="Trim profile">
         {PRESET_PROFILES.map((profile) => (
           <Tooltip key={profile.id} content={profile.name} side="top">
             <SegmentedControlItem value={profile.id} aria-label={profile.name} data-state={!isCustom && source.id === profile.id ? 'on' : 'off'}>
@@ -364,7 +364,7 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
                     </div>
                     {open ? (
                       <div className="trim-section-body">
-                        <SegmentedControl className="fill-row" value={item.type} onValueChange={(value) => changeType(index, value as TrimSectionType)} aria-label="Section type">
+                        <SegmentedControl fullWidth value={item.type} onValueChange={(value) => changeType(index, value as TrimSectionType)} aria-label="Section type">
                           {TRIM_SECTION_TYPES.map((type) => (
                             <SegmentedControlItem key={type} value={type}>
                               <TrimSectionIcon type={type} flipped={false} size={16} />
@@ -374,7 +374,7 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
                         </SegmentedControl>
                         {directions ? (
                           <SegmentedControl
-                            className="fill-row"
+                            fullWidth
                             value={item.flipped ? 'flipped' : 'normal'}
                             onValueChange={(value) => changeDirection(index, value === 'flipped')}
                             aria-label="Section direction"
@@ -412,7 +412,7 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
                 )
               })}
             </div>
-            <Button className="trim-add-section" onClick={() => updateSections(addSectionAtBottom(sections), 0)}>
+            <Button fullWidth className="trim-add-section" onClick={() => updateSections(addSectionAtBottom(sections), 0)}>
               <PlusIcon /> Add section
             </Button>
 
@@ -436,7 +436,7 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
                     <ResetIcon /> Reset
                   </Button>
                   {isCustom ? (
-                    <Button size="sm" variant="ghost" className="trim-delete" onClick={() => setConfirmingDelete(true)}>Delete</Button>
+                    <Button size="sm" variant="ghost" destructive onClick={() => setConfirmingDelete(true)}>Delete</Button>
                   ) : null}
                   <span className="trim-save-spacer" />
                   {isCustom ? (

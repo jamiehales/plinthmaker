@@ -52,7 +52,7 @@ const HelpDialog = forwardRef<HelpDialogHandle>((_props, ref) => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="help-dialog">
+      <DialogContent size="md" className="help-dialog">
         <DialogTitle>{HELP_TITLE}</DialogTitle>
         <DialogDescription>{HELP_INTRO}</DialogDescription>
         <div className="help-sections">
@@ -63,7 +63,7 @@ const HelpDialog = forwardRef<HelpDialogHandle>((_props, ref) => {
             </section>
           ))}
         </div>
-        <DialogFooter className="help-footer">
+        <DialogFooter align="between">
           <Checkbox checked={dontShow} onCheckedChange={(next) => toggleDontShow(next === true)}>
             Don't show this again
           </Checkbox>

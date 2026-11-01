@@ -425,7 +425,7 @@ function App() {
         ) : null}
         <div className="sidebar-scroll">
           <SectionTitle onReset={resetShape}>Shape</SectionTitle>
-          <SegmentedControl className="fill-row" value={shape} onValueChange={(v) => handleShape(v as Shape)} aria-label="Shape">
+          <SegmentedControl fullWidth value={shape} onValueChange={(v) => handleShape(v as Shape)} aria-label="Shape">
             <SegmentedControlItem value="rectangle">
               <SquareIcon /> Rectangle
             </SegmentedControlItem>
@@ -457,7 +457,7 @@ function App() {
 
           <SectionTitle onReset={resetTopAngle}>Top Angle</SectionTitle>
           <SegmentedControl
-            className="fill-row tall"
+            fullWidth
             value={String(topAnglePreset)}
             onValueChange={(v) => {
               const preset = v === 'custom' ? 'custom' : Number(v)
@@ -467,14 +467,14 @@ function App() {
             aria-label="Top angle"
           >
             {TOP_ANGLE_PRESETS.map((a) => (
-              <SegmentedControlItem key={a} value={String(a)}>
+              <SegmentedControlItem key={a} value={String(a)} layout="stacked">
                 <PlinthAngleIcon angle={a} selected={topAnglePreset === a} />
-                <span className="seg-caption">{a}°</span>
+                <span>{a}°</span>
               </SegmentedControlItem>
             ))}
-            <SegmentedControlItem value="custom">
+            <SegmentedControlItem value="custom" layout="stacked">
               <PlinthAngleIcon angle={topAnglePreset === 'custom' ? topAngle : 30} selected={topAnglePreset === 'custom'} />
-              <span className="seg-caption">Custom</span>
+              <span>Custom</span>
             </SegmentedControlItem>
           </SegmentedControl>
           {topAnglePreset === 'custom' ? (
@@ -492,7 +492,7 @@ function App() {
           <Separator />
 
           <SectionTitle onReset={resetRounding}>Chamfer / Fillet</SectionTitle>
-          <SegmentedControl className="fill-row" value={roundStyle} onValueChange={(v) => setRoundStyle(v as RoundStyle)} aria-label="Edge style">
+          <SegmentedControl fullWidth value={roundStyle} onValueChange={(v) => setRoundStyle(v as RoundStyle)} aria-label="Edge style">
             <SegmentedControlItem value="none">None</SegmentedControlItem>
             <SegmentedControlItem value="chamfer">Chamfer</SegmentedControlItem>
             <SegmentedControlItem value="fillet">Fillet</SegmentedControlItem>
@@ -500,7 +500,7 @@ function App() {
           {roundStyle !== 'none' ? (
             <>
               {shape === 'rectangle' ? (
-                <SegmentedControl className="fill-row" value={roundLocation} onValueChange={(v) => setRoundLocation(v as RoundLocation)} aria-label="Edge location">
+                <SegmentedControl fullWidth value={roundLocation} onValueChange={(v) => setRoundLocation(v as RoundLocation)} aria-label="Edge location">
                   <SegmentedControlItem value="top">Top</SegmentedControlItem>
                   <SegmentedControlItem value="edges">Edges</SegmentedControlItem>
                   <SegmentedControlItem value="both">Both</SegmentedControlItem>
@@ -752,12 +752,12 @@ function App() {
         {compact ? null : (
           <div className="sidebar-footer">
             {addDrillJig ? (
-              <Button className="fill-button" disabled={downloadingJig} onClick={downloadJig}>
+              <Button fullWidth disabled={downloadingJig} onClick={downloadJig}>
                 {downloadingJig ? <Spinner label="Generating" /> : <DownloadIcon />}
                 {downloadingJig ? 'Generating...' : 'Download Drill Jig (.stl)'}
               </Button>
             ) : null}
-            <Button variant="primary" className="fill-button" disabled={downloadingPlinth} onClick={downloadPlinth}>
+            <Button variant="primary" fullWidth disabled={downloadingPlinth} onClick={downloadPlinth}>
               {downloadingPlinth ? <Spinner label="Generating" /> : <DownloadIcon />}
               {downloadingPlinth ? 'Generating...' : 'Download Plinth (.stl)'}
             </Button>

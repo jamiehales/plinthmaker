@@ -118,39 +118,10 @@ body {
   margin: 6px 0;
 }
 
-.fill-row {
-  display: flex;
-  width: 100%;
-}
-
-.fill-row .mm-seg-b {
-  flex: 1;
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.fill-row.tall .mm-seg-b {
-  height: auto;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 4px;
-}
-
-.seg-caption {
-  font-size: 11px;
-}
-
 .center-row {
   display: flex;
   justify-content: center;
   gap: 8px;
-}
-
-.fill-button {
-  width: 100%;
 }
 
 .labeled-slider {
@@ -217,7 +188,6 @@ body {
 }
 
 .help-dialog {
-  width: min(560px, calc(100vw - 32px));
   overflow: hidden;
 }
 
@@ -238,10 +208,6 @@ body {
 
 .help-sections p {
   margin: 0;
-}
-
-.help-footer {
-  justify-content: space-between;
 }
 
 .sheet-header {
@@ -532,7 +498,6 @@ body {
 }
 
 .trim-add-section {
-  width: 100%;
   border-style: dashed;
 }
 
@@ -565,10 +530,6 @@ body {
 
 .trim-save-spacer {
   flex: 1;
-}
-
-.trim-delete {
-  color: var(--destructive-text);
 }
 
 .trim-saved {

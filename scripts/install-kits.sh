@@ -1,40 +1,39 @@
 #!/bin/sh
-# Fetches the private ui-kit submodule at the commit this repo pins.
+# Fetches the ui-kit submodule at the commit this repo pins, unless Vercel's
+# own clone already checked it out.
 #
-# Vercel can't clone private submodules itself (it only supports submodules
-# that are publicly reachable over HTTP), so the install step runs this first.
-# GIT_SHARED_SUBMODULE_TOKEN is a team-level Vercel shared environment variable:
-# a fine-grained GitHub token with read-only Contents access to ui-kit. It
-# is passed as a one-off `git -c` rewrite, so it is never written to
-# disk or .gitmodules.
+# Vercel only clones submodules that are publicly reachable over HTTP, so a
+# private kit is fetched here. GIT_SHARED_SUBMODULE_TOKEN is a team-level
+# Vercel shared environment variable: a fine-grained GitHub token with
+# read-only Contents access to the private kits. It is passed as a one-off
+# `git -c` rewrite, so it is never written to disk or .gitmodules.
 
 set -eu
 
 KITS="ui-kit"
 
-missing() {
-  for kit in $KITS; do
-    [ -f "vendor/$kit/package.json" ] || return 0
-  done
-  return 1
+fetch() {
+  # --force: when Vercel's clone fails on one submodule it can leave the others
+  # at the pinned commit with no files, which a plain update treats as done.
+  if [ -n "${GIT_SHARED_SUBMODULE_TOKEN:-}" ]; then
+    git -c "url.https://x-access-token:${GIT_SHARED_SUBMODULE_TOKEN}@github.com/.insteadOf=https://github.com/" submodule update --init --force "vendor/$1"
+  else
+    git submodule update --init --force "vendor/$1"
+  fi
 }
 
-if ! missing; then
-  echo "kit submodules already present"
-  exit 0
-fi
-
-if [ -z "${GIT_SHARED_SUBMODULE_TOKEN:-}" ]; then
-  echo "GIT_SHARED_SUBMODULE_TOKEN is not set; trying an unauthenticated submodule fetch (works only if the kits are public)"
-  git submodule update --init
-else
-  git -c "url.https://x-access-token:${GIT_SHARED_SUBMODULE_TOKEN}@github.com/.insteadOf=https://github.com/" submodule update --init
-fi
-
 for kit in $KITS; do
+  if [ -f "vendor/$kit/package.json" ]; then
+    echo "$kit submodule already present"
+    continue
+  fi
+  if [ -z "${GIT_SHARED_SUBMODULE_TOKEN:-}" ]; then
+    echo "GIT_SHARED_SUBMODULE_TOKEN is not set; fetching $kit unauthenticated (works only if it is public)"
+  fi
+  fetch "$kit"
   if [ ! -f "vendor/$kit/package.json" ]; then
     echo "$kit submodule is still missing after fetch" >&2
     exit 1
   fi
 done
-echo "kit submodules fetched"
+echo "kit submodules ready"
