@@ -348,11 +348,217 @@ body {
   }
 }
 
-.json-dialog {
-  width: min(560px, calc(100vw - 32px));
+.trim-custom-segment.mm-seg-b {
+  flex: 1.4;
+  gap: 2px;
 }
 
-.json-text {
+.trim-custom-menu {
+  min-width: 260px;
+}
+
+.trim-custom-menu .mm-mi {
+  gap: 10px;
+}
+
+.trim-custom-name {
+  flex: 1;
+}
+
+.trim-custom-meta {
+  color: var(--muted-foreground);
   font-family: var(--font-mono);
-  resize: vertical;
+  font-size: 11px;
+}
+
+.trim-custom-empty {
+  max-width: 260px;
+  margin: 0;
+  padding: 6px 10px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.trim-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trim-section-view {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+}
+
+.trim-section-label,
+.trim-section-caption {
+  fill: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.trim-section-caption {
+  font-size: 10px;
+}
+
+.trim-list-title {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+}
+
+.trim-section-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.trim-section-row {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+.trim-section-row:first-child {
+  border-top: 0;
+}
+
+.trim-section-row[data-selected] {
+  box-shadow: inset 3px 0 0 var(--brass);
+}
+
+.trim-section-head {
+  display: flex;
+  align-items: stretch;
+}
+
+.trim-section-grip {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.trim-section-grip:hover {
+  color: var(--foreground);
+}
+
+.trim-section-row[data-dragging] {
+  background: var(--secondary);
+}
+
+.trim-section-row[data-dragging] .trim-section-grip {
+  color: var(--brass);
+  cursor: grabbing;
+}
+
+.trim-section-header {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px 8px 2px;
+  border: 0;
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trim-section-header:hover {
+  background: var(--secondary);
+}
+
+.trim-section-header:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.trim-section-header svg {
+  color: var(--primary-text);
+}
+
+.trim-section-name {
+  flex: 1;
+}
+
+.trim-section-meta,
+.trim-section-readout {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.trim-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 12px 12px;
+}
+
+.trim-section-readout {
+  margin: 0;
+}
+
+.trim-section-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.trim-add-section {
+  width: 100%;
+  border-style: dashed;
+}
+
+.trim-save {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+}
+
+.trim-save-actions,
+.trim-save-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.trim-save-name .mm-field {
+  flex: 1;
+  min-width: 140px;
+}
+
+.trim-reset:disabled {
+  opacity: 0.7;
+}
+
+.trim-save-spacer {
+  flex: 1;
+}
+
+.trim-delete {
+  color: var(--destructive-text);
+}
+
+.trim-saved {
+  margin: 0;
+  color: var(--success);
 }

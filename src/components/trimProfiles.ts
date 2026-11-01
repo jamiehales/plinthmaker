@@ -1,3 +1,5 @@
+import { TRIM_PRESET_SECTIONS, compileTrimSections } from './trimSections.ts'
+
 export interface TrimHandle { dy: number; dOffset: number }
 
 export interface TrimProfilePoint {
@@ -225,38 +227,13 @@ export const TRIM_PROFILES: TrimProfile[] = [
     id: 'ogee',
     name: 'Ogee',
     interpolate: 'bezier',
-    points: [
-      { y: 0, offset: 1, sharp: true },
-      { y: 0.1, offset: 1, sharp: true },
-      { y: 0.1, offset: 1, sharp: false, outHandle: { dy: 0.2209, dOffset: 0 } },
-      { y: 0.5, offset: 0.5, sharp: false, inHandle: { dy: 0, dOffset: 0.2209 }, outHandle: { dy: 0, dOffset: -0.2209 } },
-      { y: 0.9, offset: 0, sharp: false, inHandle: { dy: -0.2209, dOffset: 0 } },
-      { y: 0.9, offset: 0, sharp: true },
-      { y: 1, offset: 0, sharp: true },
-    ],
+    points: compileTrimSections(TRIM_PRESET_SECTIONS.ogee),
   },
   {
     id: 'romanOgee',
     name: 'Roman Ogee',
     interpolate: 'bezier',
-    points: [
-      { y: 0, offset: 1, sharp: true },
-      { y: 0.16, offset: 1, sharp: true },
-      { y: 0.16, offset: 1, sharp: false, outHandle: { dy: 0.1878, dOffset: 0 } },
-      { y: 0.54, offset: 0.5, sharp: false, inHandle: { dy: -0.365, dOffset: 0.015 }, outHandle: { dy: 0.4375, dOffset: -0.011 } },
-      { y: 1, offset: 0, sharp: true },
-    ],
-  },
-  {
-    id: 'roundover',
-    name: 'Roundover',
-    interpolate: 'bezier',
-    points: [
-      { y: 0, offset: 1, sharp: true },
-      { y: 0.25, offset: 1, sharp: false, inHandle: { dy: -0.09, dOffset: 0 }, outHandle: { dy: 0.38, dOffset: 0 } },
-      { y: 1, offset: 0.25, sharp: false, inHandle: { dy: -0.01, dOffset: 0.46 }, outHandle: { dy: 0.015, dOffset: 0 } },
-      { y: 1, offset: 0, sharp: true },
-    ],
+    points: compileTrimSections(TRIM_PRESET_SECTIONS.romanOgee),
   },
   {
     id: 'custom',
@@ -264,11 +241,6 @@ export const TRIM_PROFILES: TrimProfile[] = [
     interpolate: 'bezier',
     points: [],
   },
-]
-
-export const DEFAULT_CUSTOM_TRIM_POINTS: TrimProfilePoint[] = [
-  { y: 0, offset: 1, sharp: true },
-  { y: 1, offset: 0, sharp: true },
 ]
 
 export function getTrimProfile(id: string): TrimProfile {

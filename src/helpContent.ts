@@ -19,7 +19,7 @@ export const HELP_SECTIONS: HelpSection[] = [
   },
   {
     title: 'Trim',
-    body: 'A lot of common router profiles are included, or make custom trim profiles (no saving of trim profiles yet, may add that soon).',
+    body: 'A lot of common router profiles are included. Open Edit profile to change a profile section by section, then save it under a name in the Custom menu. Custom profiles are saved in this browser.',
   },
   {
     title: 'Drill Jig',

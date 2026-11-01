@@ -66,10 +66,8 @@ export const DEFAULT_TRIM_ENABLED = false
 export const DEFAULT_TRIM_PROFILE_ID = 'bead'
 export const DEFAULT_TRIM_HEIGHT = 6
 export const DEFAULT_TRIM_SIZE = 6
-export { DEFAULT_CUSTOM_TRIM_POINTS } from './components/trimProfiles.ts'
+export const DEFAULT_TRIM_LINKED = true
 
-export const TRIM_HANDLE_SCALE = 1
-export const TRIM_MIN_HANDLE_LEN = 0.03
 
 export const DRAWER_WIDTH = 500
 export const COMPACT_LAYOUT_QUERY = '(max-width: 720px)'

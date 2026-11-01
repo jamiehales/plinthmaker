@@ -1,19 +1,14 @@
 import { useState, useMemo, useCallback, useRef, type CSSProperties } from 'react'
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogTitle,
   IconButton,
+  LinkedPair,
   SegmentedControl,
   SegmentedControlItem,
   Separator,
   Spinner,
-  Textarea,
-  Tooltip,
 } from '@jamiehales/ui-kit/mostlymaking'
-import { CircleIcon, CopyIcon, DownloadIcon, EditIcon, HelpIcon, PasteIcon, SquareIcon } from './components/icons.tsx'
+import { CircleIcon, DownloadIcon, HelpIcon, SquareIcon } from './components/icons.tsx'
 import { CheckField, SectionTitle } from './components/FormParts.tsx'
 import Viewport from './components/Viewport.tsx'
 import HelpDialog, { type HelpDialogHandle } from './components/HelpDialog.tsx'
@@ -34,8 +29,8 @@ import {
   DEFAULT_LOCK_EDGE_SPACING_FILL, DRAWER_WIDTH,
   DEFAULT_SCAFFOLDING_ENABLED, DEFAULT_SCAFFOLDING_ANGLE,
   DEFAULT_RAFT_HEIGHT, MIN_RAFT_HEIGHT, MAX_RAFT_HEIGHT,
-  DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE,
-  DEFAULT_CUSTOM_TRIM_POINTS, DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
+  DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE, DEFAULT_TRIM_LINKED,
+  DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
   DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_TOP_THICKNESS, DEFAULT_HOLLOW_WALL_THICKNESS,
   DEFAULT_SUCTION_HOLE_ENABLED, DEFAULT_SUCTION_HOLE_DIAMETER,
   TOP_ANGLE_PRESETS, COMPACT_LAYOUT_QUERY, DEFAULT_SHEET_SNAP,
@@ -44,9 +39,8 @@ import { ParameterSheetHeader } from './components/ParameterSheet.tsx'
 import { getPreviewHeight, getSheetHeights, type SheetSnap } from './components/sheetLayout.ts'
 import { useMediaQuery, useWindowHeight } from './components/useLayout.ts'
 import { describePlinthFeatures, describePlinthSize } from './components/plinthSummary.ts'
-import { TRIM_PROFILES, getTrimProfile, type TrimProfilePoint } from './components/trimProfiles.ts'
-import TrimProfileIcon from './components/TrimProfileIcon.tsx'
-import TrimProfileEditor from './components/TrimProfileEditor.tsx'
+import TrimDesigner from './components/TrimDesigner.tsx'
+import { useTrimDesign } from './components/useTrimDesign.ts'
 import PlinthAngleIcon from './components/PlinthAngleIcon.tsx'
 
 function BuildingIndicator() {
@@ -111,12 +105,10 @@ function App() {
   const [suctionHoleEnabled, setSuctionHoleEnabled] = useState(DEFAULT_SUCTION_HOLE_ENABLED)
   const [suctionHoleDiameter, setSuctionHoleDiameter] = useState(DEFAULT_SUCTION_HOLE_DIAMETER)
   const [trimEnabled, setTrimEnabled] = useState(DEFAULT_TRIM_ENABLED)
-  const [trimProfileId, setTrimProfileId] = useState(DEFAULT_TRIM_PROFILE_ID)
+  const trimDesign = useTrimDesign(DEFAULT_TRIM_PROFILE_ID)
   const [trimHeight, setTrimHeight] = useState(DEFAULT_TRIM_HEIGHT)
   const [trimSize, setTrimSize] = useState(DEFAULT_TRIM_SIZE)
-  const [customTrimPoints, setCustomTrimPoints] = useState<TrimProfilePoint[]>(DEFAULT_CUSTOM_TRIM_POINTS)
-  const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
-  const [jsonText, setJsonText] = useState('')
+  const [trimLinked, setTrimLinked] = useState(DEFAULT_TRIM_LINKED)
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>(DEFAULT_SHEET_SNAP)
   const { build } = useGeometryWorker()
   const helpRef = useRef<HelpDialogHandle>(null)
@@ -124,31 +116,6 @@ function App() {
   const compact = useMediaQuery(COMPACT_LAYOUT_QUERY)
   const windowHeight = useWindowHeight()
   const sheetHeights = getSheetHeights(windowHeight)
-
-  const handleEditPreset = useCallback(() => {
-    const preset = getTrimProfile(trimProfileId)
-    if (preset.points.length > 0) {
-      setCustomTrimPoints(preset.points.map((p) => ({ ...p, inHandle: p.inHandle ? { ...p.inHandle } : undefined, outHandle: p.outHandle ? { ...p.outHandle } : undefined })))
-      setTrimProfileId('custom')
-    }
-  }, [trimProfileId])
-
-  const handleSaveJson = useCallback(() => {
-    setJsonText(JSON.stringify(customTrimPoints, null, 2))
-    setJsonDialogOpen(true)
-  }, [customTrimPoints])
-
-  const handleLoadJson = useCallback(() => {
-    try {
-      const parsed = JSON.parse(jsonText)
-      if (Array.isArray(parsed) && parsed.length >= 2) {
-        setCustomTrimPoints(parsed)
-        setJsonDialogOpen(false)
-      }
-    } catch {
-      // ignore parse errors
-    }
-  }, [jsonText])
 
   const handleShape = (v: Shape) => {
     setShape(v)
@@ -179,16 +146,16 @@ function App() {
     roundLocation: shape === 'ellipse' ? 'top' : roundLocation,
     roundSize,
     trimEnabled,
-    trimProfileId,
+    trimProfileId: trimDesign.trimProfileId,
     trimHeight,
     trimSize,
-    customTrimPoints: trimProfileId === 'custom' ? customTrimPoints : undefined,
+    customTrimPoints: trimDesign.customTrimPoints,
     hollowEnabled,
     hollowHeight: height - topThickness,
     hollowWallThickness,
     suctionHoleEnabled,
     suctionHoleDiameter,
-  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimProfileId, trimHeight, trimSize, customTrimPoints, hollowEnabled, topThickness, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter])
+  }), [shape, width, depth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimDesign.trimProfileId, trimDesign.customTrimPoints, trimHeight, trimSize, hollowEnabled, topThickness, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter])
 
   const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number, supported: boolean) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
@@ -331,16 +298,23 @@ function App() {
           </SegmentedControl>
 
           <SectionTitle>Dimensions</SectionTitle>
-          <LabeledSlider label="Width" value={width} onChange={handleWidth} min={20} max={150} />
-          <LabeledSlider
-            label="Depth"
-            value={depth}
-            onChange={setDepth}
-            min={20}
-            max={150}
-            disabled={lockedAspect}
-          />
-          <CheckField checked={lockedAspect} onChange={handleLocked}>Lock Depth to Width</CheckField>
+          <LinkedPair
+            linked={lockedAspect}
+            onLinkedChange={handleLocked}
+            label="Link depth to width"
+            linkedHint="Depth follows width"
+            unlinkedHint="Link depth to width"
+          >
+            <LabeledSlider label="Width" value={width} onChange={handleWidth} min={20} max={150} />
+            <LabeledSlider
+              label="Depth"
+              value={depth}
+              onChange={setDepth}
+              min={20}
+              max={150}
+              disabled={lockedAspect}
+            />
+          </LinkedPair>
 
           <LabeledSlider label="Height" value={height} onChange={setHeight} min={20} max={150} />
 
@@ -411,63 +385,16 @@ function App() {
           <SectionTitle>Trim</SectionTitle>
           <CheckField checked={trimEnabled} onChange={setTrimEnabled}>Add Trim</CheckField>
           {trimEnabled ? (
-            <>
-              <SegmentedControl className="fill-row" value={trimProfileId} onValueChange={setTrimProfileId} aria-label="Trim profile">
-                {TRIM_PROFILES.map((tp) => {
-                  const profile = tp.id === 'custom'
-                    ? { ...tp, points: customTrimPoints }
-                    : tp
-                  return (
-                    <Tooltip key={tp.id} content={tp.name} side="top">
-                      <SegmentedControlItem value={tp.id} aria-label={tp.name}>
-                        <TrimProfileIcon profile={profile} selected={trimProfileId === tp.id} />
-                      </SegmentedControlItem>
-                    </Tooltip>
-                  )
-                })}
-              </SegmentedControl>
-              {trimProfileId !== 'custom' ? (
-                <div className="center-row">
-                  <Button size="sm" onClick={handleEditPreset}>
-                    <EditIcon /> Edit Preset
-                  </Button>
-                </div>
-              ) : null}
-              {trimProfileId === 'custom' ? (
-                <div>
-                  <div className="center-row">
-                    <TrimProfileEditor
-                      points={customTrimPoints}
-                      onChange={setCustomTrimPoints}
-                    />
-                  </div>
-                  <div className="center-row">
-                    <Button size="sm" onClick={handleSaveJson}>
-                      <CopyIcon /> Export
-                    </Button>
-                    <Button size="sm" onClick={() => { setJsonDialogOpen(true) }}>
-                      <PasteIcon /> Import
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-              <LabeledSlider
-                label="Trim Height"
-                value={trimHeight}
-                onChange={setTrimHeight}
-                min={1}
-                max={height - 1}
-                step={0.5}
-              />
-              <LabeledSlider
-                label="Trim Size"
-                value={trimSize}
-                onChange={setTrimSize}
-                min={0.5}
-                max={15}
-                step={0.5}
-              />
-            </>
+            <TrimDesigner
+              design={trimDesign}
+              trimHeight={trimHeight}
+              onTrimHeightChange={setTrimHeight}
+              maxTrimSize={height - 1}
+              trimSize={trimSize}
+              onTrimSizeChange={setTrimSize}
+              trimLinked={trimLinked}
+              onTrimLinkedChange={setTrimLinked}
+            />
           ) : null}
 
           <Separator />
@@ -626,37 +553,32 @@ function App() {
                 max={0.5}
                 step={0.025}
               />
-              <LabeledSlider
-                label="Support Spacing (Edges)"
-                value={supportSpacing}
-                onChange={setSupportSpacing}
-                min={2}
-                max={5}
-              />
-              <CheckField
-                checked={lockEdgeToFill}
-                onChange={(checked) => {
-                  setLockEdgeToFill(checked)
-                  if (checked) setInteriorSpacing(supportSpacing)
+              <LinkedPair
+                linked={lockEdgeToFill}
+                onLinkedChange={(linked) => {
+                  setLockEdgeToFill(linked)
+                  if (linked) setInteriorSpacing(supportSpacing)
                 }}
+                label="Link fill spacing to edge spacing"
+                linkedHint="Fill spacing follows edge spacing"
+                unlinkedHint="Link fill spacing to edge spacing"
               >
-                Lock Edge Spacing to Fill
-              </CheckField>
-              <LabeledSlider
-                label="Support Spacing (Fill)"
-                value={lockEdgeToFill ? supportSpacing : interiorSpacing}
-                onChange={(v) => {
-                  if (lockEdgeToFill) {
-                    setSupportSpacing(v)
-                    setInteriorSpacing(v)
-                  } else {
-                    setInteriorSpacing(v)
-                  }
-                }}
-                min={2}
-                max={5}
-                disabled={lockEdgeToFill}
-              />
+                <LabeledSlider
+                  label="Support Spacing (Edges)"
+                  value={supportSpacing}
+                  onChange={setSupportSpacing}
+                  min={2}
+                  max={5}
+                />
+                <LabeledSlider
+                  label="Support Spacing (Fill)"
+                  value={lockEdgeToFill ? supportSpacing : interiorSpacing}
+                  onChange={setInteriorSpacing}
+                  min={2}
+                  max={5}
+                  disabled={lockEdgeToFill}
+                />
+              </LinkedPair>
               <CheckField checked={scaffoldingEnabled} onChange={setScaffoldingEnabled}>Add Scaffolding</CheckField>
               {scaffoldingEnabled ? (
                 <LabeledSlider
@@ -708,23 +630,6 @@ function App() {
         />
         <BuildingIndicator />
       </main>
-
-      <Dialog open={jsonDialogOpen} onOpenChange={setJsonDialogOpen}>
-        <DialogContent className="json-dialog" aria-describedby={undefined}>
-          <DialogTitle>Trim Profile JSON</DialogTitle>
-          <Textarea
-            className="json-text"
-            rows={10}
-            aria-label="Trim profile JSON"
-            value={jsonText}
-            onChange={(e) => setJsonText(e.target.value)}
-          />
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setJsonDialogOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleLoadJson}>Load</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <HelpDialog ref={helpRef} />
     </div>
