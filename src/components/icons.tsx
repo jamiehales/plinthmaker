@@ -56,6 +56,12 @@ export const HelpIcon = () => (
   </Icon>
 )
 
+export const CheckIcon = () => (
+  <Icon>
+    <path d="m5 12 5 5 9-10" />
+  </Icon>
+)
+
 export const PlusIcon = () => (
   <Icon>
     <path d="M12 5v14M5 12h14" />

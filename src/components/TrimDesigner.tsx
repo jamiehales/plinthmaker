@@ -21,7 +21,7 @@ import {
   SegmentedControlItem,
   Tooltip,
 } from '@jamiehales/ui-kit/mostlymaking'
-import { ArrowDownIcon, ArrowUpIcon, CopyIcon, EditIcon, GripIcon, ResetIcon, PlusIcon, TrashIcon } from './icons.tsx'
+import { ArrowDownIcon, ArrowUpIcon, CheckIcon, CopyIcon, EditIcon, GripIcon, ResetIcon, PlusIcon, TrashIcon } from './icons.tsx'
 import LabeledSlider from './LabeledSlider.tsx'
 import TrimProfileIcon from './TrimProfileIcon.tsx'
 import TrimSectionIcon from './TrimSectionIcon.tsx'
@@ -59,6 +59,7 @@ interface TrimDesignerProps {
 const PRESET_PROFILES = TRIM_PROFILES.filter((profile) => profile.id !== 'custom')
 const CUSTOM_VALUE = 'custom'
 const MIN_TRIM_SIZE = 0.5
+const SAVED_CONFIRMATION_MS = 1500
 
 function profileFromSections(id: string, name: string, sections: TrimSection[]): TrimProfile {
   return { id, name, interpolate: 'bezier', points: compileTrimSections(sections) }
@@ -77,11 +78,19 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const [linked, setLinked] = useState(() => !sharesDiffer(design.sections))
   const [naming, setNaming] = useState(false)
+  const [customMenuOpen, setCustomMenuOpen] = useState(false)
+  const [newProfileName, setNewProfileName] = useState<string | null>(null)
   const [nameDraft, setNameDraft] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [savedMessage, setSavedMessage] = useState('')
+  const [justSaved, setJustSaved] = useState(false)
 
   const { source, sections, modified, customProfiles } = design
+
+  useEffect(() => {
+    if (!justSaved) return
+    const timer = setTimeout(() => setJustSaved(false), SAVED_CONFIRMATION_MS)
+    return () => clearTimeout(timer)
+  }, [justSaved])
 
   useEffect(() => {
     onEditingSectionChange(editorOpen ? selectedIndex : -1)
@@ -97,13 +106,11 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
   const clearTransientState = () => {
     setSelectedIndex(-1)
     setNaming(false)
-    setSavedMessage('')
   }
 
   const updateSections = (next: TrimSection[], nextSelected = selectedIndex) => {
     design.setSections(next)
     setSelectedIndex(nextSelected)
-    setSavedMessage('')
   }
 
   const handlePresetChange = (value: string) => {
@@ -120,13 +127,20 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
   const startNaming = () => {
     setNameDraft(isCustom ? `${design.sourceName} copy` : '')
     setNaming(true)
-    setSavedMessage('')
   }
 
-  const handleNewFromCurrent = () => {
-    setEditorOpen(true)
-    startNaming()
-    setNameDraft('')
+  const handleCustomMenuOpenChange = (open: boolean) => {
+    setCustomMenuOpen(open)
+    if (!open) setNewProfileName(null)
+  }
+
+  const handleCreateProfile = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const name = (newProfileName ?? '').trim()
+    if (!name) return
+    design.saveAsNew(name)
+    clearTransientState()
+    handleCustomMenuOpenChange(false)
   }
 
   const handleSaveNew = (event: FormEvent<HTMLFormElement>) => {
@@ -135,12 +149,13 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
     if (!name) return
     design.saveAsNew(name)
     setNaming(false)
-    setSavedMessage(`Saved “${name}” to Custom.`)
+    setJustSaved(true)
   }
 
   const handleSaveExisting = () => {
+    if (justSaved) return
     design.saveExisting()
-    setSavedMessage(`Updated “${design.sourceName}”.`)
+    setJustSaved(true)
   }
 
   const handleDelete = () => {
@@ -151,7 +166,6 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
   const handleReset = () => {
     setLinked(!sharesDiffer(design.reset()))
     setSelectedIndex(-1)
-    setSavedMessage('')
   }
 
   const handleLinkedChange = (nextLinked: boolean) => {
@@ -229,7 +243,7 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
             </SegmentedControlItem>
           </Tooltip>
         ))}
-        <Menu>
+        <Menu open={customMenuOpen} onOpenChange={handleCustomMenuOpenChange}>
           <MenuTrigger asChild>
             <SegmentedControlItem value={CUSTOM_VALUE} className="trim-custom-segment" aria-label="Custom profiles" data-state={isCustom ? 'on' : 'off'}>
               {selectedCustomIcon ? <TrimProfileIcon profile={selectedCustomIcon} selected /> : <EditIcon />}
@@ -249,13 +263,39 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
                 ))}
               </MenuRadioGroup>
             ) : (
-              <p className="trim-custom-empty">No custom profiles yet. Edit any profile and save it to add one here.</p>
+              <p className="trim-custom-empty">No custom profiles</p>
             )}
             <MenuSeparator />
-            <MenuItem onSelect={handleNewFromCurrent}>
-              <PlusIcon />
-              <span className="trim-custom-name">New from current profile</span>
-            </MenuItem>
+            {newProfileName === null ? (
+              <MenuItem
+                onSelect={(event) => {
+                  event.preventDefault()
+                  setNewProfileName('')
+                }}
+              >
+                <PlusIcon />
+                <span className="trim-custom-name">Create Custom Profile</span>
+              </MenuItem>
+            ) : (
+              <form
+                className="trim-custom-create"
+                onSubmit={handleCreateProfile}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Escape') event.stopPropagation()
+                }}
+              >
+                <Input
+                  size="sm"
+                  value={newProfileName}
+                  onChange={(event) => setNewProfileName(event.target.value)}
+                  placeholder="Profile name"
+                  aria-label="Name for the new custom profile"
+                  autoComplete="off"
+                  autoFocus
+                />
+                <Button size="sm" variant="primary" type="submit" disabled={newProfileName.trim() === ''}>Create</Button>
+              </form>
+            )}
           </MenuContent>
         </Menu>
       </SegmentedControl>
@@ -442,14 +482,22 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
                   {isCustom ? (
                     <>
                       <Button size="sm" onClick={startNaming}>Save as new…</Button>
-                      <Button size="sm" variant="primary" disabled={!modified} onClick={handleSaveExisting}>Save</Button>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        className="trim-save-button"
+                        disabled={!modified && !justSaved}
+                        aria-label={justSaved ? 'Saved' : undefined}
+                        onClick={handleSaveExisting}
+                      >
+                        {justSaved ? <CheckIcon /> : 'Save'}
+                      </Button>
                     </>
                   ) : (
                     <Button size="sm" variant="primary" onClick={startNaming}>Save as custom…</Button>
                   )}
                 </div>
               )}
-              {savedMessage ? <p className="trim-saved mm-type-small" role="status">{savedMessage}</p> : null}
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -458,8 +506,8 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
       <ConfirmDialog
         open={confirmingDelete}
         onOpenChange={setConfirmingDelete}
-        title={`Delete “${design.sourceName}”?`}
-        description="The profile is removed from the Custom menu on this device."
+        title={`Delete "${design.sourceName}"?`}
+        description={<>Are you sure you want to remove <span className="confirm-highlight">'{design.sourceName}'</span>?</>}
         confirmLabel="Delete"
         destructive
         onConfirm={handleDelete}

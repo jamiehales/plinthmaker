@@ -349,6 +349,18 @@ body {
   font-size: 11px;
 }
 
+.trim-custom-create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+}
+
+.trim-custom-create .mm-field {
+  flex: 1;
+  min-width: 0;
+}
+
 .trim-custom-empty {
   max-width: 260px;
   margin: 0;
@@ -532,9 +544,12 @@ body {
   flex: 1;
 }
 
-.trim-saved {
-  margin: 0;
-  color: var(--success);
+.confirm-highlight {
+  color: var(--brass);
+}
+
+.trim-save-button {
+  min-width: 64px;
 }
 
 .check-row {
