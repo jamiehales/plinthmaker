@@ -102,3 +102,23 @@ export const GripIcon = () => (
     <circle cx="15" cy="18" r="1.6" />
   </Icon>
 )
+
+export const EyeIcon = () => (
+  <Icon>
+    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+    <circle cx="12" cy="12" r="3" />
+  </Icon>
+)
+
+export const EyeOffIcon = () => (
+  <Icon>
+    <path d="M10.6 5.1A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-2.7 3.6M6.6 6.6C3.7 8.4 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" />
+  </Icon>
+)
+
+export const FigureIcon = () => (
+  <Icon>
+    <circle cx="12" cy="5" r="2.5" />
+    <path d="M8 21v-6l-2-1 2-5h8l2 5-2 1v6M8 21h8" />
+  </Icon>
+)

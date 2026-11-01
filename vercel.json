@@ -4,7 +4,39 @@
   "installCommand": "sh scripts/install-kits.sh && pnpm install --frozen-lockfile",
   "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
+  "headers": [
+    {
+      "source": "/minicompare/includes/:path*",
+      "headers": [
+        {
+          "key": "x-vercel-enable-rewrite-caching",
+          "value": "1"
+        },
+        {
+          "key": "CDN-Cache-Control",
+          "value": "max-age=604800"
+        }
+      ]
+    },
+    {
+      "source": "/minicompare/assets/:path*",
+      "headers": [
+        {
+          "key": "x-vercel-enable-rewrite-caching",
+          "value": "1"
+        },
+        {
+          "key": "CDN-Cache-Control",
+          "value": "max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/minicompare/:path*",
+      "destination": "https://minicompare.info/:path*"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

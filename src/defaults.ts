@@ -66,6 +66,26 @@ export const DEFAULT_TRIM_HEIGHT = 6
 export const DEFAULT_TRIM_SIZE = 6
 export const DEFAULT_TRIM_LINKED = true
 
+export const DEFAULT_SHOW_FIGURE = false
+export const DEFAULT_FIGURE_FEED_PATH = ['mezgike-miniatures', 'the-dredge', 'dredge-marine', 'dredge-marine-dred014-h']
+export const FIGURE_SOURCE_PATH = 'minicompare/'
+export const FIGURE_FEED_PATH = 'includes/_data.php?r4'
+export const FIGURE_FEED_MAX_AGE_MS = 24 * 60 * 60 * 1000
+export const FIGURE_PIXELS_PER_MM = 10
+export const FIGURE_ALPHA_THRESHOLD = 128
+export const FIGURE_MONOCHROME = true
+export const FIGURE_SHADE_BAND = 0.25
+export const FIGURE_SHADOW_COLOR = 0xa8404f
+export const FIGURE_SHADOW_TINT = 1
+export const FIGURE_OPACITY = 0.55
+export const MAX_FIGURE_RESULTS = 60
+export const FIGURE_HANDLE_RADIUS_SCALE = 0.4
+export const FIGURE_HANDLE_MIN_RADIUS = 6
+export const FIGURE_HANDLE_MAX_RADIUS = 25
+export const FIGURE_HANDLE_OPACITY = 0.2
+export const FIGURE_HANDLE_HOVER_OPACITY = 0.35
+export const FIGURE_HANDLE_ARROW_SCALE = 0.55
+
 
 export const DRAWER_WIDTH = 500
 export const COMPACT_LAYOUT_QUERY = '(max-width: 720px)'

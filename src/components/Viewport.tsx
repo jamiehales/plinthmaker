@@ -5,6 +5,7 @@ import DrillJig, { type DrillJigParams } from './DrillJig.tsx'
 import SupportOverlay from './SupportOverlay.tsx'
 import CavityGuide, { type CavityGuideMode } from './CavityGuide.tsx'
 import HoleGuide, { type HoleGuideMode } from './HoleGuide.tsx'
+import FigureGuide, { type FigurePosition } from './FigureGuide.tsx'
 import type { TrimSection } from './trimSections.ts'
 import type { PlinthParams, SupportParams } from './geometryBuilder.ts'
 import { DEFAULT_RAFT_HEIGHT } from '../defaults.ts'
@@ -15,13 +16,17 @@ interface ViewportProps {
   supportParams: SupportParams
   cavityGuide: CavityGuideMode | null
   showSupportGuide: boolean
+  showSupports: boolean
+  figures: { id: number; imagePath: string; position: FigurePosition }[]
+  onFigurePositionChange: (id: number, position: FigurePosition) => void
+  onFigureLoadingChange: (id: number, loading: boolean) => void
   holeGuide: HoleGuideMode | null
   trimGuide: { sections: TrimSection[]; sectionIndex: number } | null
   baseSegMM: number
   filletSegMM: number
 }
 
-export default function Viewport({ plinthParams, drillJigParams, supportParams, cavityGuide, showSupportGuide, holeGuide, trimGuide, baseSegMM, filletSegMM }: ViewportProps) {
+export default function Viewport({ plinthParams, drillJigParams, supportParams, cavityGuide, showSupportGuide, showSupports, figures, onFigurePositionChange, onFigureLoadingChange, holeGuide, trimGuide, baseSegMM, filletSegMM }: ViewportProps) {
   const tilt = supportParams.enabled ? (supportParams.plinthAngle * Math.PI) / 180 : 0
   const raise = supportParams.enabled ? (supportParams.raftHeight ?? DEFAULT_RAFT_HEIGHT) + supportParams.raiseBy + (plinthParams.depth / 2) * Math.sin(tilt) : 0
 
@@ -61,10 +66,21 @@ export default function Viewport({ plinthParams, drillJigParams, supportParams, 
           ) : null}
           {cavityGuide ? <CavityGuide params={plinthParams} mode={cavityGuide} /> : null}
           {holeGuide ? <HoleGuide params={plinthParams} mode={holeGuide} /> : null}
+          {figures.map((figure) => (
+            <FigureGuide
+              key={figure.id}
+              id={figure.id}
+              params={plinthParams}
+              imagePath={figure.imagePath}
+              position={figure.position}
+              onPositionChange={onFigurePositionChange}
+              onLoadingChange={onFigureLoadingChange}
+            />
+          ))}
         </group>
 
         {supportParams.enabled ? (
-          <SupportOverlay shape={plinthParams.shape} plinthParams={plinthParams} supportParams={supportParams} showGuide={showSupportGuide} baseSegMM={baseSegMM} />
+          <SupportOverlay shape={plinthParams.shape} plinthParams={plinthParams} supportParams={supportParams} showGuide={showSupportGuide} showMesh={showSupports} baseSegMM={baseSegMM} />
         ) : null}
 
         <OrbitControls

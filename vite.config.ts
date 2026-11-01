@@ -25,6 +25,14 @@ function proxyPrefixMiddleware(prefix: string) {
   }
 }
 
+const minicompareProxy = {
+  '^(/proxy/5173)?/minicompare/': {
+    target: 'https://minicompare.info',
+    changeOrigin: true,
+    rewrite: (path: string) => path.replace(/^(\/proxy\/5173)?\/minicompare/, ''),
+  },
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ command }) => ({
   plugins: [react(), proxyPrefixMiddleware('/proxy/5173/')],
@@ -32,6 +40,10 @@ export default defineConfig(({ command }) => ({
   server: {
     host: '0.0.0.0',
     allowedHosts: ['code.jamiehales.com'],
+    proxy: minicompareProxy,
+  },
+  preview: {
+    proxy: minicompareProxy,
   },
   resolve: {
     dedupe: ['react', 'react-dom', 'radix-ui'],

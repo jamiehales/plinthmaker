@@ -38,7 +38,7 @@ import {
   DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
   DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_TOP_THICKNESS, DEFAULT_HOLLOW_WALL_THICKNESS,
   DEFAULT_SUCTION_HOLE_ENABLED, DEFAULT_SUCTION_HOLE_DIAMETER, MAX_SUCTION_HOLE_DIAMETER,
-  TOP_ANGLE_PRESETS, COMPACT_LAYOUT_QUERY, DEFAULT_SHEET_SNAP,
+  TOP_ANGLE_PRESETS, COMPACT_LAYOUT_QUERY, DEFAULT_SHEET_SNAP, DEFAULT_SHOW_FIGURE,
 } from './defaults.ts'
 import { ParameterSheetHeader } from './components/ParameterSheet.tsx'
 import { getPreviewHeight, getSheetHeights, type SheetSnap } from './components/sheetLayout.ts'
@@ -49,8 +49,17 @@ import { useTrimDesign } from './components/useTrimDesign.ts'
 import PlinthAngleIcon from './components/PlinthAngleIcon.tsx'
 import { type CavityGuideMode } from './components/CavityGuide.tsx'
 import { type HoleGuideMode } from './components/HoleGuide.tsx'
+import MiniatureList, { type Miniature } from './components/MiniatureList.tsx'
+import { type FigureEntry, DEFAULT_PREVIEW_FIGURE } from './components/figureCatalog.ts'
+import VisibilityToggle from './components/VisibilityToggle.tsx'
+import { type FigurePosition } from './components/FigureGuide.tsx'
 
 type IntroPreview = 'hollow' | 'hole' | 'suction' | 'supports'
+
+const CENTERED_FIGURE: FigurePosition = { x: 0, z: 0 }
+const DEFAULT_MINIATURES: Miniature[] = [{ id: 0, figure: DEFAULT_PREVIEW_FIGURE, position: CENTERED_FIGURE }]
+
+const SUPPORT_VISIBILITY_NOTE = 'supports in viewport, supports will be generated for the download whenever resin supports are enabled'
 
 const HOLLOWING_RECOMMENDATION = 'When printing on a resin printer, I recommend hollowing the model. It reduces the likelihood of a failed print due to the pull forces generated'
 
@@ -123,6 +132,12 @@ function App() {
   const [trimSize, setTrimSize] = useState(DEFAULT_TRIM_SIZE)
   const [trimLinked, setTrimLinked] = useState(DEFAULT_TRIM_LINKED)
   const [trimResetCount, setTrimResetCount] = useState(0)
+  const [showSupportsInViewport, setShowSupportsInViewport] = useState(true)
+  const [showFigure, setShowFigure] = useState(DEFAULT_SHOW_FIGURE)
+  const [miniatures, setMiniatures] = useState<Miniature[]>(DEFAULT_MINIATURES)
+  const [editingMiniature, setEditingMiniature] = useState<number | null>(null)
+  const [loadingMiniatures, setLoadingMiniatures] = useState<ReadonlySet<number>>(new Set())
+  const nextMiniatureId = useRef(DEFAULT_MINIATURES.length)
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>(DEFAULT_SHEET_SNAP)
   const { build } = useGeometryWorker()
   const helpRef = useRef<HelpDialogHandle>(null)
@@ -266,6 +281,49 @@ function App() {
       setRaftHeight(DEFAULT_RAFT_HEIGHT)
     },
   )
+
+  const resetFigure = resetIf(
+    miniatures.length !== 1 || miniatures[0].figure.id !== DEFAULT_PREVIEW_FIGURE.id
+      || miniatures[0].position.x !== 0 || miniatures[0].position.z !== 0,
+    () => {
+      setMiniatures(DEFAULT_MINIATURES)
+      setEditingMiniature(null)
+    },
+  )
+
+  const handleShowFigure = (enabled: boolean) => {
+    setShowFigure(enabled)
+    if (enabled && miniatures.length === 0) setMiniatures(DEFAULT_MINIATURES)
+  }
+
+  const updateMiniature = (id: number, change: Partial<Miniature>) => {
+    setMiniatures((current) => current.map((miniature) => (miniature.id === id ? { ...miniature, ...change } : miniature)))
+  }
+
+  const addMiniature = () => {
+    const id = nextMiniatureId.current++
+    setMiniatures((current) => [...current, { id, figure: DEFAULT_PREVIEW_FIGURE, position: CENTERED_FIGURE }])
+    setEditingMiniature(id)
+  }
+
+  const deleteMiniature = (id: number) => {
+    setMiniatures((current) => current.filter((miniature) => miniature.id !== id))
+    setEditingMiniature((current) => (current === id ? null : current))
+  }
+
+  const handleMiniaturePosition = useCallback((id: number, position: FigurePosition) => {
+    setMiniatures((current) => current.map((miniature) => (miniature.id === id ? { ...miniature, position } : miniature)))
+  }, [])
+
+  const handleMiniatureLoading = useCallback((id: number, loading: boolean) => {
+    setLoadingMiniatures((current) => {
+      if (current.has(id) === loading) return current
+      const next = new Set(current)
+      if (loading) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }, [])
 
   const handleLocked = (checked: boolean) => {
     setLockedAspect(checked)
@@ -668,7 +726,19 @@ function App() {
 
           <Separator />
 
-          <SectionTitle onReset={resetSupports}>Supports</SectionTitle>
+          <SectionTitle
+            onReset={resetSupports}
+            actions={addSupports ? (
+              <VisibilityToggle
+                visible={showSupportsInViewport}
+                onVisibleChange={setShowSupportsInViewport}
+                label={showSupportsInViewport ? 'Hide supports in viewport' : 'Show supports in viewport'}
+                content={`${showSupportsInViewport ? 'Hide' : 'Show'} ${SUPPORT_VISIBILITY_NOTE}`}
+              />
+            ) : null}
+          >
+            Supports
+          </SectionTitle>
           <div className="check-row">
             <CheckField checked={addSupports} onChange={enableWithIntro('supports', setAddSupports)}>Generate Resin Supports</CheckField>
             {addSupports && !hollowEnabled ? (
@@ -747,6 +817,22 @@ function App() {
               </Accordion>
             </>
           ) : null}
+
+          <Separator />
+
+          <SectionTitle onReset={resetFigure}>Preview Figures</SectionTitle>
+          <CheckField checked={showFigure} onChange={handleShowFigure}>Show Size Guide Figure</CheckField>
+          {showFigure ? (
+            <MiniatureList
+              miniatures={miniatures}
+              editingId={editingMiniature}
+              loadingIds={loadingMiniatures}
+              onEdit={setEditingMiniature}
+              onFigureChange={(id, figure: FigureEntry) => updateMiniature(id, { figure })}
+              onDelete={deleteMiniature}
+              onAdd={addMiniature}
+            />
+          ) : null}
         </div>
 
         {compact ? null : (
@@ -772,6 +858,10 @@ function App() {
           supportParams={supportParams}
           cavityGuide={hollowEnabled ? (editingHollow ?? (introPreview === 'hollow' ? 'outline' : null)) : null}
           showSupportGuide={editingSupportLayout || introPreview === 'supports'}
+          showSupports={showSupportsInViewport}
+          figures={showFigure ? miniatures.map((miniature) => ({ id: miniature.id, imagePath: miniature.figure.imagePath, position: miniature.position })) : []}
+          onFigurePositionChange={handleMiniaturePosition}
+          onFigureLoadingChange={handleMiniatureLoading}
           holeGuide={visibleHoleGuide}
           trimGuide={trimEnabled && editingTrimSection >= 0 ? { sections: trimDesign.sections, sectionIndex: editingTrimSection } : null}
           baseSegMM={0.5}
