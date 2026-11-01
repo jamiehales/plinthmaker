@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent, type PointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent } from 'react'
 import {
   Accordion,
   AccordionContent,
@@ -53,6 +53,7 @@ interface TrimDesignerProps {
   onTrimSizeChange: (value: number) => void
   trimLinked: boolean
   onTrimLinkedChange: (linked: boolean) => void
+  onEditingSectionChange: (index: number) => void
 }
 
 const PRESET_PROFILES = TRIM_PROFILES.filter((profile) => profile.id !== 'custom')
@@ -71,7 +72,7 @@ function formatShare(value: number): string {
   return `${Math.round(value * 100)}%`
 }
 
-export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, maxTrimSize, trimSize, onTrimSizeChange, trimLinked, onTrimLinkedChange }: TrimDesignerProps) {
+export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, maxTrimSize, trimSize, onTrimSizeChange, trimLinked, onTrimLinkedChange, onEditingSectionChange }: TrimDesignerProps) {
   const [editorOpen, setEditorOpen] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const [linked, setLinked] = useState(() => !sharesDiffer(design.sections))
@@ -81,6 +82,10 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
   const [savedMessage, setSavedMessage] = useState('')
 
   const { source, sections, modified, customProfiles } = design
+
+  useEffect(() => {
+    onEditingSectionChange(editorOpen ? selectedIndex : -1)
+  }, [editorOpen, selectedIndex, onEditingSectionChange])
   const isCustom = source.kind === 'custom'
 
   const customIcons = useMemo(

@@ -9,13 +9,15 @@ import {
 
 export type GeometryData = {
   position: Float32Array
+  trimSection: Float32Array | null
   index: Uint32Array | null
 }
 
 function serializeGeometry(geo: THREE.BufferGeometry): GeometryData {
   const position = geo.attributes.position.array as Float32Array
+  const trimSection = geo.attributes.trimSection ? (geo.attributes.trimSection.array as Float32Array) : null
   const index = geo.index ? (geo.index.array as Uint32Array) : null
-  return { position: position.slice(), index: index ? index.slice() : null }
+  return { position: position.slice(), trimSection: trimSection ? trimSection.slice() : null, index: index ? index.slice() : null }
 }
 
 function serializeNullableGeometry(geo: THREE.BufferGeometry | null): GeometryData | null {

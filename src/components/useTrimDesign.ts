@@ -95,7 +95,7 @@ export function useTrimDesign(defaultPresetId: string): TrimDesign {
     modified,
     customProfiles,
     trimProfileId: usesPresetPoints ? source.id : 'custom',
-    customTrimPoints: usesPresetPoints ? undefined : compiledPoints,
+    customTrimPoints: compiledPoints,
     selectPreset,
     selectCustom,
     setSections,

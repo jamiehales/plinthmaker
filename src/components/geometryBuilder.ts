@@ -56,6 +56,8 @@ export interface SupportParams {
   raftHeight?: number
 }
 
+export const NO_SECTION = -1
+
 export const DOWNLOAD_BASE_SEGMENT_MM = 0.1
 export const DOWNLOAD_FILLET_SEGMENT_MM = 0.05
 export const RENDER_BASE_SEGMENT_MM = 1.5
@@ -299,13 +301,13 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
 
   const topYAt = (z: number) => Math.max(0, Math.min(h, h - (z + d / 2) * tanA))
 
-  type Ring = { y: number | null; ys: number[] | null; pts: THREE.Vector2[] }
+  type Ring = { y: number | null; ys: number[] | null; pts: THREE.Vector2[]; section: number }
   const constYs = (yv: number, n: number) => Array.from({ length: n }, () => yv)
 
   const rings: Ring[] = []
 
   if (trimOn) {
-    const profile = p.trimProfileId === 'custom' && p.customTrimPoints
+    const profile = p.customTrimPoints
       ? { id: 'custom', name: 'Custom', interpolate: 'bezier' as const, points: p.customTrimPoints }
       : getTrimProfile(p.trimProfileId)
     const trimSamples = sampleTrimRings(profile, trimHeight, baseSegMM)
@@ -314,10 +316,10 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
       const outline = offset > 1e-6
         ? makeTrimOutline(p.shape, w, d, offset, p.roundStyle, edgeRound, r, np)
         : baseOutline.map((pp) => pp.clone())
-      rings.push({ y: s.y, ys: constYs(s.y, outline.length), pts: outline })
+      rings.push({ y: s.y, ys: constYs(s.y, outline.length), pts: outline, section: s.section })
     }
   } else {
-    rings.push({ y: 0, ys: constYs(0, np), pts: baseOutline })
+    rings.push({ y: 0, ys: constYs(0, np), pts: baseOutline, section: NO_SECTION })
   }
 
   if (topRound) {
@@ -347,15 +349,15 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
       }
       return { pts, ys }
     }
-    rings.push({ y: null, ...ringAt(0) })
+    rings.push({ y: null, ...ringAt(0), section: NO_SECTION })
     for (let i = 1; i < steps; i++) {
-      rings.push({ y: null, ...ringAt(i / steps) })
+      rings.push({ y: null, ...ringAt(i / steps), section: NO_SECTION })
     }
-    rings.push({ y: null, ...ringAt(1) })
+    rings.push({ y: null, ...ringAt(1), section: NO_SECTION })
   } else if (angleTop) {
-    rings.push({ y: null, ys: baseOutline.map((pp) => topYAt(pp.y)), pts: baseOutline.map((pp) => pp.clone()) })
+    rings.push({ y: null, ys: baseOutline.map((pp) => topYAt(pp.y)), pts: baseOutline.map((pp) => pp.clone()), section: NO_SECTION })
   } else {
-    rings.push({ y: h, ys: constYs(h, np), pts: baseOutline.map((pp) => pp.clone()) })
+    rings.push({ y: h, ys: constYs(h, np), pts: baseOutline.map((pp) => pp.clone()), section: NO_SECTION })
   }
 
   const topRing = rings[rings.length - 1]
@@ -371,6 +373,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
   }
 
   const indices: number[] = []
+  const triangleSections: number[] = []
   for (let j = 0; j < rings.length - 1; j++) {
     const r0 = rings[j]
     const r1 = rings[j + 1]
@@ -383,6 +386,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
       const c = (j + 1) * np + k
       const dd = (j + 1) * np + (k + 1) % np
       indices.push(a, c, b, b, c, dd)
+      triangleSections.push(r1.section, r1.section)
     }
   }
 
@@ -396,6 +400,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
   for (const idx of bottomTri.indices) {
     indices.push(bottomOffset + idx)
   }
+  for (let i = 0; i < bottomTri.indices.length; i += 3) triangleSections.push(NO_SECTION)
 
   let cx = 0, cz = 0
   for (const pt of topRing.pts) { cx += pt.x; cz += pt.y }
@@ -408,6 +413,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
   const topRingBase = (rings.length - 1) * np
   for (let k = 0; k < np; k++) {
     indices.push(centerIdx, topRingBase + ((k + 1) % np), topRingBase + k)
+    triangleSections.push(NO_SECTION)
   }
 
   let nextVert = centerIdx + 1
@@ -427,6 +433,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
       nextVert += stepTri.positions.length / 3
       for (let i = 0; i < stepTri.indices.length; i += 3) {
         indices.push(stepBase + stepTri.indices[i], stepBase + stepTri.indices[i + 2], stepBase + stepTri.indices[i + 1])
+        triangleSections.push(r1.section)
       }
     }
   }
@@ -436,6 +443,7 @@ function buildRoundedBody(p: PlinthParams, tol = 0, baseSegMM = DOWNLOAD_BASE_SE
   geo.setIndex(indices)
   const flat = geo.toNonIndexed()
   geo.dispose()
+  flat.setAttribute('trimSection', new THREE.BufferAttribute(new Float32Array(triangleSections.flatMap((section) => [section, section, section])), 1))
   flat.computeVertexNormals()
   return flat
 }

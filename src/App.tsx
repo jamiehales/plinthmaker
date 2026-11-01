@@ -111,6 +111,7 @@ function App() {
   const [hollowEnabled, setHollowEnabled] = useState(DEFAULT_HOLLOW_ENABLED)
   const [topThickness, setTopThickness] = useState(DEFAULT_HOLLOW_TOP_THICKNESS)
   const [hollowWallThickness, setHollowWallThickness] = useState(DEFAULT_HOLLOW_WALL_THICKNESS)
+  const [editingTrimSection, setEditingTrimSection] = useState(-1)
   const [editingHole, setEditingHole] = useState<HoleGuideMode | null>(null)
   const [editingSupportLayout, setEditingSupportLayout] = useState(false)
   const [editingHollow, setEditingHollow] = useState<CavityGuideMode | null>(null)
@@ -445,6 +446,7 @@ function App() {
               onTrimSizeChange={setTrimSize}
               trimLinked={trimLinked}
               onTrimLinkedChange={setTrimLinked}
+              onEditingSectionChange={setEditingTrimSection}
             />
           ) : null}
 
@@ -685,6 +687,7 @@ function App() {
           cavityGuide={hollowEnabled ? (editingHollow ?? (introPreview === 'hollow' ? 'outline' : null)) : null}
           showSupportGuide={editingSupportLayout || introPreview === 'supports'}
           holeGuide={visibleHoleGuide}
+          trimGuide={trimEnabled && editingTrimSection >= 0 ? { sections: trimDesign.sections, sectionIndex: editingTrimSection } : null}
           baseSegMM={0.5}
           filletSegMM={0.5}
         />

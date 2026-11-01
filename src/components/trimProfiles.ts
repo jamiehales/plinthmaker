@@ -8,6 +8,7 @@ export interface TrimProfilePoint {
   sharp: boolean
   inHandle?: TrimHandle
   outHandle?: TrimHandle
+  section?: number
 }
 
 export type TrimInterpolation = 'bezier' | 'linear'
@@ -103,14 +104,15 @@ export function sampleTrimOffset(profile: TrimProfile, yNorm: number): number {
   return cubicBezier(bezT, p0, p1, p2, p3)
 }
 
-export interface TrimSample { y: number; offset: number }
+export interface TrimSample { y: number; offset: number; section: number }
 
 export function sampleTrimRings(profile: TrimProfile, trimHeight: number, segMM: number): TrimSample[] {
   if (trimHeight <= 0) return []
   const pts = profile.points
   if (pts.length === 0) return []
   const samples: TrimSample[] = []
-  samples.push({ y: pts[0].y * trimHeight, offset: pts[0].offset })
+  const sectionOf = (point: TrimProfilePoint) => point.section ?? -1
+  samples.push({ y: pts[0].y * trimHeight, offset: pts[0].offset, section: sectionOf(pts[0]) })
 
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i]
@@ -122,14 +124,14 @@ export function sampleTrimRings(profile: TrimProfile, trimHeight: number, segMM:
     if (profile.interpolate === 'linear' || (a.sharp && b.sharp)) {
       if (!isVertical) {
         if (yA > 1e-6 && Math.abs(yA - samples[samples.length - 1].y) > 1e-6) {
-          samples.push({ y: yA, offset: a.offset })
+          samples.push({ y: yA, offset: a.offset, section: sectionOf(a) })
         }
         if (yB > 1e-6 && yB < trimHeight - 1e-6) {
-          samples.push({ y: yB, offset: b.offset })
+          samples.push({ y: yB, offset: b.offset, section: sectionOf(b) })
         }
       } else {
-        samples.push({ y: yA, offset: a.offset })
-        samples.push({ y: yA, offset: b.offset })
+        samples.push({ y: yA, offset: a.offset, section: sectionOf(a) })
+        samples.push({ y: yA, offset: b.offset, section: sectionOf(b) })
       }
     } else {
       const oh = a.sharp ? { dy: 0, dOffset: 0 } : getOutHandle(pts, i)
@@ -150,14 +152,14 @@ export function sampleTrimRings(profile: TrimProfile, trimHeight: number, segMM:
         const t = j / steps
         const yT = Math.max(yMin, Math.min(yMax, cubicBezier(t, a.y, a.y + oh.dy, b.y + ih.dy, b.y)))
         const offT = cubicBezier(t, a.offset, a.offset + oh.dOffset, b.offset + ih.dOffset, b.offset)
-        samples.push({ y: yT * trimHeight, offset: offT })
+        samples.push({ y: yT * trimHeight, offset: offT, section: sectionOf(b) })
       }
     }
   }
 
   const last = pts[pts.length - 1]
   if (Math.abs(last.y * trimHeight - samples[samples.length - 1].y) > 1e-6) {
-    samples.push({ y: last.y * trimHeight, offset: last.offset })
+    samples.push({ y: last.y * trimHeight, offset: last.offset, section: sectionOf(last) })
   }
 
   return samples

@@ -14,6 +14,7 @@ function getWorker(): Worker {
 export function deserializeGeometry(data: GeometryData): THREE.BufferGeometry {
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(data.position, 3))
+  if (data.trimSection) geo.setAttribute('trimSection', new THREE.BufferAttribute(data.trimSection, 1))
   if (data.index) geo.setIndex(new THREE.BufferAttribute(data.index, 1))
   geo.computeVertexNormals()
   return geo

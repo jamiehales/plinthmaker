@@ -124,6 +124,7 @@ const KAPPA = 0.5523
 interface ProfileDraftPoint {
   y: number
   offset: number
+  section: number
   sharp: boolean
   inHandle: TrimHandle
   outHandle: TrimHandle
@@ -135,13 +136,14 @@ function zeroHandle(): TrimHandle {
 
 export function compileTrimSections(sections: TrimSection[]): TrimProfilePoint[] {
   const normalized = normalizeSections(sections)
-  const points: ProfileDraftPoint[] = [{ y: 0, offset: 1, sharp: true, inHandle: zeroHandle(), outHandle: zeroHandle() }]
+  const points: ProfileDraftPoint[] = [{ y: 0, offset: 1, section: 0, sharp: true, inHandle: zeroHandle(), outHandle: zeroHandle() }]
   const lastPoint = () => points[points.length - 1]
+  let section = 0
 
   const lineTo = (y: number, offset: number) => {
     const previous = lastPoint()
     if (Math.abs(previous.y - y) < 1e-9 && Math.abs(previous.offset - offset) < 1e-9) return
-    points.push({ y, offset, sharp: true, inHandle: zeroHandle(), outHandle: zeroHandle() })
+    points.push({ y, offset, section, sharp: true, inHandle: zeroHandle(), outHandle: zeroHandle() })
   }
 
   const curveTo = (y: number, offset: number, convex: boolean) => {
@@ -158,21 +160,22 @@ export function compileTrimSections(sections: TrimSection[]): TrimProfilePoint[]
       previous.sharp = false
       previous.outHandle = startHandle
     } else if (previous.sharp) {
-      points.push({ y: previous.y, offset: previous.offset, sharp: false, inHandle: zeroHandle(), outHandle: startHandle })
+      points.push({ y: previous.y, offset: previous.offset, section, sharp: false, inHandle: zeroHandle(), outHandle: startHandle })
     } else {
       previous.outHandle = startHandle
     }
-    points.push({ y, offset, sharp: false, inHandle: endHandle, outHandle: zeroHandle() })
+    points.push({ y, offset, section, sharp: false, inHandle: endHandle, outHandle: zeroHandle() })
   }
 
   const closeCurve = () => {
     const previous = lastPoint()
-    if (!previous.sharp) points.push({ y: previous.y, offset: previous.offset, sharp: true, inHandle: zeroHandle(), outHandle: zeroHandle() })
+    if (!previous.sharp) points.push({ y: previous.y, offset: previous.offset, section, sharp: true, inHandle: zeroHandle(), outHandle: zeroHandle() })
   }
 
   let y = 0
   let offset = 1
-  for (const item of normalized) {
+  for (const [index, item] of normalized.entries()) {
+    section = index
     const top = y + item.height
     const inner = offset - item.depth
     if (item.type === 'band') {
@@ -202,6 +205,7 @@ export function compileTrimSections(sections: TrimSection[]): TrimProfilePoint[]
   return points.map((point) => ({
     y: point.y,
     offset: point.offset,
+    section: point.section,
     sharp: point.sharp,
     inHandle: point.inHandle,
     outHandle: point.outHandle,

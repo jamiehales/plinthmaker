@@ -5,6 +5,7 @@ import { useGeometryWorker, deserializeGeometry, markBuilding, markDone, markFai
 import type { Shape, PlinthParams } from './geometryBuilder.ts'
 import { topDrop, RENDER_BASE_SEGMENT_MM, RENDER_FILLET_SEGMENT_MM } from './geometryBuilder.ts'
 import { DEFAULT_RENDER_THROTTLE_MS } from '../defaults.ts'
+import { GUIDE_COLOR } from './guideShapes.ts'
 
 const DEBUG_OUTLINES = false
 
@@ -34,9 +35,62 @@ function makeOutlineLoop(shape: Shape, w: number, d: number, segMM: number, zSca
   return new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthTest: false }))
 }
 
-export default function Plinth({ params, baseSegMM = RENDER_BASE_SEGMENT_MM, filletSegMM = RENDER_FILLET_SEGMENT_MM }: { params: PlinthParams; baseSegMM?: number; filletSegMM?: number }) {
-  const { build } = useGeometryWorker()
+const HIGHLIGHT_VERTEX_DECLARATIONS = `
+attribute float trimSection;
+varying float vTrimSection;
+`
+
+const HIGHLIGHT_FRAGMENT_DECLARATIONS = `
+uniform float uHighlightSection;
+uniform vec3 uHighlightColor;
+varying float vTrimSection;
+`
+
+const HIGHLIGHT_FRAGMENT = `
+if (uHighlightSection >= 0.0 && abs(vTrimSection - uHighlightSection) < 0.5) {
+  diffuseColor.rgb = mix(diffuseColor.rgb, uHighlightColor, 0.65);
+}
+`
+
+function createHighlightMaterial(uniforms: Record<string, THREE.IUniform>): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({ color: '#9aa4b0', metalness: 0.1, roughness: 0.6 })
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms)
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>${HIGHLIGHT_VERTEX_DECLARATIONS}`)
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTrimSection = trimSection;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>${HIGHLIGHT_FRAGMENT_DECLARATIONS}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>${HIGHLIGHT_FRAGMENT}`)
+  }
+  return material
+}
+
+
+interface PlinthProps {
+  params: PlinthParams
+  baseSegMM?: number
+  filletSegMM?: number
+  highlightSection?: number | null
+}
+
+export default function Plinth({ params, baseSegMM = RENDER_BASE_SEGMENT_MM, filletSegMM = RENDER_FILLET_SEGMENT_MM, highlightSection = null }: PlinthProps) {
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
+  const highlightUniforms = useMemo(() => ({
+    uHighlightSection: { value: -1 },
+    uHighlightColor: { value: new THREE.Color(GUIDE_COLOR) },
+  }), [])
+  const material = useMemo(() => createHighlightMaterial(highlightUniforms), [highlightUniforms])
+
+  useEffect(() => {
+    highlightUniforms.uHighlightSection.value = highlightSection ?? -1
+  }, [highlightUniforms, highlightSection])
+
+  useEffect(() => {
+    return () => material.dispose()
+  }, [material])
+
+  const { build } = useGeometryWorker()
   const reqIdRef = useRef(0)
   const lastBuildRef = useRef(0)
   const pendingParamsRef = useRef<{ params: PlinthParams; baseSegMM: number; filletSegMM: number } | null>(null)
@@ -154,9 +208,7 @@ export default function Plinth({ params, baseSegMM = RENDER_BASE_SEGMENT_MM, fil
 
   return (
     <group>
-      <mesh geometry={geometry}>
-        <meshStandardMaterial color="#9aa4b0" metalness={0.1} roughness={0.6} />
-      </mesh>
+      <mesh geometry={geometry} material={material} />
       {DEBUG_OUTLINES ? (
         <>
           <primitive object={topOutline} position={[0, topY - r, 0]} rotation={[angleRad, 0, 0]} renderOrder={1000} />
