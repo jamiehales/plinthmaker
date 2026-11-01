@@ -1,8 +1,23 @@
 import type { ReactNode } from 'react'
-import { Checkbox } from '@jamiehales/ui-kit/mostlymaking'
+import { Checkbox, IconButton } from '@jamiehales/ui-kit/mostlymaking'
+import { ResetIcon } from './icons.tsx'
 
-export function SectionTitle({ children }: { children: ReactNode }) {
-  return <h2 className="section-title mm-type-label">{children}</h2>
+interface SectionTitleProps {
+  children: string
+  onReset?: (() => void) | null
+}
+
+export function SectionTitle({ children, onReset }: SectionTitleProps) {
+  return (
+    <div className="section-header">
+      <h2 className="section-title mm-type-label">{children}</h2>
+      {onReset ? (
+        <IconButton variant="ghost" size="sm" className="section-reset" aria-label={`Reset ${children} to defaults`} title="Reset to defaults" onClick={onReset}>
+          <ResetIcon />
+        </IconButton>
+      ) : null}
+    </div>
+  )
 }
 
 interface CheckFieldProps {

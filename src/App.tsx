@@ -37,7 +37,7 @@ import {
   DEFAULT_TRIM_ENABLED, DEFAULT_TRIM_PROFILE_ID, DEFAULT_TRIM_HEIGHT, DEFAULT_TRIM_SIZE, DEFAULT_TRIM_LINKED,
   DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
   DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_TOP_THICKNESS, DEFAULT_HOLLOW_WALL_THICKNESS,
-  DEFAULT_SUCTION_HOLE_ENABLED, DEFAULT_SUCTION_HOLE_DIAMETER,
+  DEFAULT_SUCTION_HOLE_ENABLED, DEFAULT_SUCTION_HOLE_DIAMETER, MAX_SUCTION_HOLE_DIAMETER,
   TOP_ANGLE_PRESETS, COMPACT_LAYOUT_QUERY, DEFAULT_SHEET_SNAP,
 } from './defaults.ts'
 import { ParameterSheetHeader } from './components/ParameterSheet.tsx'
@@ -122,6 +122,7 @@ function App() {
   const [trimHeight, setTrimHeight] = useState(DEFAULT_TRIM_HEIGHT)
   const [trimSize, setTrimSize] = useState(DEFAULT_TRIM_SIZE)
   const [trimLinked, setTrimLinked] = useState(DEFAULT_TRIM_LINKED)
+  const [trimResetCount, setTrimResetCount] = useState(0)
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>(DEFAULT_SHEET_SNAP)
   const { build } = useGeometryWorker()
   const helpRef = useRef<HelpDialogHandle>(null)
@@ -181,6 +182,90 @@ function App() {
     setSupportSize(size)
     setSupportTipSize((tipSize) => Math.min(tipSize, Math.min(1, size)))
   }
+
+  const resetIf = (modified: boolean, reset: () => void) => (modified ? reset : null)
+
+  const resetShape = resetIf(shape !== DEFAULT_SHAPE, () => setShape(DEFAULT_SHAPE))
+  const resetDimensions = resetIf(
+    width !== DEFAULT_WIDTH || depth !== DEFAULT_DEPTH || height !== DEFAULT_HEIGHT || lockedAspect !== DEFAULT_LOCKED_ASPECT,
+    () => {
+      setWidth(DEFAULT_WIDTH)
+      setDepth(DEFAULT_DEPTH)
+      setHeight(DEFAULT_HEIGHT)
+      setLockedAspect(DEFAULT_LOCKED_ASPECT)
+    },
+  )
+  const resetTopAngle = resetIf(topAngle !== DEFAULT_TOP_ANGLE || topAnglePreset !== DEFAULT_TOP_ANGLE, () => {
+    setTopAngle(DEFAULT_TOP_ANGLE)
+    setTopAnglePreset(DEFAULT_TOP_ANGLE)
+  })
+  const resetRounding = resetIf(
+    roundStyle !== DEFAULT_ROUND_STYLE || roundLocation !== DEFAULT_ROUND_LOCATION || roundSize !== DEFAULT_ROUND_SIZE,
+    () => {
+      setRoundStyle(DEFAULT_ROUND_STYLE)
+      setRoundLocation(DEFAULT_ROUND_LOCATION)
+      setRoundSize(DEFAULT_ROUND_SIZE)
+    },
+  )
+  const resetTrim = resetIf(
+    trimHeight !== DEFAULT_TRIM_HEIGHT || trimSize !== DEFAULT_TRIM_SIZE
+      || trimLinked !== DEFAULT_TRIM_LINKED || trimDesign.source.kind !== 'preset' || trimDesign.source.id !== DEFAULT_TRIM_PROFILE_ID || trimDesign.modified,
+    () => {
+      setTrimHeight(DEFAULT_TRIM_HEIGHT)
+      setTrimSize(DEFAULT_TRIM_SIZE)
+      setTrimLinked(DEFAULT_TRIM_LINKED)
+      trimDesign.selectPreset(DEFAULT_TRIM_PROFILE_ID)
+      setTrimResetCount((count) => count + 1)
+    },
+  )
+  const resetHole = resetIf(
+    holeDiameter !== DEFAULT_HOLE_DIAMETER || holeDepth !== DEFAULT_HOLE_DEPTH,
+    () => {
+      setHoleDiameter(DEFAULT_HOLE_DIAMETER)
+      setHoleDepth(DEFAULT_HOLE_DEPTH)
+      if (!jigDiffHole) setJigHoleDiameter(DEFAULT_HOLE_DIAMETER)
+    },
+  )
+  const resetHollow = resetIf(
+    topThickness !== DEFAULT_HOLLOW_TOP_THICKNESS || hollowWallThickness !== DEFAULT_HOLLOW_WALL_THICKNESS
+      || suctionHoleEnabled !== DEFAULT_SUCTION_HOLE_ENABLED || suctionHoleDiameter !== DEFAULT_SUCTION_HOLE_DIAMETER,
+    () => {
+      setTopThickness(DEFAULT_HOLLOW_TOP_THICKNESS)
+      setHollowWallThickness(DEFAULT_HOLLOW_WALL_THICKNESS)
+      setSuctionHoleEnabled(DEFAULT_SUCTION_HOLE_ENABLED)
+      setSuctionHoleDiameter(DEFAULT_SUCTION_HOLE_DIAMETER)
+    },
+  )
+  const resetDrillJig = resetIf(
+    jigWallSize !== DEFAULT_JIG_WALL_SIZE || jigHeight !== DEFAULT_JIG_HEIGHT
+      || jigOverlap !== DEFAULT_JIG_OVERLAP || jigTolerance !== DEFAULT_JIG_TOLERANCE || jigLift !== DEFAULT_JIG_LIFT
+      || jigFlattenTop !== DEFAULT_JIG_FLATTEN_TOP || jigDiffHole || (jigHoleDiameter !== holeDiameter),
+    () => {
+      setJigWallSize(DEFAULT_JIG_WALL_SIZE)
+      setJigHeight(DEFAULT_JIG_HEIGHT)
+      setJigOverlap(DEFAULT_JIG_OVERLAP)
+      setJigTolerance(DEFAULT_JIG_TOLERANCE)
+      setJigLift(DEFAULT_JIG_LIFT)
+      setJigFlattenTop(DEFAULT_JIG_FLATTEN_TOP)
+      setJigDiffHole(false)
+      setJigHoleDiameter(holeDiameter)
+    },
+  )
+  const resetSupports = resetIf(
+    plinthAngle !== DEFAULT_PLINTH_ANGLE || raiseBy !== DEFAULT_RAISE_BY
+      || supportSize !== DEFAULT_SUPPORT_SIZE || supportTipSize !== DEFAULT_SUPPORT_TIP_SIZE || supportSpacing !== DEFAULT_SUPPORT_SPACING
+      || scaffoldingEnabled !== DEFAULT_SCAFFOLDING_ENABLED || scaffoldingAngle !== DEFAULT_SCAFFOLDING_ANGLE || raftHeight !== DEFAULT_RAFT_HEIGHT,
+    () => {
+      setPlinthAngle(DEFAULT_PLINTH_ANGLE)
+      setRaiseBy(DEFAULT_RAISE_BY)
+      setSupportSize(DEFAULT_SUPPORT_SIZE)
+      setSupportTipSize(DEFAULT_SUPPORT_TIP_SIZE)
+      setSupportSpacing(DEFAULT_SUPPORT_SPACING)
+      setScaffoldingEnabled(DEFAULT_SCAFFOLDING_ENABLED)
+      setScaffoldingAngle(DEFAULT_SCAFFOLDING_ANGLE)
+      setRaftHeight(DEFAULT_RAFT_HEIGHT)
+    },
+  )
 
   const handleLocked = (checked: boolean) => {
     setLockedAspect(checked)
@@ -339,7 +424,7 @@ function App() {
           </ParameterSheetHeader>
         ) : null}
         <div className="sidebar-scroll">
-          <SectionTitle>Shape</SectionTitle>
+          <SectionTitle onReset={resetShape}>Shape</SectionTitle>
           <SegmentedControl className="fill-row" value={shape} onValueChange={(v) => handleShape(v as Shape)} aria-label="Shape">
             <SegmentedControlItem value="rectangle">
               <SquareIcon /> Rectangle
@@ -349,7 +434,7 @@ function App() {
             </SegmentedControlItem>
           </SegmentedControl>
 
-          <SectionTitle>Dimensions</SectionTitle>
+          <SectionTitle onReset={resetDimensions}>Dimensions</SectionTitle>
           <LinkedPair
             linked={lockedAspect}
             onLinkedChange={handleLocked}
@@ -370,7 +455,7 @@ function App() {
 
           <LabeledSlider label="Height" value={height} onChange={setHeight} min={20} max={150} />
 
-          <SectionTitle>Top Angle</SectionTitle>
+          <SectionTitle onReset={resetTopAngle}>Top Angle</SectionTitle>
           <SegmentedControl
             className="fill-row tall"
             value={String(topAnglePreset)}
@@ -406,7 +491,7 @@ function App() {
 
           <Separator />
 
-          <SectionTitle>Chamfer / Fillet</SectionTitle>
+          <SectionTitle onReset={resetRounding}>Chamfer / Fillet</SectionTitle>
           <SegmentedControl className="fill-row" value={roundStyle} onValueChange={(v) => setRoundStyle(v as RoundStyle)} aria-label="Edge style">
             <SegmentedControlItem value="none">None</SegmentedControlItem>
             <SegmentedControlItem value="chamfer">Chamfer</SegmentedControlItem>
@@ -434,10 +519,11 @@ function App() {
 
           <Separator />
 
-          <SectionTitle>Trim</SectionTitle>
+          <SectionTitle onReset={resetTrim}>Trim</SectionTitle>
           <CheckField checked={trimEnabled} onChange={setTrimEnabled}>Add Trim</CheckField>
           {trimEnabled ? (
             <TrimDesigner
+              key={trimResetCount}
               design={trimDesign}
               trimHeight={trimHeight}
               onTrimHeightChange={setTrimHeight}
@@ -452,7 +538,7 @@ function App() {
 
           <Separator />
 
-          <SectionTitle>Plinth Hole</SectionTitle>
+          <SectionTitle onReset={resetHole}>Plinth Hole</SectionTitle>
           <CheckField checked={addHole} onChange={enableWithIntro('hole', setAddHole)}>Add Hole</CheckField>
           {addHole ? (
             <>
@@ -470,7 +556,7 @@ function App() {
 
           <Separator />
 
-          <SectionTitle>Hollow</SectionTitle>
+          <SectionTitle onReset={resetHollow}>Hollow</SectionTitle>
           <CheckField checked={hollowEnabled} onChange={enableWithIntro('hollow', setHollowEnabled)}>Enable Hollowing</CheckField>
           {hollowEnabled ? (
             <>
@@ -501,7 +587,7 @@ function App() {
                   value={suctionHoleDiameter}
                   onChange={setSuctionHoleDiameter}
                   min={1}
-                  max={Math.min(width, depth) - 2 * hollowWallThickness}
+                  max={Math.min(MAX_SUCTION_HOLE_DIAMETER, Math.min(width, depth) - 2 * hollowWallThickness)}
                   step={0.5}
                   onEditingChange={(editing) => handleEditingHole('suction', editing)}
                 />
@@ -511,7 +597,7 @@ function App() {
 
           <Separator />
 
-          <SectionTitle>Drill Jig</SectionTitle>
+          <SectionTitle onReset={resetDrillJig}>Drill Jig</SectionTitle>
           <CheckField checked={addDrillJig} onChange={setAddDrillJig}>Generate Drill Jig</CheckField>
           {addDrillJig ? (
             <>
@@ -582,7 +668,7 @@ function App() {
 
           <Separator />
 
-          <SectionTitle>Supports</SectionTitle>
+          <SectionTitle onReset={resetSupports}>Supports</SectionTitle>
           <div className="check-row">
             <CheckField checked={addSupports} onChange={enableWithIntro('supports', setAddSupports)}>Generate Resin Supports</CheckField>
             {addSupports && !hollowEnabled ? (

@@ -34,7 +34,7 @@ export default defineConfig(({ command }) => ({
     allowedHosts: ['code.jamiehales.com'],
   },
   resolve: {
-    dedupe: ['react', 'react-dom'],
+    dedupe: ['react', 'react-dom', 'radix-ui'],
   },
   optimizeDeps: {
     exclude: ['manifold-3d'],
