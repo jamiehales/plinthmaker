@@ -258,7 +258,6 @@ export default function TrimDesigner({ design, trimHeight, onTrimHeightChange, m
                   <MenuRadioItem key={profile.id} value={profile.id}>
                     <TrimProfileIcon profile={icon} size={22} />
                     <span className="trim-custom-name">{profile.name}</span>
-                    <span className="trim-custom-meta">{profile.sections.length === 1 ? '1 section' : `${profile.sections.length} sections`}</span>
                   </MenuRadioItem>
                 ))}
               </MenuRadioGroup>

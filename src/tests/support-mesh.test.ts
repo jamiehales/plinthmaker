@@ -164,6 +164,13 @@ function buildPlinthConfig(shape: Shape, opts: Partial<PlinthParams> = {}): Plin
     hollowWallThickness: 2,
     suctionHoleEnabled: false,
     suctionHoleDiameter: 5,
+    baseInsertEnabled: false,
+    baseInsertId: 'round-32',
+    baseInsertOutline: 'ellipse',
+    baseInsertWidth: 32,
+    baseInsertLength: 32,
+    baseInsertDepth: 4,
+    baseInsertTolerance: 0.1,
     ...opts,
   }
 }

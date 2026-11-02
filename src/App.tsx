@@ -9,8 +9,14 @@ import {
   LinkedPair,
   SegmentedControl,
   SegmentedControlItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Separator,
   Spinner,
+  Tooltip,
   WarningTooltip,
 } from '@jamiehales/ui-kit/mostlymaking'
 import { CircleIcon, DownloadIcon, HelpIcon, HexagonIcon, SquareIcon } from './components/icons.tsx'
@@ -38,6 +44,8 @@ import {
   DEFAULT_MIN_HOLE_DIAMETER, DEFAULT_MAX_HOLE_DIAMETER,
   DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_TOP_THICKNESS, DEFAULT_HOLLOW_WALL_THICKNESS,
   DEFAULT_SUCTION_HOLE_ENABLED, DEFAULT_SUCTION_HOLE_DIAMETER, MAX_SUCTION_HOLE_DIAMETER,
+  DEFAULT_BASE_INSERT_ENABLED, DEFAULT_BASE_INSERT_ID, DEFAULT_BASE_INSERT_DEPTH, DEFAULT_BASE_INSERT_TOLERANCE,
+  BASE_INSERT_PLINTH_MARGIN, MIN_BASE_INSERT_DEPTH, MAX_BASE_INSERT_DEPTH, MIN_BASE_INSERT_SIZE, MAX_BASE_INSERT_SIZE,
   TOP_ANGLE_PRESETS, COMPACT_LAYOUT_QUERY, DEFAULT_SHEET_SNAP, DEFAULT_SHOW_FIGURE,
 } from './defaults.ts'
 import { ParameterSheetHeader } from './components/ParameterSheet.tsx'
@@ -54,6 +62,7 @@ import { type CavityGuideMode } from './components/CavityGuide.tsx'
 import { type HoleGuideMode } from './components/HoleGuide.tsx'
 import MiniatureList, { type Miniature } from './components/MiniatureList.tsx'
 import { type FigureEntry, DEFAULT_PREVIEW_FIGURE } from './components/figureCatalog.ts'
+import { GAMING_BASES, HEXAGON_SIDES, getGamingBase, hasSingleSize, hexagonAcrossCorners, baseInsertFits } from './components/gamingBases.ts'
 import VisibilityToggle from './components/VisibilityToggle.tsx'
 import { type FigurePosition } from './components/FigureGuide.tsx'
 
@@ -63,6 +72,10 @@ const CENTERED_FIGURE: FigurePosition = { x: 0, z: 0 }
 const DEFAULT_MINIATURES: Miniature[] = [{ id: 0, figure: DEFAULT_PREVIEW_FIGURE, position: CENTERED_FIGURE }]
 
 const SUPPORT_VISIBILITY_NOTE = 'supports in viewport, supports will be generated for the download whenever resin supports are enabled'
+
+const BASE_INSERT_TOO_LARGE = 'The base is larger than the top of the plinth, so the insert will cut through the edge'
+
+const BASE_INSERT_BREAKS_CAVITY = 'The insert is deeper than the top thickness, so it will cut into the hollow cavity'
 
 const HOLLOWING_RECOMMENDATION = 'When printing on a resin printer, I recommend hollowing the model. It reduces the likelihood of a failed print due to the pull forces generated'
 
@@ -130,6 +143,12 @@ function App() {
   const [editingHollow, setEditingHollow] = useState<CavityGuideMode | null>(null)
   const [suctionHoleEnabled, setSuctionHoleEnabled] = useState(DEFAULT_SUCTION_HOLE_ENABLED)
   const [suctionHoleDiameter, setSuctionHoleDiameter] = useState(DEFAULT_SUCTION_HOLE_DIAMETER)
+  const [baseInsertEnabled, setBaseInsertEnabled] = useState(DEFAULT_BASE_INSERT_ENABLED)
+  const [baseInsertId, setBaseInsertId] = useState(DEFAULT_BASE_INSERT_ID)
+  const [baseInsertWidth, setBaseInsertWidth] = useState(getGamingBase(DEFAULT_BASE_INSERT_ID).width)
+  const [baseInsertLength, setBaseInsertLength] = useState(getGamingBase(DEFAULT_BASE_INSERT_ID).length)
+  const [baseInsertDepth, setBaseInsertDepth] = useState(DEFAULT_BASE_INSERT_DEPTH)
+  const [baseInsertTolerance, setBaseInsertTolerance] = useState(DEFAULT_BASE_INSERT_TOLERANCE)
   const [trimEnabled, setTrimEnabled] = useState(DEFAULT_TRIM_ENABLED)
   const trimDesign = useTrimDesign(DEFAULT_TRIM_PROFILE_ID)
   const [trimHeight, setTrimHeight] = useState(DEFAULT_TRIM_HEIGHT)
@@ -176,6 +195,8 @@ function App() {
     if (v === 'ellipse' && roundLocation !== 'top') setRoundLocation('top')
   }
 
+  const selectedGamingBase = getGamingBase(baseInsertId)
+  const singleSizeBaseInsert = hasSingleSize(selectedGamingBase)
   const plinthDepth = lockedAspect && shape === 'ngon' ? Math.round(width * ngonDepthRatio(ngonSides) * 100) / 100 : depth
 
   const handleWidth = (w: number) => {
@@ -248,6 +269,46 @@ function App() {
       setHoleDiameter(DEFAULT_HOLE_DIAMETER)
       setHoleDepth(DEFAULT_HOLE_DEPTH)
       if (!jigDiffHole) setJigHoleDiameter(DEFAULT_HOLE_DIAMETER)
+    },
+  )
+  const handleBaseInsertId = (id: string) => {
+    const base = getGamingBase(id)
+    setBaseInsertId(base.id)
+    setBaseInsertWidth(base.width)
+    setBaseInsertLength(base.length)
+  }
+
+  const setPlinthToBase = () => {
+    const plinthLength = baseInsertLength + BASE_INSERT_PLINTH_MARGIN
+    if (selectedGamingBase.outline === 'hexagon') {
+      const acrossCorners = Math.round(hexagonAcrossCorners(plinthLength) * 100) / 100
+      handleShape('ngon')
+      setNgonSides(HEXAGON_SIDES)
+      setLockedAspect(true)
+      setWidth(acrossCorners)
+      setDepth(acrossCorners)
+      return
+    }
+    const plinthWidth = baseInsertWidth + BASE_INSERT_PLINTH_MARGIN
+    handleShape(selectedGamingBase.outline)
+    setLockedAspect(plinthWidth === plinthLength)
+    setWidth(plinthWidth)
+    setDepth(plinthLength)
+  }
+
+  const handleBaseInsertDiameter = (diameter: number) => {
+    setBaseInsertWidth(diameter)
+    setBaseInsertLength(diameter)
+  }
+
+  const resetBaseInsert = resetIf(
+    baseInsertId !== DEFAULT_BASE_INSERT_ID || baseInsertWidth !== getGamingBase(DEFAULT_BASE_INSERT_ID).width
+      || baseInsertLength !== getGamingBase(DEFAULT_BASE_INSERT_ID).length
+      || baseInsertDepth !== DEFAULT_BASE_INSERT_DEPTH || baseInsertTolerance !== DEFAULT_BASE_INSERT_TOLERANCE,
+    () => {
+      handleBaseInsertId(DEFAULT_BASE_INSERT_ID)
+      setBaseInsertDepth(DEFAULT_BASE_INSERT_DEPTH)
+      setBaseInsertTolerance(DEFAULT_BASE_INSERT_TOLERANCE)
     },
   )
   const resetHollow = resetIf(
@@ -339,6 +400,7 @@ function App() {
     topAngle, topAnglePreset, roundStyle, roundLocation, roundSize,
     trimEnabled, trimSource: trimDesign.source, trimSections: trimDesign.sections, trimHeight, trimSize, trimLinked,
     addHole, holeDiameter, holeDepth,
+    baseInsertEnabled, baseInsertId, baseInsertWidth, baseInsertLength, baseInsertDepth, baseInsertTolerance,
     hollowEnabled, topThickness, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter,
     addDrillJig, jigWallSize, jigHeight, jigOverlap, jigTolerance, jigLift, jigFlattenTop, jigDiffHole, jigHoleDiameter,
     addSupports, plinthAngle, raiseBy, supportSize, supportTipSize, supportSpacing, scaffoldingEnabled, scaffoldingAngle, raftHeight,
@@ -365,6 +427,12 @@ function App() {
     setAddHole(config.addHole)
     setHoleDiameter(config.holeDiameter)
     setHoleDepth(config.holeDepth)
+    setBaseInsertEnabled(config.baseInsertEnabled)
+    setBaseInsertId(config.baseInsertId)
+    setBaseInsertWidth(config.baseInsertWidth)
+    setBaseInsertLength(config.baseInsertLength)
+    setBaseInsertDepth(config.baseInsertDepth)
+    setBaseInsertTolerance(config.baseInsertTolerance)
     setHollowEnabled(config.hollowEnabled)
     setTopThickness(config.topThickness)
     setHollowWallThickness(config.hollowWallThickness)
@@ -420,18 +488,34 @@ function App() {
     hollowWallThickness,
     suctionHoleEnabled,
     suctionHoleDiameter,
-  }), [shape, ngonSides, width, plinthDepth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimDesign.trimProfileId, trimDesign.customTrimPoints, trimHeight, trimSize, hollowEnabled, topThickness, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter])
+    baseInsertEnabled,
+    baseInsertId,
+    baseInsertOutline: selectedGamingBase.outline,
+    baseInsertWidth,
+    baseInsertLength,
+    baseInsertDepth,
+    baseInsertTolerance,
+  }), [shape, ngonSides, width, plinthDepth, height, addHole, holeDiameter, holeDepth, topAngle, roundStyle, roundLocation, roundSize, trimEnabled, trimDesign.trimProfileId, trimDesign.customTrimPoints, trimHeight, trimSize, hollowEnabled, topThickness, hollowWallThickness, suctionHoleEnabled, suctionHoleDiameter, baseInsertEnabled, baseInsertId, selectedGamingBase.outline, baseInsertWidth, baseInsertLength, baseInsertDepth, baseInsertTolerance])
+
+  const baseInsertWarning = !baseInsertEnabled
+    ? null
+    : !baseInsertFits(plinthParams)
+      ? BASE_INSERT_TOO_LARGE
+      : hollowEnabled && baseInsertDepth >= topThickness
+        ? BASE_INSERT_BREAKS_CAVITY
+        : null
 
   const buildPlinthFilename = useCallback((p: PlinthParams, resMM: number, supported: boolean) => {
     const roundPart = p.roundStyle === 'none' ? '' : `_${p.roundStyle}-${p.roundSize}_`
     const holePart = p.addHole ? `hole-${p.holeDiameter}mm` : 'hole-none'
     const anglePart = p.angleTop ? `angled-${p.topAngle}°` : 'flat'
     const trimPart = p.trimEnabled ? `_trim-${p.trimProfileId}-${p.trimHeight}x${p.trimSize}` : ''
+    const insertPart = p.baseInsertEnabled ? `_insert-${p.baseInsertWidth}x${p.baseInsertLength}x${p.baseInsertDepth}` : ''
     const hollowPart = p.hollowEnabled ? `_hollow-${p.height - p.hollowHeight}x${p.hollowWallThickness}` : ''
     const supportPart = supported ? '_supported' : '_unsupported'
     const um = Math.round(resMM * 1000)
     const shapePart = p.shape === 'ngon' ? `ngon-${p.ngonSides}` : p.shape
-    return `plinth_${shapePart}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}${trimPart}${hollowPart}${supportPart}_${um}um.stl`
+    return `plinth_${shapePart}_${p.width}x${p.depth}x${p.height}_${anglePart}${roundPart}${holePart}${insertPart}${trimPart}${hollowPart}${supportPart}_${um}um.stl`
   }, [])
 
   const buildJigFilename = useCallback((p: PlinthParams, j: DrillJigParams) => {
@@ -695,6 +779,86 @@ function App() {
                 max={50}
                 onEditingChange={(editing) => handleEditingHole('depth', editing)}
               />
+            </>
+          ) : null}
+
+          <Separator />
+
+          <SectionTitle onReset={resetBaseInsert}>Base Insert</SectionTitle>
+          <div className="check-row">
+            <CheckField checked={baseInsertEnabled} onChange={setBaseInsertEnabled}>Add Gaming Base Insert</CheckField>
+            {baseInsertWarning ? <WarningTooltip aria-label="Base insert warning" content={baseInsertWarning} /> : null}
+          </div>
+          {baseInsertEnabled ? (
+            <>
+              <div className="labeled-select">
+                <span className="labeled-slider-label mm-type-small">Base</span>
+                <Select value={baseInsertId} onValueChange={handleBaseInsertId}>
+                  <SelectTrigger className="labeled-select-trigger" aria-label="Gaming base">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GAMING_BASES.map((base) => (
+                      <SelectItem key={base.id} value={base.id}>{base.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Tooltip content={`Set the plinth to the size and the shape of the gaming base + ${BASE_INSERT_PLINTH_MARGIN}mm`}>
+                <Button variant="primary" className="inline-button" onClick={setPlinthToBase}>Set plinth shape to base</Button>
+              </Tooltip>
+              <LabeledSlider
+                label="Depth"
+                value={baseInsertDepth}
+                onChange={setBaseInsertDepth}
+                min={MIN_BASE_INSERT_DEPTH}
+                max={MAX_BASE_INSERT_DEPTH}
+                step={0.1}
+              />
+              <Accordion type="single" collapsible variant="minimal" trailingDivider={false} className="advanced-options">
+                <AccordionItem value="advanced">
+                  <AccordionTrigger>Advanced options</AccordionTrigger>
+                  <AccordionContent className="advanced-options-body">
+                    {singleSizeBaseInsert ? (
+                      <LabeledSlider
+                        label={selectedGamingBase.outline === 'hexagon' ? 'Across Flats' : 'Diameter'}
+                        value={baseInsertWidth}
+                        onChange={handleBaseInsertDiameter}
+                        min={MIN_BASE_INSERT_SIZE}
+                        max={MAX_BASE_INSERT_SIZE}
+                        step={0.1}
+                      />
+                    ) : (
+                      <>
+                        <LabeledSlider
+                          label="Width"
+                          value={baseInsertWidth}
+                          onChange={setBaseInsertWidth}
+                          min={MIN_BASE_INSERT_SIZE}
+                          max={MAX_BASE_INSERT_SIZE}
+                          step={0.1}
+                        />
+                        <LabeledSlider
+                          label="Length"
+                          value={baseInsertLength}
+                          onChange={setBaseInsertLength}
+                          min={MIN_BASE_INSERT_SIZE}
+                          max={MAX_BASE_INSERT_SIZE}
+                          step={0.1}
+                        />
+                      </>
+                    )}
+                    <LabeledSlider
+                      label="Tolerance"
+                      value={baseInsertTolerance}
+                      onChange={setBaseInsertTolerance}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </>
           ) : null}
 

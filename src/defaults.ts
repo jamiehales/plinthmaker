@@ -37,6 +37,16 @@ export const DEFAULT_SUCTION_HOLE_ENABLED = true
 export const DEFAULT_SUCTION_HOLE_DIAMETER = 3
 export const MAX_SUCTION_HOLE_DIAMETER = 5
 
+export const DEFAULT_BASE_INSERT_ENABLED = false
+export const DEFAULT_BASE_INSERT_ID = 'round-32'
+export const DEFAULT_BASE_INSERT_DEPTH = 4
+export const DEFAULT_BASE_INSERT_TOLERANCE = DEFAULT_JIG_TOLERANCE
+export const BASE_INSERT_PLINTH_MARGIN = 2.5
+export const MIN_BASE_INSERT_DEPTH = 0.5
+export const MAX_BASE_INSERT_DEPTH = 10
+export const MIN_BASE_INSERT_SIZE = 10
+export const MAX_BASE_INSERT_SIZE = 150
+
 export const DEFAULT_ADD_SUPPORTS = false
 export const DEFAULT_PLINTH_ANGLE = 15
 export const DEFAULT_RAISE_BY = 5

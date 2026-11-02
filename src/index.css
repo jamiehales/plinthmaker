@@ -306,6 +306,17 @@ body {
   color: var(--muted-foreground);
 }
 
+.labeled-select {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.labeled-select-trigger {
+  flex: 1;
+  min-width: 0;
+}
+
 .labeled-slider-track {
   flex: 1;
 }
@@ -477,6 +488,10 @@ body {
   gap: 10px;
 }
 
+.app[data-compact] .labeled-select {
+  gap: 10px;
+}
+
 .app[data-compact] .labeled-slider-label {
   width: 64px;
 }
@@ -507,12 +522,6 @@ body {
 
 .trim-custom-name {
   flex: 1;
-}
-
-.trim-custom-meta {
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: 11px;
 }
 
 .trim-custom-create {
@@ -797,6 +806,11 @@ body {
 
 .trim-save-button {
   min-width: 64px;
+}
+
+.inline-button {
+  align-self: flex-start;
+  flex-shrink: 0;
 }
 
 .check-row {

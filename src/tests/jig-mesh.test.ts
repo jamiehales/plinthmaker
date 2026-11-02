@@ -167,6 +167,13 @@ function buildConfig(
       hollowWallThickness: 2,
       suctionHoleEnabled: false,
       suctionHoleDiameter: 5,
+      baseInsertEnabled: false,
+      baseInsertId: 'round-32',
+      baseInsertOutline: 'ellipse',
+      baseInsertWidth: 32,
+      baseInsertLength: 32,
+      baseInsertDepth: 4,
+      baseInsertTolerance: 0.1,
       ...opts,
     },
     jig: {
@@ -270,6 +277,13 @@ describe('jig bottom invariant with flatten toggle', () => {
         hollowWallThickness: 2,
         suctionHoleEnabled: false,
         suctionHoleDiameter: 5,
+        baseInsertEnabled: false,
+        baseInsertId: 'round-32',
+        baseInsertOutline: 'ellipse',
+        baseInsertWidth: 32,
+        baseInsertLength: 32,
+        baseInsertDepth: 4,
+        baseInsertTolerance: 0.1,
       }
       const jigBase: DrillJigParams = {
         enabled: true,
@@ -329,6 +343,13 @@ describe('jig top size invariant with flatten toggle (angle=true)', () => {
         hollowWallThickness: 2,
         suctionHoleEnabled: false,
         suctionHoleDiameter: 5,
+        baseInsertEnabled: false,
+        baseInsertId: 'round-32',
+        baseInsertOutline: 'ellipse',
+        baseInsertWidth: 32,
+        baseInsertLength: 32,
+        baseInsertDepth: 4,
+        baseInsertTolerance: 0.1,
       }
       const jigBase: DrillJigParams = {
         enabled: true,
@@ -395,6 +416,13 @@ describe('jig top size matches angle=false when flatten=true', () => {
         hollowWallThickness: 2,
         suctionHoleEnabled: false,
         suctionHoleDiameter: 5,
+        baseInsertEnabled: false,
+        baseInsertId: 'round-32',
+        baseInsertOutline: 'ellipse',
+        baseInsertWidth: 32,
+        baseInsertLength: 32,
+        baseInsertDepth: 4,
+        baseInsertTolerance: 0.1,
       }
       const pNoAngle: PlinthParams = {
         shape,
@@ -419,6 +447,13 @@ describe('jig top size matches angle=false when flatten=true', () => {
         hollowWallThickness: 2,
         suctionHoleEnabled: false,
         suctionHoleDiameter: 5,
+        baseInsertEnabled: false,
+        baseInsertId: 'round-32',
+        baseInsertOutline: 'ellipse',
+        baseInsertWidth: 32,
+        baseInsertLength: 32,
+        baseInsertDepth: 4,
+        baseInsertTolerance: 0.1,
       }
 
       const { jig: jigAngle } = buildJigGeometry(shape, pAngle, jigBase, 1.0, 1.0, false, false)

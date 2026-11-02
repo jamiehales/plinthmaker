@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
-import { type PlinthParams, suctionHoleZ, topDrop } from './geometryBuilder.ts'
+import { type PlinthParams, plinthHoleInset, suctionHoleZ, topDrop } from './geometryBuilder.ts'
 import { EXCESS_COLOR, GUIDE_COLOR, dashedLines, disposeObject, loopSegments, solidLines, translucentMesh } from './guideShapes.ts'
 
 export type HoleGuideMode = 'diameter' | 'depth' | 'suction'
@@ -27,7 +27,9 @@ export default function HoleGuide({ params, mode }: { params: PlinthParams; mode
     const topThickness = height - Math.max(0.1, params.hollowHeight)
     const tanAngle = params.angleTop ? Math.tan((Math.min(89, Math.max(0.5, params.topAngle)) * Math.PI) / 180) : 0
     const topYAt = (z: number) => Math.max(0, Math.min(height, height - (z + depth / 2) * tanAngle))
-    const holeBottomY = height - topDrop(params) / 2 - Math.max(0.1, params.holeDepth)
+    const holeInset = suction ? 0 : plinthHoleInset(params)
+    const openingYAt = (z: number) => topYAt(z) - holeInset
+    const holeBottomY = height - topDrop(params) / 2 - holeInset - Math.max(0.1, params.holeDepth)
     const ceilingYAt = (z: number) => Math.max(0, topYAt(z) - topThickness)
     const bottomYAt = (z: number) => (suction ? ceilingYAt(z) : holeBottomY)
     const breaksIntoCavity = !suction && params.hollowEnabled
@@ -38,7 +40,7 @@ export default function HoleGuide({ params, mode }: { params: PlinthParams; mode
       const angle = (i / HOLE_SEGMENTS) * Math.PI * 2
       circle.push(new THREE.Vector2(radius * Math.cos(angle), centerZ + radius * Math.sin(angle)))
     }
-    const opening = circle.map((point) => new THREE.Vector3(point.x, topYAt(point.y), point.y))
+    const opening = circle.map((point) => new THREE.Vector3(point.x, openingYAt(point.y), point.y))
     const bottom = circle.map((point) => new THREE.Vector3(point.x, bottomYAt(point.y), point.y))
     const outlinePoints = loopSegments(opening)
     const excessPoints: THREE.Vector3[] = []
@@ -69,7 +71,7 @@ export default function HoleGuide({ params, mode }: { params: PlinthParams; mode
     let edge: THREE.LineSegments
     if (mode !== 'depth') {
       const raisedOpening = opening.map((point) => point.clone().setY(point.y + SURFACE_OFFSET))
-      fill = translucentMesh(discGeometry(new THREE.Vector3(0, topYAt(centerZ) + SURFACE_OFFSET, centerZ), raisedOpening))
+      fill = translucentMesh(discGeometry(new THREE.Vector3(0, openingYAt(centerZ) + SURFACE_OFFSET, centerZ), raisedOpening))
       edge = solidLines(loopSegments(raisedOpening))
     } else {
       const bottomColor = belowCeiling(new THREE.Vector3(0, holeBottomY, 0)) ? EXCESS_COLOR : GUIDE_COLOR

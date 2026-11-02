@@ -1,4 +1,5 @@
 import type { RoundLocation, RoundStyle, Shape } from './geometryBuilder.ts'
+import { getGamingBase, isGamingBaseId } from './gamingBases.ts'
 import { getPresetSections, isSection, type TrimSection, type TrimSource } from './trimSections.ts'
 import {
   DEFAULT_SHAPE, DEFAULT_NGON_SIDES, DEFAULT_WIDTH, DEFAULT_DEPTH, DEFAULT_HEIGHT, DEFAULT_LOCKED_ASPECT,
@@ -7,6 +8,7 @@ import {
   DEFAULT_ADD_HOLE, DEFAULT_HOLE_DIAMETER, DEFAULT_HOLE_DEPTH,
   DEFAULT_HOLLOW_ENABLED, DEFAULT_HOLLOW_TOP_THICKNESS, DEFAULT_HOLLOW_WALL_THICKNESS,
   DEFAULT_SUCTION_HOLE_ENABLED, DEFAULT_SUCTION_HOLE_DIAMETER,
+  DEFAULT_BASE_INSERT_ENABLED, DEFAULT_BASE_INSERT_ID, DEFAULT_BASE_INSERT_DEPTH, DEFAULT_BASE_INSERT_TOLERANCE,
   DEFAULT_ADD_DRILL_JIG, DEFAULT_JIG_WALL_SIZE, DEFAULT_JIG_HEIGHT, DEFAULT_JIG_OVERLAP, DEFAULT_JIG_TOLERANCE,
   DEFAULT_JIG_LIFT, DEFAULT_JIG_FLATTEN_TOP,
   DEFAULT_ADD_SUPPORTS, DEFAULT_PLINTH_ANGLE, DEFAULT_RAISE_BY, DEFAULT_SUPPORT_SIZE, DEFAULT_SUPPORT_TIP_SIZE,
@@ -39,6 +41,12 @@ export interface PlinthConfig {
   hollowWallThickness: number
   suctionHoleEnabled: boolean
   suctionHoleDiameter: number
+  baseInsertEnabled: boolean
+  baseInsertId: string
+  baseInsertWidth: number
+  baseInsertLength: number
+  baseInsertDepth: number
+  baseInsertTolerance: number
   addDrillJig: boolean
   jigWallSize: number
   jigHeight: number
@@ -92,6 +100,12 @@ export const DEFAULT_PLINTH_CONFIG: PlinthConfig = {
   hollowWallThickness: DEFAULT_HOLLOW_WALL_THICKNESS,
   suctionHoleEnabled: DEFAULT_SUCTION_HOLE_ENABLED,
   suctionHoleDiameter: DEFAULT_SUCTION_HOLE_DIAMETER,
+  baseInsertEnabled: DEFAULT_BASE_INSERT_ENABLED,
+  baseInsertId: DEFAULT_BASE_INSERT_ID,
+  baseInsertWidth: getGamingBase(DEFAULT_BASE_INSERT_ID).width,
+  baseInsertLength: getGamingBase(DEFAULT_BASE_INSERT_ID).length,
+  baseInsertDepth: DEFAULT_BASE_INSERT_DEPTH,
+  baseInsertTolerance: DEFAULT_BASE_INSERT_TOLERANCE,
   addDrillJig: DEFAULT_ADD_DRILL_JIG,
   jigWallSize: DEFAULT_JIG_WALL_SIZE,
   jigHeight: DEFAULT_JIG_HEIGHT,
@@ -146,6 +160,7 @@ function isValidField(key: keyof PlinthConfig, value: unknown): boolean {
     case 'roundLocation': return ROUND_LOCATIONS.includes(value as RoundLocation)
     case 'topAnglePreset': return value === 'custom' || (typeof value === 'number' && Number.isFinite(value))
     case 'trimSource': return isTrimSource(value)
+    case 'baseInsertId': return isGamingBaseId(value)
     case 'trimSections': return Array.isArray(value) && value.length > 0 && value.every(isSection)
     default: {
       const expected = typeof DEFAULT_PLINTH_CONFIG[key]

@@ -11,6 +11,7 @@ export function describePlinthFeatures(params: PlinthParams, jigParams: DrillJig
     params.angleTop ? `${params.topAngle}° top` : 'Flat top',
     params.roundStyle === 'none' ? null : `${params.roundStyle === 'fillet' ? 'Fillet' : 'Chamfer'} ${params.roundSize} mm`,
     params.addHole ? `${params.holeDiameter} mm hole` : 'No hole',
+    params.baseInsertEnabled ? `${params.baseInsertWidth === params.baseInsertLength ? params.baseInsertWidth : `${params.baseInsertWidth} × ${params.baseInsertLength}`} mm base insert` : null,
     params.trimEnabled ? 'Trim' : null,
     params.hollowEnabled ? 'Hollow' : null,
     jigParams.enabled ? 'Drill jig' : null,

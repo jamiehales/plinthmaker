@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { getTrimProfile, sampleTrimRings, type TrimProfilePoint } from './trimProfiles.ts'
 import { subtractAll } from './csg.ts'
+import { baseInsertOutline, type GamingBaseOutline } from './gamingBases.ts'
 import { ngonVertices, ngonOutline, ngonCavityOutline, offsetPolygon, polygonEdges, roundPolygonCorners, maxCornerRadius, maxCornerTurn, maxPolygonInset } from './ngon.ts'
 
 export type Shape = 'rectangle' | 'ellipse' | 'ngon'
@@ -31,6 +32,13 @@ export interface PlinthParams {
   hollowWallThickness: number
   suctionHoleEnabled: boolean
   suctionHoleDiameter: number
+  baseInsertEnabled: boolean
+  baseInsertId: string
+  baseInsertOutline: GamingBaseOutline
+  baseInsertWidth: number
+  baseInsertLength: number
+  baseInsertDepth: number
+  baseInsertTolerance: number
 }
 
 export interface DrillJigParams {
@@ -82,6 +90,12 @@ export function topDrop(p: Pick<PlinthParams, 'angleTop' | 'topAngle' | 'depth'>
   if (!p.angleTop) return 0
   const angleRad = (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
   return p.depth * Math.tan(angleRad)
+}
+
+export function plinthHoleInset(p: PlinthParams): number {
+  if (!p.baseInsertEnabled) return 0
+  const angleRad = p.angleTop ? (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180 : 0
+  return Math.max(0.1, p.baseInsertDepth) / Math.cos(angleRad)
 }
 
 export function suctionHoleZ(p: PlinthParams): number {
@@ -568,11 +582,41 @@ function buildHollowCavity(p: PlinthParams, segMM: number): THREE.BufferGeometry
   return flat
 }
 
+function buildBaseInsertCutter(p: PlinthParams, baseSegMM: number): THREE.BufferGeometry {
+  const tolerance = Math.max(0, p.baseInsertTolerance)
+  const insertWidth = Math.max(0.1, p.baseInsertWidth + tolerance)
+  const insertLength = Math.max(0.1, p.baseInsertLength + tolerance)
+  const insertDepth = Math.max(0.1, p.baseInsertDepth)
+  const extraTop = 2
+  const cutterHeight = insertDepth + extraTop
+  let cutter: THREE.BufferGeometry
+  if (p.baseInsertOutline === 'hexagon') {
+    const outline = baseInsertOutline('hexagon', insertWidth, insertLength, 0)
+    cutter = new THREE.ExtrudeGeometry(new THREE.Shape(outline), { depth: cutterHeight, bevelEnabled: false })
+    cutter.rotateX(Math.PI / 2)
+    cutter.translate(0, cutterHeight / 2, 0)
+  } else if (p.baseInsertOutline === 'ellipse') {
+    const radius = insertWidth / 2
+    const segments = segsForEllipse(insertWidth / 2, insertLength / 2, baseSegMM)
+    cutter = new THREE.CylinderGeometry(radius, radius, cutterHeight, segments, 1)
+    cutter.scale(1, 1, insertLength / insertWidth)
+  } else {
+    cutter = new THREE.BoxGeometry(insertWidth, cutterHeight, insertLength)
+  }
+  const angleRad = p.angleTop
+    ? (Math.min(89, Math.max(0.5, p.topAngle)) * Math.PI) / 180
+    : 0
+  cutter.translate(0, (extraTop - insertDepth) / 2, 0)
+  cutter.rotateX(angleRad)
+  cutter.translate(0, Math.max(0.1, p.height) - topDrop(p) / 2, 0)
+  return cutter
+}
+
 export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT_MM, filletSegMM = DOWNLOAD_FILLET_SEGMENT_MM, _useCDT = true): THREE.BufferGeometry {
   const bodyGeo = buildPlinthBody(p, 0, baseSegMM, filletSegMM)
   const h = Math.max(0.1, p.height)
 
-  if (!p.addHole && !p.hollowEnabled) return bodyGeo
+  if (!p.addHole && !p.hollowEnabled && !p.baseInsertEnabled) return bodyGeo
 
   const cutters: THREE.BufferGeometry[] = []
 
@@ -585,11 +629,16 @@ export function buildGeometry(p: PlinthParams, baseSegMM = DOWNLOAD_BASE_SEGMENT
 
     const radius = Math.max(0.05, p.holeDiameter / 2)
     const holeDepth = Math.max(0.1, p.holeDepth)
-    const topCenterY = h - drop / 2
-    const extraTop = 2 + radius * tanA
+    const holeInset = plinthHoleInset(p)
+    const topCenterY = h - drop / 2 - holeInset
+    const extraTop = 2 + holeInset + radius * tanA
     const holeGeo = new THREE.CylinderGeometry(radius, radius, holeDepth + extraTop, circleSegments(radius * 2, baseSegMM), 1)
     holeGeo.translate(0, topCenterY + (extraTop - holeDepth) / 2, 0)
     cutters.push(holeGeo)
+  }
+
+  if (p.baseInsertEnabled) {
+    cutters.push(buildBaseInsertCutter(p, baseSegMM))
   }
 
   if (p.hollowEnabled) {
